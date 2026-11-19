@@ -1,9 +1,12 @@
 import { useState } from "react";
-import { Upload, X } from "lucide-react";
-import type { UserProfileDto } from "../../lib/types";
+import { AlertTriangle, Download, RefreshCw, Upload, X } from "lucide-react";
+import type { UpdateStatusDto, UserProfileDto } from "../../lib/types";
 
 interface ProfileModalProps {
   user: UserProfileDto;
+  updateStatus: UpdateStatusDto;
+  onCheckUpdate: () => void;
+  onInstallUpdate: () => void;
   onClose: () => void;
   onSave: (displayName?: string, avatarFilePath?: string) => Promise<void>;
 }
@@ -11,7 +14,14 @@ interface ProfileModalProps {
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
 const ALLOWED_TYPES = ["image/png", "image/jpeg", "image/webp"];
 
-export function ProfileModal({ user, onClose, onSave }: ProfileModalProps) {
+export function ProfileModal({
+  user,
+  updateStatus,
+  onCheckUpdate,
+  onInstallUpdate,
+  onClose,
+  onSave,
+}: ProfileModalProps) {
   const [displayName, setDisplayName] = useState(user.display_name);
   const [avatarFilePath, setAvatarFilePath] = useState<string>("");
   const [previewUrl, setPreviewUrl] = useState<string | null>(user.avatar_url);
@@ -158,6 +168,91 @@ export function ProfileModal({ user, onClose, onSave }: ProfileModalProps) {
             </button>
           </div>
         </form>
+
+        <div className="mt-5 pt-4 border-t border-[var(--border-hairline)] space-y-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <h3 className="text-xs font-semibold">Application Update</h3>
+              <p className="text-[11px] text-[var(--text-muted)]">
+                Installed v{updateStatus.current_version}
+                {updateStatus.phase === "up_to_date" && " • Up to date"}
+                {updateStatus.phase === "checking" && " • Checking..."}
+                {updateStatus.phase === "available" &&
+                  updateStatus.latest_version &&
+                  ` • v${updateStatus.latest_version} available`}
+                {updateStatus.phase === "downloading" &&
+                  ` • Downloading ${updateStatus.progress_percent ?? 0}%`}
+                {updateStatus.phase === "installing" && " • Launching installer..."}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onCheckUpdate}
+                disabled={
+                  updateStatus.phase === "checking" ||
+                  updateStatus.phase === "downloading" ||
+                  updateStatus.phase === "installing"
+                }
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-canvas)] text-xs font-medium hover:border-[#6366F1] disabled:opacity-50"
+              >
+                <RefreshCw
+                  className={`w-3.5 h-3.5 ${
+                    updateStatus.phase === "checking" ? "animate-spin" : ""
+                  }`}
+                />
+                Check for update
+              </button>
+              {updateStatus.phase === "available" && (
+                <button
+                  type="button"
+                  onClick={onInstallUpdate}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#6366F1] text-white text-xs font-medium hover:bg-[#6366F1]/90"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  Update
+                </button>
+              )}
+            </div>
+          </div>
+
+          {updateStatus.release_notes &&
+            (updateStatus.phase === "available" ||
+              updateStatus.phase === "downloading" ||
+              updateStatus.phase === "installing") && (
+              <p className="text-[11px] text-[var(--text-muted)] bg-[var(--bg-canvas)] border border-[var(--border-hairline)] rounded-xl p-2.5 whitespace-pre-wrap max-h-24 overflow-y-auto">
+                {updateStatus.release_notes}
+              </p>
+            )}
+
+          {updateStatus.phase === "downloading" && (
+            <div className="w-full h-1.5 rounded-full bg-[var(--bg-canvas)] overflow-hidden">
+              <div
+                className="h-full bg-[#6366F1] transition-all"
+                style={{ width: `${updateStatus.progress_percent ?? 0}%` }}
+              />
+            </div>
+          )}
+
+          {updateStatus.phase === "verification_failed" && (
+            <div className="p-2.5 rounded-xl bg-[#EF4444]/10 border border-[#EF4444]/30 text-xs text-[#EF4444] flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>
+                Security Warning: Update signature or integrity check failed and
+                installation was blocked.
+                {updateStatus.error_message
+                  ? ` (${updateStatus.error_message})`
+                  : ""}
+              </span>
+            </div>
+          )}
+
+          {updateStatus.phase === "error" && updateStatus.error_message && (
+            <div className="p-2.5 rounded-xl bg-[#EF4444]/10 border border-[#EF4444]/30 text-xs text-[#EF4444]">
+              {updateStatus.error_message}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

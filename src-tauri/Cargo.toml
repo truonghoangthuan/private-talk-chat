@@ -13,6 +13,10 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 name = "private-talk"
 path = "src/main.rs"
 
+[[bin]]
+name = "sign_release"
+path = "src/bin/sign_release.rs"
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 

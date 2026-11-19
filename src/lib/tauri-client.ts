@@ -6,6 +6,7 @@ import type {
   MessageDto,
   SeenReceiptDto,
   TypingUserDto,
+  UpdateStatusDto,
   UserProfileDto,
 } from "./types";
 
@@ -108,6 +109,14 @@ export const tauriClient = {
   typingSetStatus: (conversationId: string, isTyping: boolean) =>
     invoke<void>("typing_set_status", { conversationId, isTyping }),
 
+  // Application Updater
+  updateGetStatus: () => invoke<UpdateStatusDto>("update_get_status"),
+
+  updateCheck: (silent = false) =>
+    invoke<UpdateStatusDto>("update_check", { silent }),
+
+  updateInstall: () => invoke<UpdateStatusDto>("update_install"),
+
   // Event listeners
   onPresenceChanged: (
     cb: (payload: { online_user_ids: string[] }) => void
@@ -160,6 +169,11 @@ export const tauriClient = {
     listen("window:navigate_conversation", (e) =>
       cb(e.payload as { conversation_id: string })
     ),
+
+  onUpdateStateChanged: (
+    cb: (status: UpdateStatusDto) => void
+  ): Promise<UnlistenFn> =>
+    listen("updater:state_changed", (e) => cb(e.payload as UpdateStatusDto)),
 };
 
 export function extractErrorMessage(err: unknown): string {

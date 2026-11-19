@@ -2,9 +2,10 @@ pub mod auth;
 pub mod contacts;
 pub mod conversations;
 pub mod messages;
+pub mod updater;
 
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -18,6 +19,7 @@ use crate::platform::taskbar::update_taskbar_unread_badge;
 use crate::state::media_cache::DecryptedMediaCache;
 use crate::supabase::realtime::RealtimeManager;
 use crate::supabase::{ProfileRow, SupabaseClient, SupabaseConfig, SupabaseError};
+use crate::updater::UpdaterManager;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct AppError {
@@ -133,6 +135,7 @@ pub struct AppState {
     pub supabase: SupabaseClient,
     pub media_cache: DecryptedMediaCache,
     pub realtime: RealtimeManager,
+    pub updater: Arc<UpdaterManager>,
 }
 
 impl AppState {
@@ -143,6 +146,7 @@ impl AppState {
             supabase: SupabaseClient::new(SupabaseConfig::from_env()),
             media_cache: DecryptedMediaCache::new(),
             realtime: RealtimeManager::new(),
+            updater: Arc::new(UpdaterManager::from_env()),
         }
     }
 
@@ -153,6 +157,7 @@ impl AppState {
             supabase,
             media_cache: DecryptedMediaCache::new(),
             realtime: RealtimeManager::new(),
+            updater: Arc::new(UpdaterManager::from_env()),
         }
     }
 

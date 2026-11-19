@@ -3,6 +3,7 @@ pub mod crypto;
 pub mod platform;
 pub mod state;
 pub mod supabase;
+pub mod updater;
 
 use tauri::{
     http::{header, Response, StatusCode},
@@ -91,6 +92,9 @@ pub fn run() {
             commands::messages::message_remove,
             commands::messages::message_mark_seen,
             commands::messages::typing_set_status,
+            commands::updater::update_get_status,
+            commands::updater::update_check,
+            commands::updater::update_install,
             commands::window_focus_conversation,
         ])
         .run(tauri::generate_context!())
