@@ -28,7 +28,10 @@ pub enum SupabaseError {
     InvalidResponse,
 }
 
-#[derive(Debug, Clone)]
+const COMPILE_TIME_SUPABASE_URL: Option<&str> = option_env!("PRIVATE_TALK_SUPABASE_URL");
+const COMPILE_TIME_SUPABASE_ANON_KEY: Option<&str> = option_env!("PRIVATE_TALK_SUPABASE_ANON_KEY");
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SupabaseConfig {
     pub url: String,
     pub anon_key: String,
@@ -36,14 +39,33 @@ pub struct SupabaseConfig {
 
 impl SupabaseConfig {
     pub fn from_env() -> Option<Self> {
-        let url = std::env::var("PRIVATE_TALK_SUPABASE_URL")
-            .ok()
-            .map(|s| s.trim().trim_end_matches('/').to_string())
-            .filter(|s| !s.is_empty());
-        let anon_key = std::env::var("PRIVATE_TALK_SUPABASE_ANON_KEY")
-            .ok()
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty() && s != "your-anon-key-here");
+        let runtime_url = std::env::var("PRIVATE_TALK_SUPABASE_URL").ok();
+        let runtime_key = std::env::var("PRIVATE_TALK_SUPABASE_ANON_KEY").ok();
+        Self::from_sources(
+            runtime_url.as_deref(),
+            COMPILE_TIME_SUPABASE_URL,
+            runtime_key.as_deref(),
+            COMPILE_TIME_SUPABASE_ANON_KEY,
+        )
+    }
+
+    fn from_sources(
+        runtime_url: Option<&str>,
+        compile_url: Option<&str>,
+        runtime_key: Option<&str>,
+        compile_key: Option<&str>,
+    ) -> Option<Self> {
+        let normalize_url = |raw: Option<&str>| {
+            raw.map(|s| s.trim().trim_end_matches('/').to_string())
+                .filter(|s| !s.is_empty())
+        };
+        let normalize_key = |raw: Option<&str>| {
+            raw.map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty() && s != "your-anon-key-here")
+        };
+
+        let url = normalize_url(runtime_url).or_else(|| normalize_url(compile_url));
+        let anon_key = normalize_key(runtime_key).or_else(|| normalize_key(compile_key));
 
         match (url, anon_key) {
             (Some(u), Some(k)) => Some(Self { url: u, anon_key: k }),
@@ -161,5 +183,51 @@ impl SupabaseClient {
 
     pub fn is_remote(&self) -> bool {
         self.config.is_some()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SupabaseConfig;
+
+    #[test]
+    fn resolves_runtime_over_compile_time_and_rejects_placeholder() {
+        let compiled = SupabaseConfig::from_sources(
+            None,
+            Some("https://demo.supabase.co/"),
+            None,
+            Some("compile-anon-key"),
+        );
+        assert_eq!(
+            compiled,
+            Some(SupabaseConfig {
+                url: "https://demo.supabase.co".to_string(),
+                anon_key: "compile-anon-key".to_string(),
+            })
+        );
+
+        let overridden = SupabaseConfig::from_sources(
+            Some("http://127.0.0.1:54321/"),
+            Some("https://demo.supabase.co/"),
+            Some("runtime-anon-key"),
+            Some("compile-anon-key"),
+        );
+        assert_eq!(
+            overridden,
+            Some(SupabaseConfig {
+                url: "http://127.0.0.1:54321".to_string(),
+                anon_key: "runtime-anon-key".to_string(),
+            })
+        );
+
+        assert_eq!(
+            SupabaseConfig::from_sources(
+                None,
+                Some("https://demo.supabase.co"),
+                None,
+                Some("your-anon-key-here"),
+            ),
+            None
+        );
     }
 }

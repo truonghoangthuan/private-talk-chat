@@ -15,7 +15,7 @@ use sha2::{Digest, Sha256};
 use crate::commands::AppError;
 
 pub const DEFAULT_UPDATE_FEED_URL: &str =
-    "https://github.com/private-talk/private-talk-chat/releases/latest/download/latest.json";
+    "https://github.com/truonghoangthuan/private-talk-chat/releases/latest/download/latest.json";
 
 /// Compile-time embedded 32-byte Ed25519 public key (hex or base64 via `PRIVATE_TALK_UPDATER_PUBKEY`).
 const COMPILE_TIME_PUBKEY: Option<&str> = option_env!("PRIVATE_TALK_UPDATER_PUBKEY");

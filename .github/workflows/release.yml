@@ -43,11 +43,20 @@ jobs:
           if ([string]::IsNullOrWhiteSpace($env:PRIVATE_TALK_UPDATER_SIGNING_KEY)) {
             throw "Missing required repository secret PRIVATE_TALK_UPDATER_SIGNING_KEY."
           }
+          if ([string]::IsNullOrWhiteSpace($env:PRIVATE_TALK_UPDATER_PUBKEY)) {
+            throw "Missing required repository variable PRIVATE_TALK_UPDATER_PUBKEY."
+          }
+          if ([string]::IsNullOrWhiteSpace($env:PRIVATE_TALK_SUPABASE_URL) -or [string]::IsNullOrWhiteSpace($env:PRIVATE_TALK_SUPABASE_ANON_KEY)) {
+            throw "Missing required repository variables PRIVATE_TALK_SUPABASE_URL / PRIVATE_TALK_SUPABASE_ANON_KEY."
+          }
 
           "tag=$rawTag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
           "version=$ver" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
         env:
           PRIVATE_TALK_UPDATER_SIGNING_KEY: ${{ secrets.PRIVATE_TALK_UPDATER_SIGNING_KEY }}
+          PRIVATE_TALK_UPDATER_PUBKEY: ${{ vars.PRIVATE_TALK_UPDATER_PUBKEY }}
+          PRIVATE_TALK_SUPABASE_URL: ${{ vars.PRIVATE_TALK_SUPABASE_URL }}
+          PRIVATE_TALK_SUPABASE_ANON_KEY: ${{ vars.PRIVATE_TALK_SUPABASE_ANON_KEY }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -88,6 +97,8 @@ jobs:
         env:
           PRIVATE_TALK_UPDATER_PUBKEY: ${{ vars.PRIVATE_TALK_UPDATER_PUBKEY }}
           PRIVATE_TALK_UPDATE_URL: https://github.com/${{ github.repository }}/releases/latest/download/latest.json
+          PRIVATE_TALK_SUPABASE_URL: ${{ vars.PRIVATE_TALK_SUPABASE_URL }}
+          PRIVATE_TALK_SUPABASE_ANON_KEY: ${{ vars.PRIVATE_TALK_SUPABASE_ANON_KEY }}
 
       - name: Sign NSIS installer and generate latest.json
         id: sign
