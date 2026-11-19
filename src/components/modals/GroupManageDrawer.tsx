@@ -33,6 +33,8 @@ export function GroupManageDrawer({
   const [selectedContactIds, setSelectedContactIds] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [confirmingRemoveUserId, setConfirmingRemoveUserId] = useState<string | null>(null);
+  const [confirmingLeave, setConfirmingLeave] = useState(false);
 
   const isHost = conversation?.host_id === currentUserId;
   const existingMemberIds = new Set(
@@ -87,7 +89,7 @@ export function GroupManageDrawer({
           </h2>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-white/5 text-[var(--text-muted)]"
+            className="p-1.5 rounded-lg hover:bg-[var(--bg-hover)] text-[var(--text-muted)]"
           >
             <X className="w-4 h-4" />
           </button>
@@ -194,21 +196,51 @@ export function GroupManageDrawer({
                           {m.display_name}
                         </span>
                         {m.is_host && (
-                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-[#6366F1]/15 text-[#6366F1] text-[10px]">
-                            <Crown className="w-2.5 h-2.5" />
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-[#6366F1]/15 text-[#6366F1] text-xs">
+                            <Crown className="w-3 h-3" />
                             Host
                           </span>
                         )}
                       </div>
                       {isHost && m.user_id !== currentUserId && (
-                        <button
-                          onClick={() => onRemoveMember(conversation.id, m.user_id)}
-                          disabled={busy}
-                          className="p-1 rounded-lg hover:bg-[#EF4444]/15 text-[#EF4444]"
-                          title="Remove member & rotate group key"
-                        >
-                          <UserMinus className="w-3.5 h-3.5" />
-                        </button>
+                        confirmingRemoveUserId === m.user_id ? (
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                setBusy(true);
+                                try {
+                                  await onRemoveMember(conversation.id, m.user_id);
+                                  setConfirmingRemoveUserId(null);
+                                } finally {
+                                  setBusy(false);
+                                }
+                              }}
+                              disabled={busy}
+                              className="px-2 py-0.5 rounded-md bg-[#EF4444] text-white text-xs font-medium hover:bg-[#EF4444]/90 disabled:opacity-50"
+                            >
+                              Confirm
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setConfirmingRemoveUserId(null)}
+                              disabled={busy}
+                              className="px-2 py-0.5 rounded-md hover:bg-[var(--bg-hover)] text-xs font-medium text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setConfirmingRemoveUserId(m.user_id)}
+                            disabled={busy}
+                            className="p-1 rounded-lg hover:bg-[#EF4444]/15 text-[#EF4444]"
+                            title="Remove member & rotate group key"
+                          >
+                            <UserMinus className="w-3.5 h-3.5" />
+                          </button>
+                        )
                       )}
                     </div>
                   ))}
@@ -230,9 +262,10 @@ export function GroupManageDrawer({
                           {c.display_name} (@{c.username})
                         </span>
                         <button
+                          type="button"
                           onClick={() => onAddMember(conversation.id, c.id)}
                           disabled={busy}
-                          className="px-2 py-1 rounded-lg bg-[#6366F1]/15 text-[#6366F1] text-[11px] font-medium flex items-center gap-1"
+                          className="px-2 py-1 rounded-lg bg-[#6366F1]/15 hover:bg-[var(--bg-hover)] text-[#6366F1] text-xs font-medium flex items-center gap-1"
                         >
                           <UserPlus className="w-3 h-3" />
                           Add
@@ -243,17 +276,45 @@ export function GroupManageDrawer({
                 </div>
               )}
 
-              <button
-                onClick={async () => {
-                  await onLeaveGroup(conversation.id);
-                  onClose();
-                }}
-                disabled={busy}
-                className="mt-auto w-full py-2.5 rounded-xl bg-[#EF4444]/15 hover:bg-[#EF4444]/25 text-[#EF4444] text-xs font-medium flex items-center justify-center gap-1.5"
-              >
-                <LogOut className="w-3.5 h-3.5" />
-                Leave Group
-              </button>
+              {confirmingLeave ? (
+                <div className="mt-auto flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setBusy(true);
+                      try {
+                        await onLeaveGroup(conversation.id);
+                        setConfirmingLeave(false);
+                        onClose();
+                      } finally {
+                        setBusy(false);
+                      }
+                    }}
+                    disabled={busy}
+                    className="flex-1 py-2.5 rounded-xl bg-[#EF4444] hover:bg-[#EF4444]/90 text-white text-xs font-medium disabled:opacity-50"
+                  >
+                    Confirm Leave
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmingLeave(false)}
+                    disabled={busy}
+                    className="px-4 py-2.5 rounded-xl border border-[var(--border-hairline)] hover:bg-[var(--bg-hover)] text-xs font-medium text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setConfirmingLeave(true)}
+                  disabled={busy}
+                  className="mt-auto w-full py-2.5 rounded-xl bg-[#EF4444]/15 hover:bg-[#EF4444]/25 text-[#EF4444] text-xs font-medium flex items-center justify-center gap-1.5"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  Leave Group
+                </button>
+              )}
             </div>
           )
         )}

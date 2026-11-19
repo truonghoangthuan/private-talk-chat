@@ -30,6 +30,16 @@ export function Sidebar({
   const [usernameInput, setUsernameInput] = useState("");
   const [searchError, setSearchError] = useState<string | null>(null);
   const [searching, setSearching] = useState(false);
+  const [failedAvatars, setFailedAvatars] = useState<Set<string>>(new Set());
+
+  const markAvatarFailed = (url: string) => {
+    setFailedAvatars((prev) => {
+      if (prev.has(url)) return prev;
+      const next = new Set(prev);
+      next.add(url);
+      return next;
+    });
+  };
 
   const handleAddContact = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -102,13 +112,13 @@ export function Sidebar({
           </button>
         </form>
         {searchError && (
-          <p className="mt-1.5 text-[11px] text-[#EF4444]">{searchError}</p>
+          <p className="mt-1.5 text-xs text-[#EF4444]">{searchError}</p>
         )}
       </div>
 
       {/* Contacts row */}
       <div className="px-4 py-3 border-b border-[var(--border-hairline)]">
-        <div className="text-[11px] font-medium uppercase tracking-wider text-[var(--text-muted)] mb-2">
+        <div className="text-xs font-medium uppercase tracking-wider text-[var(--text-muted)] mb-2">
           Contacts ({contacts.length})
         </div>
         {contacts.length === 0 ? (
@@ -116,21 +126,36 @@ export function Sidebar({
             Search an exact username above to add a mutual contact.
           </p>
         ) : (
-          <div className="flex flex-wrap gap-2">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1">
             {contacts.map((c) => {
               const online = c.is_online || onlineUserIds.has(c.id);
+              const showAvatar = Boolean(c.avatar_url && !failedAvatars.has(c.avatar_url));
               return (
                 <button
                   key={c.id}
                   onClick={() => onStartDirectChat(c.id)}
-                  className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-[var(--bg-canvas)] border border-[var(--border-hairline)] hover:border-[#6366F1]/50 transition-colors text-xs"
+                  className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-full bg-[var(--bg-canvas)] border border-[var(--border-hairline)] hover:border-[#6366F1]/50 hover:bg-[var(--bg-hover)] transition-colors text-xs"
                   title={`Chat with ${c.display_name} (@${c.username})`}
                 >
-                  <span
-                    className={`w-2 h-2 rounded-full ${
-                      online ? "bg-[#10B981]" : "bg-slate-500"
-                    }`}
-                  />
+                  <span className="relative shrink-0">
+                    {showAvatar && c.avatar_url ? (
+                      <img
+                        src={c.avatar_url}
+                        alt={c.display_name}
+                        onError={() => markAvatarFailed(c.avatar_url!)}
+                        className="w-5 h-5 rounded-full object-cover"
+                      />
+                    ) : (
+                      <span className="w-5 h-5 rounded-full bg-[#6366F1]/20 text-[#6366F1] text-[10px] font-bold flex items-center justify-center">
+                        {c.display_name.slice(0, 1).toUpperCase()}
+                      </span>
+                    )}
+                    <span
+                      className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full ring-1 ring-[var(--bg-canvas)] ${
+                        online ? "bg-[#10B981]" : "bg-slate-500"
+                      }`}
+                    />
+                  </span>
                   <span className="max-w-[100px] truncate">{c.display_name}</span>
                 </button>
               );
@@ -141,7 +166,7 @@ export function Sidebar({
 
       {/* Conversations */}
       <div className="flex-1 overflow-y-auto px-2 py-2 space-y-0.5">
-        <div className="px-2 py-1 text-[11px] font-medium uppercase tracking-wider text-[var(--text-muted)]">
+        <div className="px-2 py-1 text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">
           Conversations
         </div>
         {conversations.length === 0 ? (
@@ -156,6 +181,11 @@ export function Sidebar({
               (t) => t.user_id !== currentUserId
             );
             const title = getConversationTitle(conv);
+            const peer = !conv.is_group
+              ? conv.members.find((m) => m.user_id !== currentUserId)
+              : undefined;
+            const peerAvatarUrl = peer?.avatar_url;
+            const showPeerAvatar = Boolean(peerAvatarUrl && !failedAvatars.has(peerAvatarUrl));
 
             return (
               <button
@@ -164,17 +194,26 @@ export function Sidebar({
                 className={`w-full flex items-center gap-3 px-2.5 py-2.5 rounded-xl text-left transition-colors ${
                   active
                     ? "bg-[#6366F1]/15 text-[var(--text-primary)]"
-                    : "hover:bg-white/5 text-[var(--text-primary)]"
+                    : "hover:bg-[var(--bg-hover)] text-[var(--text-primary)]"
                 }`}
               >
                 <div className="relative shrink-0">
-                  <div className="w-9 h-9 rounded-full bg-[#6366F1]/20 text-[#6366F1] text-xs font-semibold flex items-center justify-center">
-                    {conv.is_group ? (
-                      <Users className="w-4 h-4" />
-                    ) : (
-                      title.slice(0, 2).toUpperCase()
-                    )}
-                  </div>
+                  {showPeerAvatar && peerAvatarUrl ? (
+                    <img
+                      src={peerAvatarUrl}
+                      alt={title}
+                      onError={() => markAvatarFailed(peerAvatarUrl)}
+                      className="w-9 h-9 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-9 h-9 rounded-full bg-[#6366F1]/20 text-[#6366F1] text-xs font-semibold flex items-center justify-center">
+                      {conv.is_group ? (
+                        <Users className="w-4 h-4" />
+                      ) : (
+                        title.slice(0, 2).toUpperCase()
+                      )}
+                    </div>
+                  )}
                   <span
                     className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full ring-2 ring-[var(--bg-surface)] ${
                       online ? "bg-[#10B981]" : "bg-slate-500"
@@ -186,18 +225,18 @@ export function Sidebar({
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-xs font-semibold truncate">{title}</span>
                     {conv.unread_count > 0 && (
-                      <span className="shrink-0 min-w-4 h-4 px-1 rounded-full bg-[#6366F1] text-white text-[10px] font-bold flex items-center justify-center">
+                      <span className="shrink-0 min-w-4 h-4 px-1 rounded-full bg-[#6366F1] text-white text-xs font-bold flex items-center justify-center">
                         {conv.unread_count > 99 ? "99+" : conv.unread_count}
                       </span>
                     )}
                   </div>
 
                   {typing.length > 0 ? (
-                    <p className="text-[11px] italic text-[#10B981] truncate">
+                    <p className="text-xs italic text-[#10B981] truncate">
                       {typing.map((t) => t.display_name).join(", ")} typing...
                     </p>
                   ) : (
-                    <p className="text-[11px] text-[var(--text-muted)] truncate">
+                    <p className="text-xs text-[var(--text-muted)] truncate">
                       {conv.latest_preview || "Encrypted channel ready"}
                     </p>
                   )}

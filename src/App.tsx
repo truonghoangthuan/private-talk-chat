@@ -227,7 +227,7 @@ export function App() {
             <button
               type="button"
               onClick={() => setUpdateBannerDismissed(true)}
-              className="p-1 rounded-lg text-[var(--text-muted)] hover:bg-white/5"
+              className="p-1 rounded-lg text-[var(--text-muted)] hover:bg-[var(--bg-hover)]"
               title="Dismiss"
             >
               <X className="w-3.5 h-3.5" />
@@ -271,7 +271,6 @@ export function App() {
             updateStatus={updateStatus}
             onToggleTheme={() => setDarkMode((d) => !d)}
             onOpenProfile={() => setProfileOpen(true)}
-            onOpenCreateGroup={() => setGroupDrawerMode("create")}
             onCheckUpdate={handleCheckUpdate}
             onInstallUpdate={handleInstallUpdate}
             onLogout={async () => {
@@ -321,7 +320,7 @@ export function App() {
                   <button
                     type="button"
                     onClick={() => setUpdateBannerDismissed(true)}
-                    className="px-2 py-1 rounded-lg text-[var(--text-muted)] hover:bg-white/5"
+                    className="px-2 py-1 rounded-lg text-[var(--text-muted)] hover:bg-[var(--bg-hover)]"
                   >
                     Dismiss
                   </button>

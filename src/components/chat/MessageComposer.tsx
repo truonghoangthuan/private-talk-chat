@@ -23,9 +23,18 @@ export function MessageComposer({ onSend, onTypingChange }: MessageComposerProps
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const lastTypingPingRef = useRef<number>(0);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const resizeTextarea = () => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+  };
 
   const handleTextChange = (val: string) => {
     setText(val);
+    resizeTextarea();
     const now = Date.now();
     if (val.trim().length > 0 && now - lastTypingPingRef.current > 2000) {
       lastTypingPingRef.current = now;
@@ -57,8 +66,7 @@ export function MessageComposer({ onSend, onTypingChange }: MessageComposerProps
     setAttachmentName(file.name);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const submitMessage = async () => {
     setError(null);
     const trimmed = text.trim();
     if (!trimmed && !attachmentPath) return;
@@ -67,6 +75,9 @@ export function MessageComposer({ onSend, onTypingChange }: MessageComposerProps
     try {
       await onSend(trimmed || undefined, attachmentPath || undefined);
       setText("");
+      if (textareaRef.current) {
+        textareaRef.current.style.height = "auto";
+      }
       setAttachmentPath(null);
       setAttachmentName(null);
       onTypingChange(false);
@@ -78,6 +89,20 @@ export function MessageComposer({ onSend, onTypingChange }: MessageComposerProps
       setError(msg);
     } finally {
       setSending(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await submitMessage();
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      if (!sending && (text.trim().length > 0 || attachmentPath)) {
+        void submitMessage();
+      }
     }
   };
 
@@ -98,16 +123,16 @@ export function MessageComposer({ onSend, onTypingChange }: MessageComposerProps
               setAttachmentPath(null);
               setAttachmentName(null);
             }}
-            className="hover:text-white"
+            className="hover:text-[var(--text-primary)]"
           >
             <X className="w-3.5 h-3.5" />
           </button>
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="flex items-center gap-2">
+      <form onSubmit={handleSubmit} className="flex items-end gap-2">
         <label
-          className="p-2.5 rounded-xl hover:bg-white/5 text-[var(--text-muted)] hover:text-[#6366F1] cursor-pointer transition-colors"
+          className="p-2.5 rounded-xl hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[#6366F1] cursor-pointer transition-colors"
           title="Attach image, GIF, or video (up to 50 MB)"
         >
           <Paperclip className="w-4 h-4" />
@@ -119,12 +144,14 @@ export function MessageComposer({ onSend, onTypingChange }: MessageComposerProps
           />
         </label>
 
-        <input
-          type="text"
+        <textarea
+          ref={textareaRef}
+          rows={1}
           value={text}
           onChange={(e) => handleTextChange(e.target.value)}
+          onKeyDown={handleKeyDown}
           placeholder="Write an encrypted message..."
-          className="flex-1 px-3.5 py-2.5 text-sm rounded-xl bg-[var(--bg-canvas)] border border-[var(--border-hairline)] focus:outline-none focus:border-[#6366F1]"
+          className="flex-1 px-3.5 py-2.5 text-sm leading-[1.5] max-h-[120px] resize-none overflow-y-auto rounded-xl bg-[var(--bg-canvas)] border border-[var(--border-hairline)] focus:outline-none focus:border-[#6366F1]"
         />
 
         <button

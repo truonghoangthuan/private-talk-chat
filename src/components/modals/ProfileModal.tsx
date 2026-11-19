@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { AlertTriangle, Download, RefreshCw, Upload, X } from "lucide-react";
+import { AlertTriangle, Download, RefreshCw, ShieldCheck, Upload, X } from "lucide-react";
 import type { UpdateStatusDto, UserProfileDto } from "../../lib/types";
+import { formatCryptoFingerprint } from "../../lib/ui-polish";
 
 interface ProfileModalProps {
   user: UserProfileDto;
@@ -84,7 +85,7 @@ export function ProfileModal({
           <h2 className="text-base font-semibold">Profile Settings</h2>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-white/5 text-[var(--text-muted)]"
+            className="p-1.5 rounded-lg hover:bg-[var(--bg-hover)] text-[var(--text-muted)]"
           >
             <X className="w-4 h-4" />
           </button>
@@ -104,7 +105,7 @@ export function ProfileModal({
               </div>
             )}
             <div className="flex-1 space-y-1.5">
-              <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--bg-canvas)] border border-[var(--border-hairline)] text-xs font-medium cursor-pointer hover:border-[#6366F1]">
+              <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--bg-canvas)] border border-[var(--border-hairline)] text-xs font-medium cursor-pointer hover:border-[#6366F1] hover:bg-[var(--bg-hover)]">
                 <Upload className="w-3.5 h-3.5" />
                 Choose Avatar (≤ 5 MB)
                 <input
@@ -114,9 +115,16 @@ export function ProfileModal({
                   className="hidden"
                 />
               </label>
-              <p className="text-[11px] text-[var(--text-muted)]">
+              <p className="text-xs text-[var(--text-muted)]">
                 @{user.username} • PNG, JPEG, or WEBP
               </p>
+              <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-[var(--bg-canvas)] border border-[var(--border-hairline)] text-xs text-[var(--text-muted)]">
+                <ShieldCheck className="w-3.5 h-3.5 text-[#10B981]" />
+                <span>Identity</span>
+                <span className="font-mono font-medium text-[var(--text-primary)]">
+                  {formatCryptoFingerprint(`${user.id}:${user.username}`)}
+                </span>
+              </div>
             </div>
           </div>
 
@@ -132,19 +140,6 @@ export function ProfileModal({
             />
           </div>
 
-          <div>
-            <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">
-              Local Avatar Path (optional override)
-            </label>
-            <input
-              type="text"
-              value={avatarFilePath}
-              onChange={(e) => setAvatarFilePath(e.target.value)}
-              placeholder="C:\Users\...\avatar.png"
-              className="w-full px-3 py-2 text-xs rounded-xl bg-[var(--bg-canvas)] border border-[var(--border-hairline)] focus:outline-none focus:border-[#6366F1]"
-            />
-          </div>
-
           {error && (
             <div className="p-2.5 rounded-xl bg-[#EF4444]/10 border border-[#EF4444]/30 text-xs text-[#EF4444]">
               {error}
@@ -155,7 +150,7 @@ export function ProfileModal({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl text-xs font-medium text-[var(--text-muted)] hover:bg-white/5"
+              className="px-4 py-2 rounded-xl text-xs font-medium text-[var(--text-muted)] hover:bg-[var(--bg-hover)]"
             >
               Cancel
             </button>
@@ -173,7 +168,7 @@ export function ProfileModal({
           <div className="flex items-center justify-between gap-2">
             <div>
               <h3 className="text-xs font-semibold">Application Update</h3>
-              <p className="text-[11px] text-[var(--text-muted)]">
+              <p className="text-xs text-[var(--text-muted)]">
                 Installed v{updateStatus.current_version}
                 {updateStatus.phase === "up_to_date" && " • Up to date"}
                 {updateStatus.phase === "checking" && " • Checking..."}
@@ -194,7 +189,7 @@ export function ProfileModal({
                   updateStatus.phase === "downloading" ||
                   updateStatus.phase === "installing"
                 }
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-canvas)] text-xs font-medium hover:border-[#6366F1] disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-canvas)] text-xs font-medium hover:border-[#6366F1] hover:bg-[var(--bg-hover)] disabled:opacity-50"
               >
                 <RefreshCw
                   className={`w-3.5 h-3.5 ${
@@ -220,7 +215,7 @@ export function ProfileModal({
             (updateStatus.phase === "available" ||
               updateStatus.phase === "downloading" ||
               updateStatus.phase === "installing") && (
-              <p className="text-[11px] text-[var(--text-muted)] bg-[var(--bg-canvas)] border border-[var(--border-hairline)] rounded-xl p-2.5 whitespace-pre-wrap max-h-24 overflow-y-auto">
+              <p className="text-xs text-[var(--text-muted)] bg-[var(--bg-canvas)] border border-[var(--border-hairline)] rounded-xl p-2.5 whitespace-pre-wrap max-h-24 overflow-y-auto">
                 {updateStatus.release_notes}
               </p>
             )}
