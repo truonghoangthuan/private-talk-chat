@@ -51,6 +51,14 @@
 | `message_mark_seen` | `{ conversation_id: string, up_to_message_id: string }` | `Result<(), AppError>` | Upserts `message_reads` for unread messages in conversation up to `up_to_message_id`, updates Windows taskbar unread badge. |
 | `typing_set_status` | `{ conversation_id: string, is_typing: bool }` | `Result<(), AppError>` | Broadcasts ephemeral `typing` event over Supabase Realtime `room:<conversation_id>`. |
 
+### 2.4 Application Updater Commands
+
+| Command | Arguments | Return Type | Behavior |
+|---------|-----------|-------------|----------|
+| `update_get_status` | `{}` | `Result<UpdateStatusDto, AppError>` | Returns current `UpdateStatusDto` snapshot including `current_version`. |
+| `update_check` | `{ silent?: bool }` | `Result<UpdateStatusDto, AppError>` | Checks GitHub Releases `latest.json`, verifies `Ed25519` signature, `draft: false`, `prerelease: false`, and strict `MAJOR.MINOR.PATCH` semver; swallows network errors to `idle` when `silent` is true. |
+| `update_install` | `{}` | `Result<UpdateStatusDto, AppError>` | Downloads installer into Rust RAM with progress events, verifies exact byte length, `SHA-256`, and `Ed25519` signature before writing `%LOCALAPPDATA%\PrivateTalk\updates\<installer_file_name>`, launches installer, and exits cleanly. |
+
 ---
 
 ## 3. Tauri Real-Time Events (Rust -> WebView UI)
@@ -64,6 +72,7 @@
 | `realtime:conversation_updated` | `ConversationDto` | New chat, group rename, member added/removed/left, or host changed. |
 | `realtime:contact_added` | `ContactDto` | Mutual contact added by either user. |
 | `window:navigate_conversation` | `{ conversation_id: string }` | User clicked a Windows desktop toast notification. |
+| `updater:state_changed` | `UpdateStatusDto` | Updater phase transitions (`checking`, `up_to_date`, `available`, `downloading`, `installing`, `verification_failed`, `error`, `idle`). |
 
 ---
 

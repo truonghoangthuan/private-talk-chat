@@ -1,7 +1,11 @@
 import { useState } from "react";
-import { Lock, ShieldCheck } from "lucide-react";
+import { AlertTriangle, Download, Lock, RefreshCw, ShieldCheck } from "lucide-react";
+import type { UpdateStatusDto } from "../../lib/types";
 
 interface AuthScreenProps {
+  updateStatus: UpdateStatusDto;
+  onCheckUpdate: () => void;
+  onInstallUpdate: () => void;
   onLogin: (username: string, password: string) => Promise<void>;
   onRegister: (
     username: string,
@@ -12,7 +16,13 @@ interface AuthScreenProps {
 
 const USERNAME_RE = /^[a-zA-Z0-9_]{3,32}$/;
 
-export function AuthScreen({ onLogin, onRegister }: AuthScreenProps) {
+export function AuthScreen({
+  updateStatus,
+  onCheckUpdate,
+  onInstallUpdate,
+  onLogin,
+  onRegister,
+}: AuthScreenProps) {
   const [mode, setMode] = useState<"login" | "register">("login");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -166,6 +176,75 @@ export function AuthScreen({ onLogin, onRegister }: AuthScreenProps) {
               : "Generate Keys & Register"}
           </button>
         </form>
+
+        <div className="mt-5 pt-4 border-t border-[var(--border-hairline)] space-y-2">
+          <div className="flex items-center justify-between gap-2 text-[11px] text-[var(--text-muted)]">
+            <span>
+              v{updateStatus.current_version}
+              {updateStatus.phase === "up_to_date" && " • Up to date"}
+              {updateStatus.phase === "checking" && " • Checking..."}
+              {updateStatus.phase === "available" &&
+                updateStatus.latest_version &&
+                ` • v${updateStatus.latest_version} ready`}
+              {updateStatus.phase === "downloading" &&
+                ` • ${updateStatus.progress_percent ?? 0}%`}
+              {updateStatus.phase === "installing" && " • Installing..."}
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onCheckUpdate}
+                disabled={
+                  updateStatus.phase === "checking" ||
+                  updateStatus.phase === "downloading" ||
+                  updateStatus.phase === "installing"
+                }
+                className="inline-flex items-center gap-1 hover:text-[var(--text-primary)] disabled:opacity-50"
+              >
+                <RefreshCw
+                  className={`w-3 h-3 ${
+                    updateStatus.phase === "checking" ? "animate-spin" : ""
+                  }`}
+                />
+                Check for update
+              </button>
+              {updateStatus.phase === "available" && (
+                <button
+                  type="button"
+                  onClick={onInstallUpdate}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#6366F1] text-white font-medium hover:bg-[#6366F1]/90"
+                >
+                  <Download className="w-3 h-3" />
+                  Update
+                </button>
+              )}
+            </div>
+          </div>
+
+          {updateStatus.phase === "downloading" && (
+            <div className="w-full h-1 rounded-full bg-[var(--bg-canvas)] overflow-hidden">
+              <div
+                className="h-full bg-[#6366F1] transition-all"
+                style={{ width: `${updateStatus.progress_percent ?? 0}%` }}
+              />
+            </div>
+          )}
+
+          {updateStatus.phase === "verification_failed" && (
+            <div className="p-2 rounded-xl bg-[#EF4444]/10 border border-[#EF4444]/30 text-[11px] text-[#EF4444] flex items-start gap-1.5">
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+              <span>
+                Update verification failed; installation blocked.
+              </span>
+            </div>
+          )}
+
+          {updateStatus.phase === "error" && updateStatus.error_message && (
+            <div className="p-2 rounded-xl bg-[#EF4444]/10 border border-[#EF4444]/30 text-[11px] text-[#EF4444]">
+              {updateStatus.error_message}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

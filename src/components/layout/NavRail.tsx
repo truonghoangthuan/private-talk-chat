@@ -1,13 +1,25 @@
-import { LogOut, Moon, Settings, ShieldCheck, Sun, Users } from "lucide-react";
-import type { UserProfileDto } from "../../lib/types";
+import {
+  Download,
+  LogOut,
+  Moon,
+  RefreshCw,
+  Settings,
+  ShieldCheck,
+  Sun,
+  Users,
+} from "lucide-react";
+import type { UpdateStatusDto, UserProfileDto } from "../../lib/types";
 
 interface NavRailProps {
   user: UserProfileDto;
   totalUnread: number;
   darkMode: boolean;
+  updateStatus: UpdateStatusDto;
   onToggleTheme: () => void;
   onOpenProfile: () => void;
   onOpenCreateGroup: () => void;
+  onCheckUpdate: () => void;
+  onInstallUpdate: () => void;
   onLogout: () => void;
 }
 
@@ -15,9 +27,12 @@ export function NavRail({
   user,
   totalUnread,
   darkMode,
+  updateStatus,
   onToggleTheme,
   onOpenProfile,
   onOpenCreateGroup,
+  onCheckUpdate,
+  onInstallUpdate,
   onLogout,
 }: NavRailProps) {
   const initials = user.display_name.slice(0, 2).toUpperCase();
@@ -75,6 +90,43 @@ export function NavRail({
           title={darkMode ? "Switch to light theme" : "Switch to dark theme"}
         >
           {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+        </button>
+
+        <button
+          onClick={
+            updateStatus.phase === "available" ? onInstallUpdate : onCheckUpdate
+          }
+          disabled={
+            updateStatus.phase === "checking" ||
+            updateStatus.phase === "downloading" ||
+            updateStatus.phase === "installing"
+          }
+          className="relative w-10 h-10 rounded-xl hover:bg-white/5 text-[var(--text-muted)] hover:text-[var(--text-primary)] flex items-center justify-center transition-colors disabled:opacity-50"
+          title={
+            updateStatus.phase === "available" && updateStatus.latest_version
+              ? `Update available: v${updateStatus.latest_version} (click to update)`
+              : updateStatus.phase === "downloading"
+              ? `Downloading update (${updateStatus.progress_percent ?? 0}%)`
+              : updateStatus.phase === "verification_failed"
+              ? "Update verification failed — click to re-check"
+              : `Check for update (v${updateStatus.current_version})`
+          }
+        >
+          {updateStatus.phase === "available" ? (
+            <Download className="w-4 h-4 text-[#6366F1]" />
+          ) : (
+            <RefreshCw
+              className={`w-4 h-4 ${
+                updateStatus.phase === "checking" ? "animate-spin" : ""
+              }`}
+            />
+          )}
+          {updateStatus.phase === "available" && (
+            <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-[#10B981]" />
+          )}
+          {updateStatus.phase === "verification_failed" && (
+            <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-[#EF4444]" />
+          )}
         </button>
 
         <button

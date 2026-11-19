@@ -81,3 +81,26 @@ export interface AppError {
   code: string;
   message: string;
 }
+
+export type UpdatePhase =
+  | "idle"
+  | "checking"
+  | "up_to_date"
+  | "available"
+  | "downloading"
+  | "installing"
+  | "verification_failed"
+  | "error";
+
+export interface UpdateStatusDto {
+  phase: UpdatePhase;
+  current_version: string;
+  latest_version: string | null;
+  release_notes: string | null;
+  published_at: string | null;
+  progress_percent: number | null;
+  downloaded_bytes: number | null;
+  total_bytes: number | null;
+  error_code: string | null;
+  error_message: string | null;
+}
