@@ -4,9 +4,9 @@ import {
   Moon,
   RefreshCw,
   Settings,
-  ShieldCheck,
   Sun,
 } from "lucide-react";
+import appIcon from "../../assets/app-icon.png";
 import type { UpdateStatusDto, UserProfileDto } from "../../lib/types";
 
 interface NavRailProps {
@@ -37,12 +37,12 @@ export function NavRail({
   return (
     <div className="flex flex-col items-center justify-between h-full w-full">
       <div className="flex flex-col items-center gap-4">
-        <div
-          className="w-10 h-10 rounded-xl bg-[#6366F1]/15 text-[#6366F1] flex items-center justify-center"
+        <img
+          src={appIcon}
+          alt="Private Talk"
+          className="w-10 h-10 rounded-xl object-cover shadow-sm"
           title="Private Talk — End-to-End Encrypted"
-        >
-          <ShieldCheck className="w-5 h-5" />
-        </div>
+        />
 
         <button
           onClick={onOpenProfile}

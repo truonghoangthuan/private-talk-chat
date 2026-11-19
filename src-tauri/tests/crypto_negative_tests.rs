@@ -25,6 +25,7 @@ fn tampered_ciphertext_nonce_signature_and_wrong_epoch_fail_closed() {
     let envelope = EncryptedMessageEnvelope {
         text: Some("Confidential roadmap update".to_string()),
         attachment: None,
+        reply_to_message_id: None,
     };
 
     let enc = encrypt_and_sign_message(
@@ -213,4 +214,67 @@ async fn media_protocol_blocks_unauthenticated_and_evicted_requests_and_badge_re
     assert!(render_unread_badge_bgra(0).is_none());
     let buf = render_unread_badge_bgra(3).expect("badge pixels");
     assert_eq!(buf.len(), 32 * 32 * 4);
+}
+
+#[test]
+fn reply_envelope_roundtrip_backward_compat_and_tamper_fail_closed() {
+    let sender = IdentityKeyPair::generate();
+    let conv_id = Uuid::new_v4();
+    let msg_id = Uuid::new_v4();
+    let parent_id = Uuid::new_v4();
+    let epoch_key = generate_epoch_key();
+
+    // 1. Roundtrip with reply_to_message_id: Some(parent_id)
+    let envelope = EncryptedMessageEnvelope {
+        text: Some("Replying with verified parent".to_string()),
+        attachment: None,
+        reply_to_message_id: Some(parent_id),
+    };
+    let enc = encrypt_and_sign_message(
+        conv_id,
+        msg_id,
+        1,
+        &epoch_key,
+        &sender.ed25519_private,
+        &envelope,
+    )
+    .expect("encrypt reply envelope");
+
+    let dec = verify_and_decrypt_message(
+        conv_id,
+        msg_id,
+        1,
+        &epoch_key,
+        &sender.ed25519_public,
+        &enc.nonce,
+        &enc.ciphertext,
+        &enc.signature,
+    )
+    .expect("decrypt reply envelope");
+    assert_eq!(dec.reply_to_message_id, Some(parent_id));
+
+    // 2. Tampered ciphertext containing reply_to_message_id fails closed
+    let mut bad_ct = enc.ciphertext.clone();
+    let last = bad_ct.len() - 1;
+    bad_ct[last] ^= 0x55;
+    assert_eq!(
+        verify_and_decrypt_message(
+            conv_id,
+            msg_id,
+            1,
+            &epoch_key,
+            &sender.ed25519_public,
+            &enc.nonce,
+            &bad_ct,
+            &enc.signature,
+        ),
+        Err(DecryptionStatus::VerificationFailed)
+    );
+
+    // 3. Backward compatibility when reply_to_message_id is omitted in JSON
+    let legacy_json = br#"{"text":"Legacy message","attachment":null}"#;
+    let parsed: EncryptedMessageEnvelope =
+        serde_json::from_slice(legacy_json).expect("deserialize legacy envelope");
+    assert_eq!(parsed.reply_to_message_id, None);
+    assert_eq!(parsed.text.as_deref(), Some("Legacy message"));
 }

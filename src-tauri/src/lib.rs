@@ -7,7 +7,7 @@ pub mod updater;
 
 use tauri::{
     http::{header, Response, StatusCode},
-    Manager,
+    Emitter, Manager,
 };
 use tracing_subscriber::EnvFilter;
 use uuid::Uuid;
@@ -67,6 +67,14 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
         .manage(AppState::from_env())
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::Focused(focused) = event {
+                let _ = window.emit(
+                    "window:focus_changed",
+                    serde_json::json!({ "focused": focused }),
+                );
+            }
+        })
         .register_uri_scheme_protocol("privatetalk-media", |ctx, request| {
             let state = ctx.app_handle().state::<AppState>();
             handle_media_protocol(&state, request.uri().path())
@@ -90,6 +98,9 @@ pub fn run() {
             commands::messages::message_send,
             commands::messages::message_edit,
             commands::messages::message_remove,
+            commands::messages::message_pin,
+            commands::messages::message_unpin,
+            commands::messages::message_list_pinned,
             commands::messages::message_mark_seen,
             commands::messages::typing_set_status,
             commands::updater::update_get_status,

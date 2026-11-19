@@ -1,4 +1,4 @@
-import type { MessageDto } from "./types";
+import type { MessageDto, PinnedMessageDto } from "./types";
 
 export interface TimelineMessageItem {
   kind: "message";
@@ -73,4 +73,64 @@ export function buildTimelineItems(messages: MessageDto[]): TimelineRenderItem[]
   }
 
   return items;
+}
+
+/**
+ * Upserts a message into the timeline list and propagates any edit/removal/verification
+ * status changes to in-memory reply previews referencing that message.
+ */
+export function upsertMessageWithReplySync(
+  messages: MessageDto[],
+  updated: MessageDto
+): MessageDto[] {
+  const exists = messages.some((m) => m.id === updated.id);
+  const base = exists
+    ? messages.map((m) => (m.id === updated.id ? updated : m))
+    : [...messages, updated];
+
+  const isRemoved = updated.is_removed || updated.status === "removed";
+  const nextStatus = isRemoved ? "removed" : updated.status;
+
+  return base.map((m) => {
+    if (!m.reply_to || m.reply_to.message_id !== updated.id) return m;
+    if (nextStatus !== "verified") {
+      return {
+        ...m,
+        reply_to: {
+          ...m.reply_to,
+          status: nextStatus,
+          text: null,
+          has_attachment: false,
+          attachment_mime: null,
+        },
+      };
+    }
+    return {
+      ...m,
+      reply_to: {
+        ...m.reply_to,
+        status: "verified",
+        text: updated.text,
+        has_attachment: Boolean(updated.attachment),
+        attachment_mime: updated.attachment?.mime_type ?? null,
+        is_edited: updated.is_edited,
+      },
+    };
+  });
+}
+
+/**
+ * Keeps the Pinned subtab list synchronized when a pinned message is edited, removed,
+ * or fails verification.
+ */
+export function syncPinnedMessage(
+  pinned: PinnedMessageDto[],
+  updated: MessageDto
+): PinnedMessageDto[] {
+  if (updated.is_removed || updated.status !== "verified") {
+    return pinned.filter((p) => p.message_id !== updated.id);
+  }
+  return pinned.map((p) =>
+    p.message_id === updated.id ? { ...p, message: updated } : p
+  );
 }

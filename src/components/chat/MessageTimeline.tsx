@@ -6,15 +6,23 @@ import { MessageBubble } from "./MessageBubble";
 interface MessageTimelineProps {
   messages: MessageDto[];
   currentUserId: string;
+  highlightedMessageId: string | null;
   onEditMessage: (messageId: string, newText: string) => Promise<void>;
   onRemoveMessage: (messageId: string) => Promise<void>;
+  onReplyMessage: (message: MessageDto) => void;
+  onTogglePinMessage: (message: MessageDto) => Promise<void>;
+  onJumpToMessage: (messageId: string) => void;
 }
 
 export function MessageTimeline({
   messages,
   currentUserId,
+  highlightedMessageId,
   onEditMessage,
   onRemoveMessage,
+  onReplyMessage,
+  onTogglePinMessage,
+  onJumpToMessage,
 }: MessageTimelineProps) {
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const timelineItems = useMemo(() => buildTimelineItems(messages), [messages]);
@@ -48,8 +56,12 @@ export function MessageTimeline({
               message={item.message}
               isOwn={item.message.sender_id === currentUserId}
               isGroupedWithPrev={item.isGroupedWithPrev}
+              isHighlighted={highlightedMessageId === item.message.id}
               onEdit={onEditMessage}
               onRemove={onRemoveMessage}
+              onReply={onReplyMessage}
+              onTogglePin={onTogglePinMessage}
+              onJumpToMessage={onJumpToMessage}
             />
           )
         )

@@ -45,9 +45,12 @@
 | Command | Arguments | Return Type | Behavior |
 |---------|-----------|-------------|----------|
 | `message_list` | `{ conversation_id: string, limit: u32, before?: string }` | `Result<Vec<MessageDto>, AppError>` | Fetches encrypted messages, verifies `Ed25519` signatures, decrypts with corresponding `EpochKey`, enriches with `seen_by: Vec<SeenReceiptDto>`. |
-| `message_send` | `{ conversation_id: string, text?: string, attachment_path?: string }` | `Result<MessageDto, AppError>` | Validates attachment (`<= 50 MB`, allowed format), encrypts attachment & message envelope with `ChaCha20-Poly1305`, signs with `Ed25519`, uploads ciphertext. |
-| `message_edit` | `{ message_id: string, new_text: string }` | `Result<MessageDto, AppError>` | Sender-only; re-encrypts & re-signs updated envelope, sets `is_edited = true, edited_at = now()`. |
-| `message_remove` | `{ message_id: string }` | `Result<MessageDto, AppError>` | Sender-only; permanently wipes `ciphertext`, `nonce`, `signature`, deletes encrypted object from `chat-media` bucket, wipes local memory cache, sets `is_removed = true`. |
+| `message_send` | `{ conversation_id: string, text?: string, attachment_path?: string, reply_to_message_id?: string }` | `Result<MessageDto, AppError>` | Validates attachment (`<= 50 MB`, allowed format) and optional `reply_to_message_id` (same conversation, non-removed, verified), binds `reply_to_message_id` inside `EncryptedMessageEnvelope`, encrypts with `ChaCha20-Poly1305`, signs with `Ed25519`, uploads ciphertext. |
+| `message_edit` | `{ message_id: string, new_text: string }` | `Result<MessageDto, AppError>` | Sender-only; preserves existing `attachment` and `reply_to_message_id`, re-encrypts & re-signs updated envelope, sets `is_edited = true, edited_at = now()`. |
+| `message_remove` | `{ message_id: string }` | `Result<MessageDto, AppError>` | Sender-only; permanently wipes `ciphertext`, `nonce`, `signature`, deletes encrypted object from `chat-media` bucket, removes any pin entry, wipes local memory cache, sets `is_removed = true`, emits `realtime:message_upsert` and `realtime:pins_changed`. |
+| `message_pin` | `{ conversation_id: string, message_id: string }` | `Result<PinnedMessageDto, AppError>` | Active-member check; verifies message belongs to `conversation_id`, is non-removed, and is `Verified`; upserts `pinned_messages` and emits `realtime:pins_changed` + `realtime:message_upsert`. |
+| `message_unpin` | `{ conversation_id: string, message_id: string }` | `Result<(), AppError>` | Active-member check; deletes row from `pinned_messages` and emits `realtime:pins_changed` + `realtime:message_upsert`. |
+| `message_list_pinned` | `{ conversation_id: string }` | `Result<Vec<PinnedMessageDto>, AppError>` | Active-member check; fetches `pinned_messages` (`pinned_at DESC`), decrypts each message, filters out removed/unverified entries. |
 | `message_mark_seen` | `{ conversation_id: string, up_to_message_id: string }` | `Result<(), AppError>` | Upserts `message_reads` for unread messages in conversation up to `up_to_message_id`, updates Windows taskbar unread badge. |
 | `typing_set_status` | `{ conversation_id: string, is_typing: bool }` | `Result<(), AppError>` | Broadcasts ephemeral `typing` event over Supabase Realtime `room:<conversation_id>`. |
 
@@ -72,6 +75,8 @@
 | `realtime:conversation_updated` | `ConversationDto` | New chat, group rename, member added/removed/left, or host changed. |
 | `realtime:contact_added` | `ContactDto` | Mutual contact added by either user. |
 | `window:navigate_conversation` | `{ conversation_id: string }` | User clicked a Windows desktop toast notification. |
+| `window:focus_changed` | `{ focused: boolean }` | Native Tauri window receives `tauri::WindowEvent::Focused(focused)` (triggers full-viewport privacy blur shield when `false`). |
+| `realtime:pins_changed` | `{ conversation_id: string }` | A message is pinned, unpinned, or auto-unpinned via message removal in `conversation_id`. |
 | `updater:state_changed` | `UpdateStatusDto` | Updater phase transitions (`checking`, `up_to_date`, `available`, `downloading`, `installing`, `verification_failed`, `error`, `idle`). |
 
 ---

@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use super::{
     ConversationMemberKeyRow, ConversationMemberRow, ConversationRow, MessageReadRow, MessageRow,
-    ProfileRow, SupabaseClient, SupabaseError,
+    PinnedMessageRow, ProfileRow, SupabaseClient, SupabaseError,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -793,6 +793,7 @@ impl SupabaseClient {
             store.member_keys.retain(|k| k.conversation_id != conversation_id);
             store.messages.retain(|m| m.conversation_id != conversation_id);
             store.reads.retain(|r| r.conversation_id != conversation_id);
+            store.pinned_messages.retain(|p| p.conversation_id != conversation_id);
             return Ok(());
         }
 
@@ -1073,6 +1074,7 @@ impl SupabaseClient {
         msg.media_object_path = None;
         msg.is_removed = true;
         msg.removed_at = Some(Utc::now());
+        store.pinned_messages.retain(|p| p.message_id != message_id);
         Ok(old_path)
     }
 
@@ -1147,5 +1149,163 @@ impl SupabaseClient {
             .filter(|r| r.conversation_id == conversation_id)
             .cloned()
             .collect())
+    }
+
+    pub async fn pin_message(
+        &self,
+        access_token: &str,
+        caller_id: Uuid,
+        conversation_id: Uuid,
+        message_id: Uuid,
+    ) -> Result<PinnedMessageRow, SupabaseError> {
+        if let Some(cfg) = &self.config {
+            let resp = self
+                .http
+                .post(format!(
+                    "{}/rest/v1/pinned_messages?on_conflict=conversation_id,message_id",
+                    cfg.url
+                ))
+                .header("apikey", &cfg.anon_key)
+                .header("Prefer", "resolution=merge-duplicates,return=representation")
+                .bearer_auth(access_token)
+                .json(&serde_json::json!({
+                    "conversation_id": conversation_id,
+                    "message_id": message_id,
+                    "pinned_by": caller_id,
+                }))
+                .send()
+                .await
+                .map_err(|_| SupabaseError::NetworkError)?;
+            if !resp.status().is_success() {
+                return Err(SupabaseError::Forbidden("cannot pin message"));
+            }
+            let mut rows: Vec<PinnedMessageRow> = resp
+                .json()
+                .await
+                .map_err(|_| SupabaseError::InvalidResponse)?;
+            return rows.pop().ok_or(SupabaseError::InvalidResponse);
+        }
+
+        let mut store = self.local_store.lock().expect("local store lock");
+        if !store
+            .members
+            .iter()
+            .any(|m| m.conversation_id == conversation_id && m.user_id == caller_id)
+        {
+            return Err(SupabaseError::Forbidden("not a conversation member"));
+        }
+        let msg = store
+            .messages
+            .iter()
+            .find(|m| m.id == message_id)
+            .ok_or(SupabaseError::NotFound("message"))?;
+        if msg.conversation_id != conversation_id {
+            return Err(SupabaseError::Forbidden("message belongs to another conversation"));
+        }
+        if msg.is_removed {
+            return Err(SupabaseError::Conflict("cannot pin removed message"));
+        }
+        let now = Utc::now();
+        if let Some(existing) = store
+            .pinned_messages
+            .iter_mut()
+            .find(|p| p.conversation_id == conversation_id && p.message_id == message_id)
+        {
+            existing.pinned_by = caller_id;
+            existing.pinned_at = now;
+            return Ok(existing.clone());
+        }
+        let row = PinnedMessageRow {
+            conversation_id,
+            message_id,
+            pinned_by: caller_id,
+            pinned_at: now,
+        };
+        store.pinned_messages.push(row.clone());
+        Ok(row)
+    }
+
+    pub async fn unpin_message(
+        &self,
+        access_token: &str,
+        caller_id: Uuid,
+        conversation_id: Uuid,
+        message_id: Uuid,
+    ) -> Result<(), SupabaseError> {
+        if let Some(cfg) = &self.config {
+            let resp = self
+                .http
+                .delete(format!(
+                    "{}/rest/v1/pinned_messages?conversation_id=eq.{}&message_id=eq.{}",
+                    cfg.url, conversation_id, message_id
+                ))
+                .header("apikey", &cfg.anon_key)
+                .bearer_auth(access_token)
+                .send()
+                .await
+                .map_err(|_| SupabaseError::NetworkError)?;
+            if !resp.status().is_success() {
+                return Err(SupabaseError::Forbidden("cannot unpin message"));
+            }
+            return Ok(());
+        }
+
+        let mut store = self.local_store.lock().expect("local store lock");
+        if !store
+            .members
+            .iter()
+            .any(|m| m.conversation_id == conversation_id && m.user_id == caller_id)
+        {
+            return Err(SupabaseError::Forbidden("not a conversation member"));
+        }
+        store
+            .pinned_messages
+            .retain(|p| !(p.conversation_id == conversation_id && p.message_id == message_id));
+        Ok(())
+    }
+
+    pub async fn list_pinned_messages(
+        &self,
+        access_token: &str,
+        caller_id: Uuid,
+        conversation_id: Uuid,
+    ) -> Result<Vec<PinnedMessageRow>, SupabaseError> {
+        if let Some(cfg) = &self.config {
+            let resp = self
+                .http
+                .get(format!(
+                    "{}/rest/v1/pinned_messages?conversation_id=eq.{}&order=pinned_at.desc",
+                    cfg.url, conversation_id
+                ))
+                .header("apikey", &cfg.anon_key)
+                .bearer_auth(access_token)
+                .send()
+                .await
+                .map_err(|_| SupabaseError::NetworkError)?;
+            if !resp.status().is_success() {
+                return Err(SupabaseError::Forbidden("cannot list pinned messages"));
+            }
+            return resp
+                .json()
+                .await
+                .map_err(|_| SupabaseError::InvalidResponse);
+        }
+
+        let store = self.local_store.lock().expect("local store lock");
+        if !store
+            .members
+            .iter()
+            .any(|m| m.conversation_id == conversation_id && m.user_id == caller_id)
+        {
+            return Err(SupabaseError::Forbidden("not a conversation member"));
+        }
+        let mut rows: Vec<PinnedMessageRow> = store
+            .pinned_messages
+            .iter()
+            .filter(|p| p.conversation_id == conversation_id)
+            .cloned()
+            .collect();
+        rows.sort_by(|a, b| b.pinned_at.cmp(&a.pinned_at));
+        Ok(rows)
     }
 }

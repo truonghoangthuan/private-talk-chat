@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Check, Pencil, ShieldAlert, Trash2, X } from "lucide-react";
+import { Check, Pencil, Pin, PinOff, Reply, ShieldAlert, Trash2, X } from "lucide-react";
 import type { MessageDto } from "../../lib/types";
 import { MediaViewer } from "./MediaViewer";
 
@@ -7,16 +7,24 @@ interface MessageBubbleProps {
   message: MessageDto;
   isOwn: boolean;
   isGroupedWithPrev?: boolean;
+  isHighlighted?: boolean;
   onEdit: (messageId: string, newText: string) => Promise<void>;
   onRemove: (messageId: string) => Promise<void>;
+  onReply: (message: MessageDto) => void;
+  onTogglePin: (message: MessageDto) => Promise<void>;
+  onJumpToMessage?: (messageId: string) => void;
 }
 
 export function MessageBubble({
   message,
   isOwn,
   isGroupedWithPrev = false,
+  isHighlighted = false,
   onEdit,
   onRemove,
+  onReply,
+  onTogglePin,
+  onJumpToMessage,
 }: MessageBubbleProps) {
   const [editing, setEditing] = useState(false);
   const [confirmingRemove, setConfirmingRemove] = useState(false);
@@ -82,7 +90,10 @@ export function MessageBubble({
   }
 
   return (
-    <div className={`${spacingClass} group flex flex-col ${isOwn ? "items-end" : "items-start"}`}>
+    <div
+      id={`msg-${message.id}`}
+      className={`${spacingClass} group flex flex-col ${isOwn ? "items-end" : "items-start"}`}
+    >
       {!isOwn && !isGroupedWithPrev && (
         <span className="mb-1 ml-1 text-xs font-medium text-[var(--text-muted)]">
           {message.sender_display_name}
@@ -117,6 +128,28 @@ export function MessageBubble({
               </>
             ) : (
               <>
+                <button
+                  type="button"
+                  onClick={() => onReply(message)}
+                  disabled={busy}
+                  className="p-1 rounded-md hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                  title="Reply"
+                >
+                  <Reply className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void onTogglePin(message)}
+                  disabled={busy}
+                  className="p-1 rounded-md hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[#6366F1]"
+                  title={message.is_pinned ? "Unpin message" : "Pin message"}
+                >
+                  {message.is_pinned ? (
+                    <PinOff className="w-3.5 h-3.5" />
+                  ) : (
+                    <Pin className="w-3.5 h-3.5" />
+                  )}
+                </button>
                 {message.text && (
                   <button
                     type="button"
@@ -146,10 +179,14 @@ export function MessageBubble({
         )}
 
         <div
-          className={`rounded-2xl px-3.5 py-2.5 text-[14px] leading-[1.5] border border-[var(--border-hairline)] ${
+          className={`rounded-2xl px-3.5 py-2.5 text-[14px] leading-[1.5] border border-[var(--border-hairline)] transition-shadow ${
             isOwn
               ? "bg-[#6366F1] text-white"
               : "bg-[var(--bg-bubble-peer)] text-[var(--text-primary)]"
+          } ${
+            isHighlighted
+              ? "ring-2 ring-[#6366F1] ring-offset-2 ring-offset-[var(--bg-canvas)]"
+              : ""
           }`}
         >
           {editing ? (
@@ -180,16 +217,79 @@ export function MessageBubble({
             </form>
           ) : (
             <>
+              {message.reply_to && (
+                <button
+                  type="button"
+                  onClick={() => onJumpToMessage?.(message.reply_to!.message_id)}
+                  className={`mb-2 w-full text-left px-2.5 py-1.5 rounded-lg border-l-2 text-xs transition-colors ${
+                    isOwn
+                      ? "bg-black/20 border-white/70 text-white/90 hover:bg-black/30"
+                      : "bg-[var(--bg-canvas)]/70 border-[#6366F1] text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
+                  }`}
+                >
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="font-semibold truncate">
+                      {message.reply_to.sender_display_name}
+                    </span>
+                    {message.reply_to.status === "verified" && message.reply_to.is_edited && (
+                      <span className="italic opacity-75 shrink-0">Edited</span>
+                    )}
+                  </div>
+                  <div className="truncate opacity-80">
+                    {message.reply_to.status === "removed"
+                      ? "Message removed"
+                      : message.reply_to.status === "verification_failed"
+                      ? "Unverified message"
+                      : message.reply_to.text ||
+                        (message.reply_to.has_attachment
+                          ? "Encrypted attachment"
+                          : "Encrypted message")}
+                  </div>
+                </button>
+              )}
               {message.text && <p className="whitespace-pre-wrap break-words">{message.text}</p>}
               {message.attachment && <MediaViewer attachment={message.attachment} isOwn={isOwn} />}
             </>
           )}
         </div>
+
+        {!isOwn && (
+          <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity mb-1">
+            <button
+              type="button"
+              onClick={() => onReply(message)}
+              disabled={busy}
+              className="p-1 rounded-md hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+              title="Reply"
+            >
+              <Reply className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => void onTogglePin(message)}
+              disabled={busy}
+              className="p-1 rounded-md hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[#6366F1]"
+              title={message.is_pinned ? "Unpin message" : "Pin message"}
+            >
+              {message.is_pinned ? (
+                <PinOff className="w-3.5 h-3.5" />
+              ) : (
+                <Pin className="w-3.5 h-3.5" />
+              )}
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="mt-1 flex items-center gap-2 text-xs text-[var(--text-muted)]">
         <span>{timeLabel}</span>
         {message.is_edited && <span className="italic">Edited</span>}
+        {message.is_pinned && (
+          <span className="inline-flex items-center gap-1 text-[#6366F1] font-medium">
+            <Pin className="w-3 h-3" />
+            Pinned
+          </span>
+        )}
 
         {message.seen_by.length > 0 && (
           <div

@@ -13,14 +13,18 @@ End-to-end encrypted Windows 10/11 desktop chat application for 1-to-1 and group
 - **Encrypted Rich Media**: Send `PNG`, `JPG`/`JPEG`, `WEBP`, `GIF`, `MP4`, and `WEBM` attachments up to 50 MB. Decrypted media streams strictly from zeroized Rust memory (`DecryptedMediaCache`) over the custom `privatetalk-media://` protocol with `Cache-Control: no-store`.
 - **Group Chats & Epoch Rotation**: Any member can rename a group or add contacts (sharing historical epoch keys so new members can decrypt prior history). Host-only member removal and member leave rotate `current_epoch` and distribute a new epoch key only to remaining members.
 - **Message Edit & Permanent Removal**: Edit sent messages in real time or permanently wipe encrypted payloads and storage objects (`remove_sent_message`), leaving a `"Message removed"` placeholder.
-- **Windows Integration**: DPAPI-protected local session cache (`%LOCALAPPDATA%\PrivateTalk\session.dpapi`), native Windows toast notifications with click-to-focus, and `ITaskbarList3` unread overlay badges.
+- **Authenticated Message Replies**: Reply to any verified message with `reply_to_message_id` bound inside `EncryptedMessageEnvelope` (`ChaCha20-Poly1305` + `Ed25519`), featuring a composer reply banner, clickable quoted parent previews, jump-to-parent highlighting, and fail-closed cross-conversation/removal protection.
+- **Shared Pinned Messages & `Pinned` Subtab**: Any participant in a 1-to-1 or group chat can pin or unpin multiple verified messages, synchronized in real time via `public.pinned_messages` (with auto-unpin on message removal) and browseable in the `Pinned` chat subtab.
+- **Automatic Privacy Blur on Focus Loss**: Full-viewport privacy blur shield engages immediately (`<100ms`) across both authenticated and unauthenticated screens whenever the window loses OS focus.
+- **Windows Integration & Custom Branding**: Custom multi-resolution Windows `.ico` and in-app emblem (`src/assets/app-icon.png`), DPAPI-protected local session cache (`%LOCALAPPDATA%\PrivateTalk\session.dpapi`), native Windows toast notifications with click-to-focus, and `ITaskbarList3` unread overlay badges.
 
 ## Repository Structure
 
 ```text
 src/                              # React 19 + TypeScript WebView UI
+├── assets/app-icon.png           # Custom Private Talk emblem
 ├── components/
-│   ├── chat/                     # Timeline, composer, header, typing, media viewer
+│   ├── chat/                     # Timeline, composer, header, PinnedMessagesView, typing, media viewer
 │   ├── layout/                   # AppShell, NavRail, Sidebar
 │   └── modals/                   # AuthScreen, ProfileModal, GroupManageDrawer
 ├── lib/
@@ -41,9 +45,11 @@ src-tauri/                        # Rust core (crypto, Windows platform, Supabas
 supabase/
 ├── config.toml                   # Local Supabase CLI config (API :54321, DB :54322)
 └── migrations/
-    └── 0001_private_talk_schema.sql  # Tables, CITEXT, RLS policies, RPCs, storage buckets
+    ├── 0001_private_talk_schema.sql  # Tables, CITEXT, RLS policies, RPCs, storage buckets
+    └── 0002_pinned_messages.sql      # Shared pinned_messages table, RLS, auto-unpin RPC
 
-specs/001-private-talk-chat/      # Spec, plan, data model, contracts, quickstart
+specs/001-private-talk-chat/      # Core spec, plan, data model, contracts, quickstart
+specs/004-privacy-blur-replies-pins/  # Privacy blur, custom icon, replies, and pins spec
 ```
 
 ## Prerequisites
