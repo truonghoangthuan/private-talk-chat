@@ -1,0 +1,59 @@
+@import "tailwindcss";
+
+:root {
+  --bg-canvas: #F8FAFC;
+  --bg-surface: #FFFFFF;
+  --bg-bubble: #EEF2FF;
+  --bg-bubble-peer: #F1F5F9;
+  --text-primary: #0F172A;
+  --text-muted: #64748B;
+  --border-hairline: rgba(15, 23, 42, 0.08);
+  --accent-primary: #6366F1;
+  --status-online: #10B981;
+  --status-alert: #EF4444;
+}
+
+.dark {
+  --bg-canvas: #0B0D12;
+  --bg-surface: #12161F;
+  --bg-bubble: #1A202C;
+  --bg-bubble-peer: #151924;
+  --text-primary: #F8FAFC;
+  --text-muted: #94A3B8;
+  --border-hairline: rgba(255, 255, 255, 0.07);
+  --accent-primary: #6366F1;
+  --status-online: #10B981;
+  --status-alert: #EF4444;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  background-color: var(--bg-canvas);
+  color: var(--text-primary);
+  font-family: "Inter", "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+@keyframes typing-dot {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.45;
+  }
+  30% {
+    transform: translateY(-3px);
+    opacity: 1;
+  }
+}
+
+.typing-dot-1 {
+  animation: typing-dot 1.2s infinite ease-in-out 0ms;
+}
+.typing-dot-2 {
+  animation: typing-dot 1.2s infinite ease-in-out 180ms;
+}
+.typing-dot-3 {
+  animation: typing-dot 1.2s infinite ease-in-out 360ms;
+}

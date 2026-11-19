@@ -1,0 +1,24 @@
+# Dependencies & build outputs
+node_modules/
+dist/
+build/
+target/
+*.rs.bk
+*.pdb
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+*.dpapi
+*.key
+*.crt
+
+# Logs & OS artifacts
+*.log
+*.tmp
+*.swp
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
