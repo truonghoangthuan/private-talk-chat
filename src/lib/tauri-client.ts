@@ -4,6 +4,7 @@ import type {
   ContactDto,
   ConversationDto,
   MessageDto,
+  PinnedMessageDto,
   SeenReceiptDto,
   TypingUserDto,
   UpdateStatusDto,
@@ -86,12 +87,14 @@ export const tauriClient = {
   messageSend: (
     conversationId: string,
     text?: string,
-    attachmentPath?: string
+    attachmentPath?: string,
+    replyToMessageId?: string
   ) =>
     invoke<MessageDto>("message_send", {
       conversationId,
       text,
       attachmentPath,
+      replyToMessageId,
     }),
 
   messageEdit: (messageId: string, newText: string) =>
@@ -99,6 +102,15 @@ export const tauriClient = {
 
   messageRemove: (messageId: string) =>
     invoke<MessageDto>("message_remove", { messageId }),
+
+  messagePin: (conversationId: string, messageId: string) =>
+    invoke<PinnedMessageDto>("message_pin", { conversationId, messageId }),
+
+  messageUnpin: (conversationId: string, messageId: string) =>
+    invoke<void>("message_unpin", { conversationId, messageId }),
+
+  messageListPinned: (conversationId: string) =>
+    invoke<PinnedMessageDto[]>("message_list_pinned", { conversationId }),
 
   messageMarkSeen: (conversationId: string, upToMessageId: string) =>
     invoke<void>("message_mark_seen", {
@@ -174,6 +186,20 @@ export const tauriClient = {
     cb: (status: UpdateStatusDto) => void
   ): Promise<UnlistenFn> =>
     listen("updater:state_changed", (e) => cb(e.payload as UpdateStatusDto)),
+
+  onWindowFocusChanged: (
+    cb: (payload: { focused: boolean }) => void
+  ): Promise<UnlistenFn> =>
+    listen("window:focus_changed", (e) =>
+      cb(e.payload as { focused: boolean })
+    ),
+
+  onPinsChanged: (
+    cb: (payload: { conversation_id: string }) => void
+  ): Promise<UnlistenFn> =>
+    listen("realtime:pins_changed", (e) =>
+      cb(e.payload as { conversation_id: string })
+    ),
 };
 
 export function extractErrorMessage(err: unknown): string {

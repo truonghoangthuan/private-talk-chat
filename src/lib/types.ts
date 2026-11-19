@@ -53,6 +53,17 @@ export interface SeenReceiptDto {
   seen_at: string;
 }
 
+export interface MessageReplyPreviewDto {
+  message_id: string;
+  sender_id: string;
+  sender_display_name: string;
+  status: DecryptionStatus;
+  text: string | null;
+  has_attachment: boolean;
+  attachment_mime: string | null;
+  is_edited: boolean;
+}
+
 export interface MessageDto {
   id: string;
   conversation_id: string;
@@ -64,12 +75,25 @@ export interface MessageDto {
   status: DecryptionStatus;
   text: string | null;
   attachment: MediaAttachmentDto | null;
+  reply_to: MessageReplyPreviewDto | null;
+  is_pinned: boolean;
+  pinned_at: string | null;
+  pinned_by_display_name: string | null;
   is_edited: boolean;
   edited_at: string | null;
   is_removed: boolean;
   removed_at: string | null;
   created_at: string;
   seen_by: SeenReceiptDto[];
+}
+
+export interface PinnedMessageDto {
+  conversation_id: string;
+  message_id: string;
+  pinned_by_id: string;
+  pinned_by_display_name: string;
+  pinned_at: string;
+  message: MessageDto;
 }
 
 export interface TypingUserDto {

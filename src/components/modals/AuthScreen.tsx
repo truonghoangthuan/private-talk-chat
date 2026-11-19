@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { AlertTriangle, Download, Lock, RefreshCw, ShieldCheck } from "lucide-react";
+import { AlertTriangle, Download, Lock, RefreshCw } from "lucide-react";
+import appIcon from "../../assets/app-icon.png";
 import type { UpdateStatusDto } from "../../lib/types";
 
 interface AuthScreenProps {
@@ -72,9 +73,11 @@ export function AuthScreen({
     <div className="min-h-screen w-screen flex items-center justify-center bg-[var(--bg-canvas)] text-[var(--text-primary)] p-4">
       <div className="w-full max-w-sm rounded-2xl border border-[var(--border-hairline)] bg-[var(--bg-surface)] p-7 shadow-2xl">
         <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 rounded-xl bg-[#6366F1]/15 text-[#6366F1] flex items-center justify-center">
-            <ShieldCheck className="w-5 h-5" />
-          </div>
+          <img
+            src={appIcon}
+            alt="Private Talk"
+            className="w-10 h-10 rounded-xl object-cover shadow-sm"
+          />
           <div>
             <h1 className="text-[22px] font-semibold tracking-tight">Private Talk</h1>
             <p className="text-xs text-[var(--text-muted)]">

@@ -26,6 +26,7 @@ All tables in `public` MUST have `ENABLE ROW LEVEL SECURITY` active. Plaintext m
    - Updates `conversations.current_epoch = new_epoch` and inserts `new_wrapped_keys` into `public.conversation_member_keys` for all remaining members.
 4. **`public.remove_sent_message(msg_id uuid) RETURNS text`** (`SECURITY DEFINER`):
    - Verifies `messages.sender_id = auth.uid()`.
+   - Deletes any matching `public.pinned_messages` row (`DELETE FROM public.pinned_messages WHERE message_id = msg_id`).
    - Captures old `media_object_path`, sets `ciphertext = NULL, nonce = NULL, signature = NULL, media_object_path = NULL, is_removed = true, removed_at = now()`, and returns the old `media_object_path` so the caller can delete the encrypted object from the `chat-media` Storage bucket.
 
 ### 1.2 RLS Policies Summary
@@ -47,6 +48,9 @@ All tables in `public` MUST have `ENABLE ROW LEVEL SECURITY` active. Plaintext m
 | `messages` | `UPDATE` | `sender_id = auth.uid() AND public.is_conversation_member(conversation_id, auth.uid())` |
 | `message_reads` | `SELECT` | `public.is_conversation_member(conversation_id, auth.uid())` |
 | `message_reads` | `INSERT` / `UPDATE` | `user_id = auth.uid() AND public.is_conversation_member(conversation_id, auth.uid())` |
+| `pinned_messages` | `SELECT` | `public.is_conversation_member(conversation_id, auth.uid())` |
+| `pinned_messages` | `INSERT` | `pinned_by = auth.uid() AND public.is_conversation_member(conversation_id, auth.uid())` and target message belongs to `conversation_id` with `NOT is_removed` |
+| `pinned_messages` | `DELETE` | `public.is_conversation_member(conversation_id, auth.uid())` |
 
 ---
 
@@ -92,3 +96,4 @@ Subscribed by the Rust Realtime manager upon login:
 2. `public.message_reads` (`INSERT`, `UPDATE`): Updates seen-by list for the message (`chat:message_seen_updated`) and recalculates unread count for the current user.
 3. `public.conversations` & `public.conversation_members` (`INSERT`, `UPDATE`, `DELETE`): Updates group name, member roster, host status, and triggers key rotation fetch.
 4. `public.contacts` (`INSERT`): Adds new mutual contact in real time when another user adds the current user by username.
+5. `public.pinned_messages` (`INSERT`, `DELETE`): Emits `realtime:pins_changed` and refreshes message pin state for the affected conversation.

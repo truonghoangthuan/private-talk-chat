@@ -187,6 +187,7 @@ impl RealtimeManager {
                         "postgres_changes": [
                             { "event": "*", "schema": "public", "table": "messages" },
                             { "event": "*", "schema": "public", "table": "message_reads" },
+                            { "event": "*", "schema": "public", "table": "pinned_messages" },
                             { "event": "*", "schema": "public", "table": "conversations" },
                             { "event": "*", "schema": "public", "table": "conversation_members" },
                             { "event": "INSERT", "schema": "public", "table": "contacts" }

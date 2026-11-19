@@ -38,6 +38,8 @@ pub struct AttachmentMetadata {
 pub struct EncryptedMessageEnvelope {
     pub text: Option<String>,
     pub attachment: Option<AttachmentMetadata>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reply_to_message_id: Option<Uuid>,
 }
 
 #[derive(Debug, Clone)]

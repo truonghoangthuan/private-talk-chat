@@ -110,6 +110,18 @@ pub struct SeenReceiptDto {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MessageReplyPreviewDto {
+    pub message_id: String,
+    pub sender_id: String,
+    pub sender_display_name: String,
+    pub status: DecryptionStatus,
+    pub text: Option<String>,
+    pub has_attachment: bool,
+    pub attachment_mime: Option<String>,
+    pub is_edited: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MessageDto {
     pub id: String,
     pub conversation_id: String,
@@ -121,12 +133,26 @@ pub struct MessageDto {
     pub status: DecryptionStatus,
     pub text: Option<String>,
     pub attachment: Option<MediaAttachmentDto>,
+    pub reply_to: Option<MessageReplyPreviewDto>,
+    pub is_pinned: bool,
+    pub pinned_at: Option<DateTime<Utc>>,
+    pub pinned_by_display_name: Option<String>,
     pub is_edited: bool,
     pub edited_at: Option<DateTime<Utc>>,
     pub is_removed: bool,
     pub removed_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub seen_by: Vec<SeenReceiptDto>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PinnedMessageDto {
+    pub conversation_id: String,
+    pub message_id: String,
+    pub pinned_by_id: String,
+    pub pinned_by_display_name: String,
+    pub pinned_at: DateTime<Utc>,
+    pub message: MessageDto,
 }
 
 pub struct AppState {
@@ -414,6 +440,36 @@ pub fn connect_realtime_for_session<R: Runtime>(
                                     }
                                 }
                             });
+                        }
+                        "pinned_messages" => {
+                            let conv_id_opt = val
+                                .pointer("/payload/data/record/conversation_id")
+                                .or_else(|| val.pointer("/payload/data/old_record/conversation_id"))
+                                .and_then(|v| v.as_str())
+                                .and_then(|s| Uuid::parse_str(s).ok());
+                            let msg_id_opt = val
+                                .pointer("/payload/data/record/message_id")
+                                .or_else(|| val.pointer("/payload/data/old_record/message_id"))
+                                .and_then(|v| v.as_str())
+                                .and_then(|s| Uuid::parse_str(s).ok());
+                            if let Some(cid) = conv_id_opt {
+                                let _ = app_clone.emit(
+                                    "realtime:pins_changed",
+                                    serde_json::json!({ "conversation_id": cid.to_string() }),
+                                );
+                                if let Some(mid) = msg_id_opt {
+                                    tauri::async_runtime::spawn(async move {
+                                        let st = app_clone.state::<AppState>();
+                                        if let Ok(dto) = messages::fetch_and_decrypt_single_message(
+                                            &st, cid, mid,
+                                        )
+                                        .await
+                                        {
+                                            let _ = app_clone.emit("realtime:message_upsert", &dto);
+                                        }
+                                    });
+                                }
+                            }
                         }
                         "conversations" | "conversation_members" => {
                             let conv_id_opt = val

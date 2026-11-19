@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Lock, Settings2, Users } from "lucide-react";
+import { Lock, Pin, Settings2, Users } from "lucide-react";
 import type { ConversationDto } from "../../lib/types";
 import { formatCryptoFingerprint } from "../../lib/ui-polish";
 
@@ -7,6 +7,9 @@ interface ChatHeaderProps {
   conversation: ConversationDto;
   currentUserId: string;
   onlineUserIds: Set<string>;
+  activeTab: "messages" | "pinned";
+  pinnedCount: number;
+  onTabChange: (tab: "messages" | "pinned") => void;
   onOpenGroupDrawer: () => void;
 }
 
@@ -14,6 +17,9 @@ export function ChatHeader({
   conversation,
   currentUserId,
   onlineUserIds,
+  activeTab,
+  pinnedCount,
+  onTabChange,
   onOpenGroupDrawer,
 }: ChatHeaderProps) {
   const peer = !conversation.is_group
@@ -95,15 +101,60 @@ export function ChatHeader({
         </div>
       </div>
 
-      {conversation.is_group && (
-        <button
-          onClick={onOpenGroupDrawer}
-          className="px-2.5 py-1.5 rounded-lg border border-[var(--border-hairline)] hover:border-[#6366F1]/50 hover:bg-[var(--bg-hover)] text-xs font-medium flex items-center gap-1.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+      <div className="flex items-center gap-2">
+        <div
+          role="tablist"
+          aria-label="Conversation view"
+          className="inline-flex items-center p-0.5 rounded-lg bg-[var(--bg-canvas)] border border-[var(--border-hairline)] text-xs"
         >
-          <Settings2 className="w-3.5 h-3.5" />
-          Group
-        </button>
-      )}
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "messages"}
+            onClick={() => onTabChange("messages")}
+            className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
+              activeTab === "messages"
+                ? "bg-[#6366F1] text-white"
+                : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+            }`}
+          >
+            Messages
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "pinned"}
+            onClick={() => onTabChange("pinned")}
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md font-medium transition-colors ${
+              activeTab === "pinned"
+                ? "bg-[#6366F1] text-white"
+                : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+            }`}
+          >
+            <Pin className="w-3 h-3" />
+            <span>Pinned</span>
+            <span
+              className={`px-1.5 py-0.2 rounded-full text-[11px] font-semibold ${
+                activeTab === "pinned"
+                  ? "bg-white/20 text-white"
+                  : "bg-[var(--bg-surface)] text-[var(--text-muted)]"
+              }`}
+            >
+              {pinnedCount}
+            </span>
+          </button>
+        </div>
+
+        {conversation.is_group && (
+          <button
+            onClick={onOpenGroupDrawer}
+            className="px-2.5 py-1.5 rounded-lg border border-[var(--border-hairline)] hover:border-[#6366F1]/50 hover:bg-[var(--bg-hover)] text-xs font-medium flex items-center gap-1.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+          >
+            <Settings2 className="w-3.5 h-3.5" />
+            Group
+          </button>
+        )}
+      </div>
     </header>
   );
 }

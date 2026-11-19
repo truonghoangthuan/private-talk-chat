@@ -1,7 +1,10 @@
 import { useRef, useState } from "react";
-import { Paperclip, Send, X } from "lucide-react";
+import { Paperclip, Reply, Send, X } from "lucide-react";
+import type { MessageDto } from "../../lib/types";
 
 interface MessageComposerProps {
+  replyingTo: MessageDto | null;
+  onCancelReply: () => void;
   onSend: (text?: string, attachmentPath?: string) => Promise<void>;
   onTypingChange: (isTyping: boolean) => void;
 }
@@ -16,7 +19,12 @@ const ALLOWED_MIME = [
   "video/webm",
 ];
 
-export function MessageComposer({ onSend, onTypingChange }: MessageComposerProps) {
+export function MessageComposer({
+  replyingTo,
+  onCancelReply,
+  onSend,
+  onTypingChange,
+}: MessageComposerProps) {
   const [text, setText] = useState("");
   const [attachmentPath, setAttachmentPath] = useState<string | null>(null);
   const [attachmentName, setAttachmentName] = useState<string | null>(null);
@@ -108,6 +116,33 @@ export function MessageComposer({ onSend, onTypingChange }: MessageComposerProps
 
   return (
     <div className="px-5 py-3 border-t border-[var(--border-hairline)] bg-[var(--bg-surface)]/50">
+      {replyingTo && (
+        <div className="mb-2 flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg bg-[#6366F1]/10 border-l-2 border-[#6366F1] text-xs">
+          <div className="flex items-center gap-2 min-w-0">
+            <Reply className="w-3.5 h-3.5 text-[#6366F1] shrink-0" />
+            <div className="min-w-0">
+              <span className="font-medium text-[#6366F1]">
+                Replying to {replyingTo.sender_display_name}
+              </span>
+              <p className="truncate text-[var(--text-muted)]">
+                {replyingTo.text ||
+                  (replyingTo.attachment
+                    ? `Attachment: ${replyingTo.attachment.file_name}`
+                    : "Encrypted message")}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onCancelReply}
+            className="p-1 rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
+            title="Cancel reply"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
       {error && (
         <div className="mb-2 px-3 py-1.5 rounded-lg bg-[#EF4444]/10 border border-[#EF4444]/30 text-xs text-[#EF4444]">
           {error}

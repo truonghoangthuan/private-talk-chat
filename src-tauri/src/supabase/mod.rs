@@ -146,6 +146,14 @@ pub struct MessageReadRow {
     pub seen_at: DateTime<Utc>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PinnedMessageRow {
+    pub conversation_id: Uuid,
+    pub message_id: Uuid,
+    pub pinned_by: Uuid,
+    pub pinned_at: DateTime<Utc>,
+}
+
 /// In-memory store backing local/offline mode and integration tests when no live Supabase URL is configured.
 #[derive(Default)]
 pub struct LocalLoopbackStore {
@@ -157,6 +165,7 @@ pub struct LocalLoopbackStore {
     pub member_keys: Vec<ConversationMemberKeyRow>,
     pub messages: Vec<MessageRow>,
     pub reads: Vec<MessageReadRow>,
+    pub pinned_messages: Vec<PinnedMessageRow>,
     pub avatars: HashMap<String, Vec<u8>>,
     pub chat_media: HashMap<String, Vec<u8>>,
 }

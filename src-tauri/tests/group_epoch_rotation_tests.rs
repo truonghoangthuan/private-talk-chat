@@ -78,7 +78,7 @@ async fn group_historical_key_grant_epoch_rotation_host_succession_and_message_l
     assert_eq!(group.host_id.as_deref(), Some(alice.id.as_str()));
 
     // Alice sends message in epoch 1
-    let msg1 = message_send_core(&alice_state, &group.id, Some("Epoch 1 secret".into()), None)
+    let msg1 = message_send_core(&alice_state, &group.id, Some("Epoch 1 secret".into()), None, None)
         .await
         .expect("send msg1");
 
@@ -136,6 +136,7 @@ async fn group_historical_key_grant_epoch_rotation_host_succession_and_message_l
         &alice_state,
         &group.id,
         Some("Epoch 2 post-removal secret".into()),
+        None,
         None,
     )
     .await
@@ -314,6 +315,7 @@ async fn direct_chat_media_encryption_size_limits_and_dpapi_restore() {
         &conv1.id,
         None,
         Some(oversized.to_string_lossy().into()),
+        None,
     )
     .await
     .is_err());
@@ -328,6 +330,7 @@ async fn direct_chat_media_encryption_size_limits_and_dpapi_restore() {
         &conv1.id,
         Some("Photo attached".into()),
         Some(media_file.to_string_lossy().into()),
+        None,
     )
     .await
     .expect("send media msg");

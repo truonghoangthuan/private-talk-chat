@@ -1,20 +1,24 @@
 import { useCallback, useEffect, useState } from "react";
-import { Download, ShieldCheck, X } from "lucide-react";
+import { Download, X } from "lucide-react";
+import appIcon from "./assets/app-icon.png";
 import { AppShell } from "./components/layout/AppShell";
 import { NavRail } from "./components/layout/NavRail";
 import { Sidebar } from "./components/layout/Sidebar";
 import { ChatHeader } from "./components/chat/ChatHeader";
 import { MessageTimeline } from "./components/chat/MessageTimeline";
+import { PinnedMessagesView } from "./components/chat/PinnedMessagesView";
 import { TypingIndicator } from "./components/chat/TypingIndicator";
 import { MessageComposer } from "./components/chat/MessageComposer";
 import { AuthScreen } from "./components/modals/AuthScreen";
 import { ProfileModal } from "./components/modals/ProfileModal";
 import { GroupManageDrawer } from "./components/modals/GroupManageDrawer";
 import { tauriClient } from "./lib/tauri-client";
+import { syncPinnedMessage, upsertMessageWithReplySync } from "./lib/ui-polish";
 import type {
   ContactDto,
   ConversationDto,
   MessageDto,
+  PinnedMessageDto,
   TypingUserDto,
   UpdateStatusDto,
   UserProfileDto,
@@ -43,6 +47,12 @@ export function App() {
     string | null
   >(null);
   const [messages, setMessages] = useState<MessageDto[]>([]);
+  const [replyingTo, setReplyingTo] = useState<MessageDto | null>(null);
+  const [activeTab, setActiveTab] = useState<"messages" | "pinned">("messages");
+  const [pinnedMessages, setPinnedMessages] = useState<PinnedMessageDto[]>([]);
+  const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(
+    null
+  );
   const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(new Set());
   const [typingByConv, setTypingByConv] = useState<
     Record<string, TypingUserDto[]>
@@ -55,6 +65,9 @@ export function App() {
     INITIAL_UPDATE_STATUS
   );
   const [updateBannerDismissed, setUpdateBannerDismissed] = useState(false);
+  const [isWindowFocused, setIsWindowFocused] = useState<boolean>(() =>
+    typeof document !== "undefined" ? document.hasFocus() : true
+  );
 
   const handleCheckUpdate = useCallback(() => {
     setUpdateBannerDismissed(false);
@@ -74,6 +87,35 @@ export function App() {
   useEffect(() => {
     document.documentElement.classList.toggle("dark", darkMode);
   }, [darkMode]);
+
+  useEffect(() => {
+    const onFocus = () => setIsWindowFocused(!document.hidden);
+    const onBlur = () => setIsWindowFocused(false);
+    const onVisibilityChange = () => {
+      setIsWindowFocused(!document.hidden && document.hasFocus());
+    };
+
+    window.addEventListener("focus", onFocus);
+    window.addEventListener("blur", onBlur);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    let active = true;
+    const unlistenPromise = tauriClient
+      .onWindowFocusChanged(({ focused }) => {
+        if (active) {
+          setIsWindowFocused(focused && !document.hidden);
+        }
+      })
+      .catch(() => null);
+
+    return () => {
+      active = false;
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("blur", onBlur);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      unlistenPromise.then((fn) => fn?.());
+    };
+  }, []);
 
   const refreshContactsAndConversations = useCallback(async () => {
     const [cList, convList] = await Promise.all([
@@ -130,8 +172,12 @@ export function App() {
   }, [user, refreshContactsAndConversations]);
 
   useEffect(() => {
+    setReplyingTo(null);
+    setActiveTab("messages");
+    setHighlightedMessageId(null);
     if (!user || !selectedConversationId) {
       setMessages([]);
+      setPinnedMessages([]);
       return;
     }
     tauriClient.messageList(selectedConversationId, 50).then((list) => {
@@ -145,7 +191,27 @@ export function App() {
           .then(refreshContactsAndConversations);
       }
     });
+    tauriClient
+      .messageListPinned(selectedConversationId)
+      .then(setPinnedMessages)
+      .catch(() => setPinnedMessages([]));
   }, [user, selectedConversationId, refreshContactsAndConversations]);
+
+  const scrollToMessage = useCallback((messageId: string) => {
+    setActiveTab("messages");
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        const el = document.getElementById(`msg-${messageId}`);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+          setHighlightedMessageId(messageId);
+          setTimeout(() => {
+            setHighlightedMessageId((cur) => (cur === messageId ? null : cur));
+          }, 1800);
+        }
+      }, 30);
+    });
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -162,15 +228,8 @@ export function App() {
       }),
       tauriClient.onMessageUpsert((msg) => {
         if (msg.conversation_id === selectedConversationId) {
-          setMessages((prev) => {
-            const idx = prev.findIndex((m) => m.id === msg.id);
-            if (idx >= 0) {
-              const next = [...prev];
-              next[idx] = msg;
-              return next;
-            }
-            return [...prev, msg];
-          });
+          setMessages((prev) => upsertMessageWithReplySync(prev, msg));
+          setPinnedMessages((prev) => syncPinnedMessage(prev, msg));
           if (msg.sender_id !== user.id && !msg.is_removed) {
             tauriClient.messageMarkSeen(msg.conversation_id, msg.id);
           }
@@ -193,6 +252,14 @@ export function App() {
       tauriClient.onNavigateConversation(({ conversation_id }) => {
         setSelectedConversationId(conversation_id);
       }),
+      tauriClient.onPinsChanged(({ conversation_id }) => {
+        if (conversation_id === selectedConversationId) {
+          tauriClient
+            .messageListPinned(conversation_id)
+            .then(setPinnedMessages)
+            .catch(() => {});
+        }
+      }),
     ]);
 
     return () => {
@@ -208,46 +275,73 @@ export function App() {
     );
   }
 
+  const privacyShieldOverlay = !isWindowFocused ? (
+    <div
+      role="status"
+      aria-live="polite"
+      className="fixed inset-0 z-50 backdrop-blur-2xl bg-[var(--bg-canvas)]/80 flex flex-col items-center justify-center gap-3 select-none"
+    >
+      <img
+        src={appIcon}
+        alt="Private Talk"
+        className="w-14 h-14 rounded-2xl object-cover shadow-lg"
+      />
+      <p className="text-sm font-medium text-[var(--text-primary)]">
+        Window unfocused — content hidden for privacy
+      </p>
+    </div>
+  ) : null;
+
   if (!user) {
     return (
-      <>
-        {updateStatus.phase === "available" && !updateBannerDismissed && (
-          <div className="fixed top-3 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 px-4 py-2 rounded-xl border border-[#6366F1]/40 bg-[var(--bg-surface)] shadow-xl text-xs">
-            <span>
-              Update v{updateStatus.latest_version} available
-            </span>
-            <button
-              type="button"
-              onClick={handleInstallUpdate}
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#6366F1] text-white font-medium hover:bg-[#6366F1]/90"
-            >
-              <Download className="w-3.5 h-3.5" />
-              Update
-            </button>
-            <button
-              type="button"
-              onClick={() => setUpdateBannerDismissed(true)}
-              className="p-1 rounded-lg text-[var(--text-muted)] hover:bg-[var(--bg-hover)]"
-              title="Dismiss"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        )}
-        <AuthScreen
-          updateStatus={updateStatus}
-          onCheckUpdate={handleCheckUpdate}
-          onInstallUpdate={handleInstallUpdate}
-          onLogin={async (u, p) => {
-            const prof = await tauriClient.authLogin(u, p);
-            setUser(prof);
-          }}
-          onRegister={async (u, p, dn) => {
-            const prof = await tauriClient.authRegister(u, p, dn);
-            setUser(prof);
-          }}
-        />
-      </>
+      <div className="relative h-screen w-screen overflow-hidden">
+        <div
+          className={
+            !isWindowFocused
+              ? "h-full w-full blur-xl select-none pointer-events-none"
+              : "h-full w-full"
+          }
+          aria-hidden={!isWindowFocused}
+        >
+          {updateStatus.phase === "available" && !updateBannerDismissed && (
+            <div className="fixed top-3 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 px-4 py-2 rounded-xl border border-[#6366F1]/40 bg-[var(--bg-surface)] shadow-xl text-xs">
+              <span>
+                Update v{updateStatus.latest_version} available
+              </span>
+              <button
+                type="button"
+                onClick={handleInstallUpdate}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#6366F1] text-white font-medium hover:bg-[#6366F1]/90"
+              >
+                <Download className="w-3.5 h-3.5" />
+                Update
+              </button>
+              <button
+                type="button"
+                onClick={() => setUpdateBannerDismissed(true)}
+                className="p-1 rounded-lg text-[var(--text-muted)] hover:bg-[var(--bg-hover)]"
+                title="Dismiss"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+          <AuthScreen
+            updateStatus={updateStatus}
+            onCheckUpdate={handleCheckUpdate}
+            onInstallUpdate={handleInstallUpdate}
+            onLogin={async (u, p) => {
+              const prof = await tauriClient.authLogin(u, p);
+              setUser(prof);
+            }}
+            onRegister={async (u, p, dn) => {
+              const prof = await tauriClient.authRegister(u, p, dn);
+              setUser(prof);
+            }}
+          />
+        </div>
+        {privacyShieldOverlay}
+      </div>
     );
   }
 
@@ -261,8 +355,16 @@ export function App() {
     : [];
 
   return (
-    <>
-      <AppShell
+    <div className="relative h-screen w-screen overflow-hidden">
+      <div
+        className={
+          !isWindowFocused
+            ? "h-full w-full blur-xl select-none pointer-events-none"
+            : "h-full w-full"
+        }
+        aria-hidden={!isWindowFocused}
+      >
+        <AppShell
         rail={
           <NavRail
             user={user}
@@ -333,47 +435,128 @@ export function App() {
                   conversation={activeConversation}
                   currentUserId={user.id}
                   onlineUserIds={onlineUserIds}
+                  activeTab={activeTab}
+                  pinnedCount={pinnedMessages.length}
+                  onTabChange={setActiveTab}
                   onOpenGroupDrawer={() => setGroupDrawerMode("manage")}
                 />
-                <MessageTimeline
-                  messages={messages}
-                  currentUserId={user.id}
-                  onEditMessage={async (mid, text) => {
-                    const updated = await tauriClient.messageEdit(mid, text);
-                    setMessages((prev) =>
-                      prev.map((m) => (m.id === updated.id ? updated : m))
-                    );
-                  }}
-                  onRemoveMessage={async (mid) => {
-                    const wiped = await tauriClient.messageRemove(mid);
-                    setMessages((prev) =>
-                      prev.map((m) => (m.id === wiped.id ? wiped : m))
-                    );
-                  }}
-                />
-                <TypingIndicator typingUsers={activeTypingUsers} />
-                <MessageComposer
-                  onSend={async (text, attachmentPath) => {
-                    const sent = await tauriClient.messageSend(
-                      activeConversation.id,
-                      text,
-                      attachmentPath
-                    );
-                    setMessages((prev) => [...prev, sent]);
-                    await refreshContactsAndConversations();
-                  }}
-                  onTypingChange={(isTyping) => {
-                    tauriClient
-                      .typingSetStatus(activeConversation.id, isTyping)
-                      .catch(() => {});
-                  }}
-                />
+                {activeTab === "pinned" ? (
+                  <PinnedMessagesView
+                    pinnedMessages={pinnedMessages}
+                    currentUserId={user.id}
+                    onJumpToMessage={scrollToMessage}
+                    onUnpinMessage={async (mid) => {
+                      await tauriClient.messageUnpin(activeConversation.id, mid);
+                      const updatedPins = await tauriClient.messageListPinned(
+                        activeConversation.id
+                      );
+                      setPinnedMessages(updatedPins);
+                      setMessages((prev) =>
+                        prev.map((m) =>
+                          m.id === mid
+                            ? {
+                                ...m,
+                                is_pinned: false,
+                                pinned_at: null,
+                                pinned_by_display_name: null,
+                              }
+                            : m
+                        )
+                      );
+                    }}
+                  />
+                ) : (
+                  <>
+                    <MessageTimeline
+                      messages={messages}
+                      currentUserId={user.id}
+                      highlightedMessageId={highlightedMessageId}
+                      onEditMessage={async (mid, text) => {
+                        const updated = await tauriClient.messageEdit(mid, text);
+                        setMessages((prev) =>
+                          upsertMessageWithReplySync(prev, updated)
+                        );
+                        setPinnedMessages((prev) =>
+                          syncPinnedMessage(prev, updated)
+                        );
+                      }}
+                      onRemoveMessage={async (mid) => {
+                        const wiped = await tauriClient.messageRemove(mid);
+                        setMessages((prev) =>
+                          upsertMessageWithReplySync(prev, wiped)
+                        );
+                        setPinnedMessages((prev) =>
+                          syncPinnedMessage(prev, wiped)
+                        );
+                      }}
+                      onReplyMessage={(msg) => setReplyingTo(msg)}
+                      onTogglePinMessage={async (msg) => {
+                        if (msg.is_pinned) {
+                          await tauriClient.messageUnpin(
+                            activeConversation.id,
+                            msg.id
+                          );
+                          setMessages((prev) =>
+                            prev.map((m) =>
+                              m.id === msg.id
+                                ? {
+                                    ...m,
+                                    is_pinned: false,
+                                    pinned_at: null,
+                                    pinned_by_display_name: null,
+                                  }
+                                : m
+                            )
+                          );
+                        } else {
+                          const pinned = await tauriClient.messagePin(
+                            activeConversation.id,
+                            msg.id
+                          );
+                          setMessages((prev) =>
+                            prev.map((m) =>
+                              m.id === msg.id ? pinned.message : m
+                            )
+                          );
+                        }
+                        const updatedPins = await tauriClient.messageListPinned(
+                          activeConversation.id
+                        );
+                        setPinnedMessages(updatedPins);
+                      }}
+                      onJumpToMessage={scrollToMessage}
+                    />
+                    <TypingIndicator typingUsers={activeTypingUsers} />
+                    <MessageComposer
+                      replyingTo={replyingTo}
+                      onCancelReply={() => setReplyingTo(null)}
+                      onSend={async (text, attachmentPath) => {
+                        const sent = await tauriClient.messageSend(
+                          activeConversation.id,
+                          text,
+                          attachmentPath,
+                          replyingTo?.id
+                        );
+                        setReplyingTo(null);
+                        setMessages((prev) => [...prev, sent]);
+                        await refreshContactsAndConversations();
+                      }}
+                      onTypingChange={(isTyping) => {
+                        tauriClient
+                          .typingSetStatus(activeConversation.id, isTyping)
+                          .catch(() => {});
+                      }}
+                    />
+                  </>
+                )}
               </>
             ) : (
               <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
-                <div className="w-12 h-12 rounded-2xl bg-[#6366F1]/15 text-[#6366F1] flex items-center justify-center mb-3">
-                  <ShieldCheck className="w-6 h-6" />
-                </div>
+                <img
+                  src={appIcon}
+                  alt="Private Talk"
+                  className="w-14 h-14 rounded-2xl object-cover shadow-md mb-3"
+                />
                 <h2 className="text-base font-semibold mb-1">
                   Private Talk E2EE Workspace
                 </h2>
@@ -435,7 +618,9 @@ export function App() {
           }}
         />
       )}
-    </>
+      </div>
+      {privacyShieldOverlay}
+    </div>
   );
 }
 
