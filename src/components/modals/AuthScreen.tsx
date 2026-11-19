@@ -76,7 +76,7 @@ export function AuthScreen({
             <ShieldCheck className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-lg font-semibold tracking-tight">Private Talk</h1>
+            <h1 className="text-[22px] font-semibold tracking-tight">Private Talk</h1>
             <p className="text-xs text-[var(--text-muted)]">
               Zero-knowledge Windows encrypted chat
             </p>
@@ -178,7 +178,7 @@ export function AuthScreen({
         </form>
 
         <div className="mt-5 pt-4 border-t border-[var(--border-hairline)] space-y-2">
-          <div className="flex items-center justify-between gap-2 text-[11px] text-[var(--text-muted)]">
+          <div className="flex items-center justify-between gap-2 text-xs text-[var(--text-muted)]">
             <span>
               v{updateStatus.current_version}
               {updateStatus.phase === "up_to_date" && " • Up to date"}
@@ -231,7 +231,7 @@ export function AuthScreen({
           )}
 
           {updateStatus.phase === "verification_failed" && (
-            <div className="p-2 rounded-xl bg-[#EF4444]/10 border border-[#EF4444]/30 text-[11px] text-[#EF4444] flex items-start gap-1.5">
+            <div className="p-2 rounded-xl bg-[#EF4444]/10 border border-[#EF4444]/30 text-xs text-[#EF4444] flex items-start gap-1.5">
               <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
               <span>
                 Update verification failed; installation blocked.
@@ -240,7 +240,7 @@ export function AuthScreen({
           )}
 
           {updateStatus.phase === "error" && updateStatus.error_message && (
-            <div className="p-2 rounded-xl bg-[#EF4444]/10 border border-[#EF4444]/30 text-[11px] text-[#EF4444]">
+            <div className="p-2 rounded-xl bg-[#EF4444]/10 border border-[#EF4444]/30 text-xs text-[#EF4444]">
               {updateStatus.error_message}
             </div>
           )}

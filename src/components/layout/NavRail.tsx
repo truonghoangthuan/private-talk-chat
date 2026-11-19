@@ -6,7 +6,6 @@ import {
   Settings,
   ShieldCheck,
   Sun,
-  Users,
 } from "lucide-react";
 import type { UpdateStatusDto, UserProfileDto } from "../../lib/types";
 
@@ -17,7 +16,6 @@ interface NavRailProps {
   updateStatus: UpdateStatusDto;
   onToggleTheme: () => void;
   onOpenProfile: () => void;
-  onOpenCreateGroup: () => void;
   onCheckUpdate: () => void;
   onInstallUpdate: () => void;
   onLogout: () => void;
@@ -30,7 +28,6 @@ export function NavRail({
   updateStatus,
   onToggleTheme,
   onOpenProfile,
-  onOpenCreateGroup,
   onCheckUpdate,
   onInstallUpdate,
   onLogout,
@@ -68,25 +65,17 @@ export function NavRail({
             title="Online"
           />
           {totalUnread > 0 && (
-            <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-[#EF4444] text-white text-[10px] font-bold flex items-center justify-center">
+            <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-[#EF4444] text-white text-xs font-bold flex items-center justify-center">
               {totalUnread > 99 ? "99+" : totalUnread}
             </span>
           )}
-        </button>
-
-        <button
-          onClick={onOpenCreateGroup}
-          className="w-10 h-10 rounded-xl hover:bg-[#6366F1]/10 text-[var(--text-muted)] hover:text-[#6366F1] flex items-center justify-center transition-colors"
-          title="New Group Chat"
-        >
-          <Users className="w-5 h-5" />
         </button>
       </div>
 
       <div className="flex flex-col items-center gap-3">
         <button
           onClick={onToggleTheme}
-          className="w-10 h-10 rounded-xl hover:bg-white/5 text-[var(--text-muted)] hover:text-[var(--text-primary)] flex items-center justify-center transition-colors"
+          className="w-10 h-10 rounded-xl hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] flex items-center justify-center transition-colors"
           title={darkMode ? "Switch to light theme" : "Switch to dark theme"}
         >
           {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
@@ -101,7 +90,7 @@ export function NavRail({
             updateStatus.phase === "downloading" ||
             updateStatus.phase === "installing"
           }
-          className="relative w-10 h-10 rounded-xl hover:bg-white/5 text-[var(--text-muted)] hover:text-[var(--text-primary)] flex items-center justify-center transition-colors disabled:opacity-50"
+          className="relative w-10 h-10 rounded-xl hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] flex items-center justify-center transition-colors disabled:opacity-50"
           title={
             updateStatus.phase === "available" && updateStatus.latest_version
               ? `Update available: v${updateStatus.latest_version} (click to update)`
@@ -131,7 +120,7 @@ export function NavRail({
 
         <button
           onClick={onOpenProfile}
-          className="w-10 h-10 rounded-xl hover:bg-white/5 text-[var(--text-muted)] hover:text-[var(--text-primary)] flex items-center justify-center transition-colors"
+          className="w-10 h-10 rounded-xl hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] flex items-center justify-center transition-colors"
           title="Profile Settings"
         >
           <Settings className="w-4 h-4" />
