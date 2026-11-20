@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   computeScrollFollowState,
   filterConversations,
+  formatMessageTimestamp,
   getConversationTitle,
   getDraft,
   getMessageCopyText,
@@ -315,5 +316,46 @@ describe("updateDraft & getDraft", () => {
     const afterTypingInC1 = updateDraft({}, "c1", "draft for c1");
     // Switching to c2 should read an empty draft, not c1's leftover text.
     expect(getDraft(afterTypingInC1, "c2")).toBe("");
+  });
+});
+
+describe("formatMessageTimestamp", () => {
+  const referenceNow = new Date(2026, 10, 20, 15, 30); // Nov 20, 2026, 15:30 local
+
+  it("returns no date label for a message sent earlier the same day", () => {
+    const sentToday = new Date(2026, 10, 20, 9, 5).toISOString();
+    const { dateLabel } = formatMessageTimestamp(sentToday, referenceNow);
+    expect(dateLabel).toBeNull();
+  });
+
+  it('labels a message sent the previous calendar day as "Yesterday"', () => {
+    const sentYesterday = new Date(2026, 10, 19, 23, 59).toISOString();
+    const { dateLabel } = formatMessageTimestamp(sentYesterday, referenceNow);
+    expect(dateLabel).toBe("Yesterday");
+  });
+
+  it("uses a short date without a year for an older message in the same year", () => {
+    const sentEarlierThisYear = new Date(2026, 10, 18, 12, 0).toISOString();
+    const { dateLabel } = formatMessageTimestamp(sentEarlierThisYear, referenceNow);
+    expect(dateLabel).not.toBeNull();
+    expect(dateLabel).not.toContain("2026");
+  });
+
+  it("includes the year for a message sent in a prior year", () => {
+    const sentLastYear = new Date(2025, 10, 18, 12, 0).toISOString();
+    const { dateLabel } = formatMessageTimestamp(sentLastYear, referenceNow);
+    expect(dateLabel).toContain("2025");
+  });
+
+  it("treats a future-dated message (clock skew) the same as today: no date label", () => {
+    const sentInFuture = new Date(2026, 10, 21, 8, 0).toISOString();
+    const { dateLabel } = formatMessageTimestamp(sentInFuture, referenceNow);
+    expect(dateLabel).toBeNull();
+  });
+
+  it("always returns a non-empty time label regardless of date bucket", () => {
+    const sentLongAgo = new Date(2024, 0, 1, 7, 45).toISOString();
+    const { timeLabel } = formatMessageTimestamp(sentLongAgo, referenceNow);
+    expect(timeLabel.length).toBeGreaterThan(0);
   });
 });

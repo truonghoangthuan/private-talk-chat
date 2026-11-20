@@ -263,3 +263,47 @@ export function getDraft(
   if (!conversationId) return "";
   return drafts[conversationId] ?? "";
 }
+
+export interface MessageTimestampLabel {
+  /** Always-shown locale time, e.g. "14:32". */
+  timeLabel: string;
+  /**
+   * Date context shown ahead of the time once it's no longer obvious:
+   * `null` for a message sent earlier today, `"Yesterday"` for the
+   * previous calendar day, otherwise a short date (with year only when it
+   * differs from the reference year).
+   */
+  dateLabel: string | null;
+}
+
+/**
+ * Splits a message timestamp into its time label and an optional date
+ * label, so bubbles orient the viewer when scrolling into older history
+ * instead of showing a bare `HH:MM` with no indication of which day it
+ * was sent. Calendar-day comparisons use local-time day boundaries via an
+ * injectable `referenceNow` (defaults to the real current time) so the
+ * logic stays deterministic and timezone-correct under test. A sent date
+ * that is today or later (including minor clock skew) yields no date
+ * label at all.
+ */
+export function formatMessageTimestamp(
+  isoString: string,
+  referenceNow: Date = new Date()
+): MessageTimestampLabel {
+  const sent = new Date(isoString);
+  const timeLabel = sent.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+  const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const dayDiff = Math.round((startOfDay(referenceNow) - startOfDay(sent)) / 86_400_000);
+
+  if (dayDiff <= 0) return { timeLabel, dateLabel: null };
+  if (dayDiff === 1) return { timeLabel, dateLabel: "Yesterday" };
+
+  const sameYear = sent.getFullYear() === referenceNow.getFullYear();
+  const dateLabel = sent.toLocaleDateString([], {
+    month: "short",
+    day: "numeric",
+    year: sameYear ? undefined : "numeric",
+  });
+  return { timeLabel, dateLabel };
+}
