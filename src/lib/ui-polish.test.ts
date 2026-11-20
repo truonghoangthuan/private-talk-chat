@@ -9,6 +9,7 @@ import {
   getMessageCopyText,
   isScrolledNearBottom,
   resolveComposerEscapeAction,
+  resolveMessageBubbleEscapeAction,
   syncPinnedMessage,
   updateDraft,
   upsertMessageWithReplySync,
@@ -434,5 +435,20 @@ describe("resolveComposerEscapeAction", () => {
 
   it("does nothing when there's neither a reply nor an attachment", () => {
     expect(resolveComposerEscapeAction(false, false)).toBe("none");
+  });
+});
+
+describe("resolveMessageBubbleEscapeAction", () => {
+  it("cancels an in-progress edit, regardless of remove-confirm state", () => {
+    expect(resolveMessageBubbleEscapeAction(true, false)).toBe("cancel_edit");
+    expect(resolveMessageBubbleEscapeAction(true, true)).toBe("cancel_edit");
+  });
+
+  it("dismisses the remove-confirmation prompt when not editing", () => {
+    expect(resolveMessageBubbleEscapeAction(false, true)).toBe("cancel_remove_confirm");
+  });
+
+  it("does nothing when neither editing nor confirming a remove", () => {
+    expect(resolveMessageBubbleEscapeAction(false, false)).toBe("none");
   });
 });

@@ -10,6 +10,7 @@ applicable.
 
 ## [Unreleased]
 
+- feat: pressing Escape now also cancels an in-progress message edit, or dismisses a pending "Confirm remove" prompt, without needing the mouse — same convention as the composer's reply/attachment Escape handling (issue #25)
 - feat: pressing Escape in the composer now cancels an active reply (or clears a staged attachment if no reply is active) without needing the mouse, matching Slack/Discord/Telegram conventions (issue #22)
 - chore: add a dev-only Playwright screenshot harness (`harness.html`, `scripts/harness-main.tsx`, `scripts/screenshot-component.mjs` — `npm run screenshot`) for capturing before/after PNGs of a single component in isolation, to attach visual diffs to PRs. Not part of the shipped app build.
 - fix: stop composer draft text from leaking between conversations when switching without sending; unsent drafts are now kept per-conversation and restored on return
