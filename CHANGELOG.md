@@ -10,6 +10,7 @@ applicable.
 
 ## [Unreleased]
 
+- feat: add a show/hide toggle (eye icon) to the auth screen's password field — click to reveal the typed characters as plain text, or mask them again, matching the Chrome/1Password convention instead of the field only ever rendering as bullets. New pure `resolvePasswordInputType`/`getPasswordVisibilityToggleLabel` helpers. Client-side UI state only — doesn't touch the split-credential auth derivation, so the server still never sees the raw password either way (issue #80)
 - feat: focus the sidebar's "Filter conversations..." box with a bare `/` keypress, matching the Slack/Linear/GitHub "jump to search" convention instead of it only being reachable by clicking in. Suppressed the same way the existing `?` shortcuts-help shortcut is while typing in an editable field, via a new pure `shouldFocusConversationFilter` helper; listed in the keyboard shortcuts help modal. Client-side only (issue #78)
 
 - feat: add an "Unread only" toggle to the sidebar's conversation filter row — a pill button (mail icon, badge shows the total unread-conversation count) that, when active, hides every conversation with zero unread messages, mirroring the Gmail/Slack "unreads only" convention. Combines with the existing text filter and pinned-sort order rather than replacing them, via a new pure `filterUnreadOnlyConversations` helper. Client-side only, filtering already-loaded conversation data (issue #76)

@@ -1,8 +1,12 @@
 import { useMemo, useState } from "react";
-import { AlertTriangle, Download, Lock, RefreshCw } from "lucide-react";
+import { AlertTriangle, Download, Eye, EyeOff, Lock, RefreshCw } from "lucide-react";
 import appIcon from "../../assets/app-icon.png";
 import type { UpdateStatusDto } from "../../lib/types";
-import { assessPasswordStrength } from "../../lib/ui-polish";
+import {
+  assessPasswordStrength,
+  getPasswordVisibilityToggleLabel,
+  resolvePasswordInputType,
+} from "../../lib/ui-polish";
 
 interface AuthScreenProps {
   updateStatus: UpdateStatusDto;
@@ -46,10 +50,12 @@ export function AuthScreen({
   const [displayName, setDisplayName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const passwordStrength = useMemo(
     () => assessPasswordStrength(password),
     [password]
   );
+  const passwordVisibilityLabel = getPasswordVisibilityToggleLabel(showPassword);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -171,13 +177,29 @@ export function AuthScreen({
             <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">
               Password
             </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••••••"
-              className="w-full px-3 py-2 text-sm rounded-xl bg-[var(--bg-canvas)] border border-[var(--border-hairline)] focus:outline-none focus:border-[#6366F1]"
-            />
+            <div className="relative">
+              <input
+                type={resolvePasswordInputType(showPassword)}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••••••"
+                className="w-full px-3 py-2 pr-10 text-sm rounded-xl bg-[var(--bg-canvas)] border border-[var(--border-hairline)] focus:outline-none focus:border-[#6366F1]"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                className="absolute inset-y-0 right-0 flex items-center px-3 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                title={passwordVisibilityLabel}
+                aria-label={passwordVisibilityLabel}
+                tabIndex={-1}
+              >
+                {showPassword ? (
+                  <EyeOff className="w-3.5 h-3.5" />
+                ) : (
+                  <Eye className="w-3.5 h-3.5" />
+                )}
+              </button>
+            </div>
             {mode === "register" && password.length > 0 && (
               <div className="mt-1.5" aria-live="polite">
                 <div className="flex gap-1">

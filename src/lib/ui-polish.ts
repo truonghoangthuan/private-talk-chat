@@ -1388,3 +1388,24 @@ export function assessPasswordStrength(password: string): PasswordStrengthResult
   };
   return { label: labelsByScore[score], score };
 }
+
+/**
+ * Resolves the auth screen's password `<input>` `type` attribute from the
+ * "reveal" toggle's boolean state (issue #80) — a small pure wrapper purely
+ * so the show/hide behavior is unit-testable without mounting the
+ * component. `visible: true` reveals the typed characters (`type="text"`);
+ * the default, `false`, masks them (`type="password"`).
+ */
+export function resolvePasswordInputType(visible: boolean): "text" | "password" {
+  return visible ? "text" : "password";
+}
+
+/**
+ * Accessible label for the auth screen's password-reveal toggle button,
+ * describing the action the next click performs (not the current state) —
+ * matches how the composer's own icon-button titles ("Insert emoji",
+ * "Remove attachment") are phrased.
+ */
+export function getPasswordVisibilityToggleLabel(visible: boolean): string {
+  return visible ? "Hide password" : "Show password";
+}

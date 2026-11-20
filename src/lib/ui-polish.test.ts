@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   assessPasswordStrength,
+  getPasswordVisibilityToggleLabel,
+  resolvePasswordInputType,
   buildEmojiPickerOrder,
   buildTimelineItems,
   computeComposerCharacterState,
@@ -1505,5 +1507,25 @@ describe("assessPasswordStrength", () => {
       label: "Strong",
       score: 4,
     });
+  });
+});
+
+describe("resolvePasswordInputType", () => {
+  it("masks the password by default (visible: false)", () => {
+    expect(resolvePasswordInputType(false)).toBe("password");
+  });
+
+  it("reveals the password when visible: true", () => {
+    expect(resolvePasswordInputType(true)).toBe("text");
+  });
+});
+
+describe("getPasswordVisibilityToggleLabel", () => {
+  it("offers to show the password while it is currently masked", () => {
+    expect(getPasswordVisibilityToggleLabel(false)).toBe("Show password");
+  });
+
+  it("offers to hide the password while it is currently revealed", () => {
+    expect(getPasswordVisibilityToggleLabel(true)).toBe("Hide password");
   });
 });
