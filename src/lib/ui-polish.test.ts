@@ -9,6 +9,7 @@ import {
   findUnreadDividerMessageId,
   formatFullMessageTimestamp,
   formatMessageTimestamp,
+  formatOfflineDuration,
   getAttachmentPreviewKind,
   getConversationTitle,
   getDraft,
@@ -754,5 +755,38 @@ describe("computeDocumentTitle", () => {
   it("caps the displayed count at 99+ like the sidebar/nav-rail badges", () => {
     expect(computeDocumentTitle("Bloop", 100)).toBe("(99+) Bloop");
     expect(computeDocumentTitle("Bloop", 99)).toBe("(99) Bloop");
+  });
+});
+
+describe("formatOfflineDuration", () => {
+  it("formats sub-minute durations as whole seconds", () => {
+    expect(formatOfflineDuration(0)).toBe("0s");
+    expect(formatOfflineDuration(45_000)).toBe("45s");
+  });
+
+  it("rounds to the nearest second", () => {
+    expect(formatOfflineDuration(1_400)).toBe("1s");
+    expect(formatOfflineDuration(1_600)).toBe("2s");
+  });
+
+  it("formats minutes with a trailing seconds remainder", () => {
+    expect(formatOfflineDuration(90_000)).toBe("1m 30s");
+  });
+
+  it("omits a zero seconds remainder", () => {
+    expect(formatOfflineDuration(60_000)).toBe("1m");
+  });
+
+  it("formats hours with a trailing minutes remainder", () => {
+    expect(formatOfflineDuration(3_660_000)).toBe("1h 1m");
+  });
+
+  it("omits a zero minutes remainder", () => {
+    expect(formatOfflineDuration(3_600_000)).toBe("1h");
+  });
+
+  it("clamps negative or non-finite input to zero", () => {
+    expect(formatOfflineDuration(-500)).toBe("0s");
+    expect(formatOfflineDuration(NaN)).toBe("0s");
   });
 });
