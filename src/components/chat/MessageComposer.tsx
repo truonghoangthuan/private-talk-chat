@@ -5,6 +5,7 @@ import {
   computeComposerCharacterState,
   getAttachmentPreviewKind,
   resolveComposerEscapeAction,
+  validateAttachmentFile,
 } from "../../lib/ui-polish";
 
 interface MessageComposerProps {
@@ -17,16 +18,6 @@ interface MessageComposerProps {
   /** Called on every text change (and on clear after sending) so the caller can persist a per-conversation draft. */
   onDraftChange?: (text: string) => void;
 }
-
-const MAX_MEDIA_BYTES = 50 * 1024 * 1024; // 50 MB (52,428,800 bytes)
-const ALLOWED_MIME = [
-  "image/png",
-  "image/jpeg",
-  "image/webp",
-  "image/gif",
-  "video/mp4",
-  "video/webm",
-];
 
 export function MessageComposer({
   replyingTo,
@@ -43,6 +34,8 @@ export function MessageComposer({
   const [attachmentMimeType, setAttachmentMimeType] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const dragDepthRef = useRef(0);
   const lastTypingPingRef = useRef<number>(0);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -83,17 +76,11 @@ export function MessageComposer({
     }
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const stageFile = (file: File) => {
     setError(null);
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!ALLOWED_MIME.includes(file.type)) {
-      setError("Allowed formats: PNG, JPG, WEBP, GIF, MP4, WEBM.");
-      return;
-    }
-    if (file.size > MAX_MEDIA_BYTES) {
-      setError("Attachment exceeds the 50 MB limit.");
+    const validation = validateAttachmentFile(file.type, file.size);
+    if (!validation.ok) {
+      setError(validation.error);
       return;
     }
     const nativePath = (file as File & { path?: string }).path;
@@ -107,6 +94,42 @@ export function MessageComposer({
     // Client-side-only preview of the local file before it's encrypted and
     // sent; never touches the network or Tauri IPC.
     setAttachmentPreviewUrl(URL.createObjectURL(file));
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    stageFile(file);
+    // Allow re-selecting the same file path again after clearing it.
+    e.target.value = "";
+  };
+
+  const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
+    if (!e.dataTransfer.types.includes("Files")) return;
+    e.preventDefault();
+    dragDepthRef.current += 1;
+    setIsDragOver(true);
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    if (!e.dataTransfer.types.includes("Files")) return;
+    e.preventDefault();
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    if (!e.dataTransfer.types.includes("Files")) return;
+    e.preventDefault();
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+    if (dragDepthRef.current === 0) setIsDragOver(false);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    if (!e.dataTransfer.types.includes("Files")) return;
+    e.preventDefault();
+    dragDepthRef.current = 0;
+    setIsDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) stageFile(file);
   };
 
   const submitMessage = async () => {
@@ -169,7 +192,19 @@ export function MessageComposer({
     : "file";
 
   return (
-    <div className="px-5 py-3 border-t border-[var(--border-hairline)] bg-[var(--bg-surface)]/50">
+    <div
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      className="relative px-5 py-3 border-t border-[var(--border-hairline)] bg-[var(--bg-surface)]/50"
+    >
+      {isDragOver && (
+        <div className="absolute inset-1 z-10 flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-[#6366F1] bg-[var(--bg-surface)]/95 text-xs font-medium text-[#6366F1] pointer-events-none">
+          <Paperclip className="w-3.5 h-3.5" />
+          Drop to attach an image, GIF, or video
+        </div>
+      )}
       {replyingTo && (
         <div className="mb-2 flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg bg-[#6366F1]/10 border-l-2 border-[#6366F1] text-xs">
           <div className="flex items-center gap-2 min-w-0">

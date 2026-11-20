@@ -422,3 +422,40 @@ export function getAttachmentPreviewKind(mimeType: string): AttachmentPreviewKin
   if (mimeType.startsWith("video/")) return "video";
   return "file";
 }
+
+/** MIME types the composer accepts as a message attachment. */
+export const ALLOWED_ATTACHMENT_MIME_TYPES = [
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "image/gif",
+  "video/mp4",
+  "video/webm",
+];
+
+/** Max staged attachment size: 50 MB (52,428,800 bytes). */
+export const MAX_ATTACHMENT_BYTES = 50 * 1024 * 1024;
+
+export type AttachmentValidationResult =
+  | { ok: true }
+  | { ok: false; error: string };
+
+/**
+ * Validates a candidate composer attachment's MIME type and size against the
+ * same limits regardless of how the file was selected (native file picker
+ * `<input type="file">` change event or a drag-and-drop `DataTransfer`
+ * drop), so both entry points enforce identical rules instead of each
+ * hand-rolling its own copy of the checks.
+ */
+export function validateAttachmentFile(
+  mimeType: string,
+  sizeBytes: number
+): AttachmentValidationResult {
+  if (!ALLOWED_ATTACHMENT_MIME_TYPES.includes(mimeType)) {
+    return { ok: false, error: "Allowed formats: PNG, JPG, WEBP, GIF, MP4, WEBM." };
+  }
+  if (sizeBytes > MAX_ATTACHMENT_BYTES) {
+    return { ok: false, error: "Attachment exceeds the 50 MB limit." };
+  }
+  return { ok: true };
+}
