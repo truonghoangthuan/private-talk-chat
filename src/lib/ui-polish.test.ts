@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   buildTimelineItems,
   computeComposerCharacterState,
@@ -17,9 +17,11 @@ import {
   insertTextAtCursor,
   isScrolledNearBottom,
   KEYBOARD_SHORTCUTS,
+  loadThemePreference,
   QUICK_EMOJIS,
   resolveComposerEscapeAction,
   resolveMessageBubbleEscapeAction,
+  saveThemePreference,
   shouldOpenMediaLightbox,
   shouldOpenShortcutsHelp,
   shouldSubmitMessageEditOnKeyDown,
@@ -279,6 +281,58 @@ describe("sortConversationsForSidebar", () => {
 
   it("ignores pinned IDs that no longer match any conversation in the list", () => {
     expect(sortConversationsForSidebar([c1, c2], ["gone"])).toEqual([c1, c2]);
+  });
+});
+
+describe("loadThemePreference / saveThemePreference", () => {
+  let store: Record<string, string>;
+
+  beforeEach(() => {
+    store = {};
+    (globalThis as { localStorage?: Storage }).localStorage = {
+      getItem: (key: string) => (key in store ? store[key] : null),
+      setItem: (key: string, value: string) => {
+        store[key] = value;
+      },
+      removeItem: (key: string) => {
+        delete store[key];
+      },
+      clear: () => {
+        store = {};
+      },
+      get length() {
+        return Object.keys(store).length;
+      },
+      key: (index: number) => Object.keys(store)[index] ?? null,
+    } as Storage;
+  });
+
+  afterEach(() => {
+    delete (globalThis as { localStorage?: Storage }).localStorage;
+  });
+
+  it("falls back to the system preference when nothing has been saved yet", () => {
+    expect(loadThemePreference(true)).toBe(true);
+    expect(loadThemePreference(false)).toBe(false);
+  });
+
+  it("round-trips an explicitly saved preference, overriding the system default", () => {
+    saveThemePreference(false);
+    expect(loadThemePreference(true)).toBe(false);
+
+    saveThemePreference(true);
+    expect(loadThemePreference(false)).toBe(true);
+  });
+
+  it("falls back to the system preference when localStorage is unavailable", () => {
+    delete (globalThis as { localStorage?: Storage }).localStorage;
+    expect(loadThemePreference(true)).toBe(true);
+    expect(() => saveThemePreference(false)).not.toThrow();
+  });
+
+  it("falls back to the system preference on a corrupt/unexpected stored value", () => {
+    store["bloop:dark-mode"] = "not-a-valid-theme";
+    expect(loadThemePreference(false)).toBe(false);
   });
 });
 
