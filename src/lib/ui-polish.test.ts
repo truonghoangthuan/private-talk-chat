@@ -22,6 +22,9 @@ import {
   getAdjacentConversationId,
   getAttachmentPreviewKind,
   getConversationSwitchDirection,
+  getNextUnreadConversationId,
+  getUnreadConversationJumpDirection,
+  getUnreadForDisplayConversationIds,
   getConversationTitle,
   getDraft,
   getMessageCopyText,
@@ -1783,6 +1786,68 @@ describe("getAdjacentConversationId", () => {
   it("wraps correctly for a single-conversation list", () => {
     expect(getAdjacentConversationId(["only"], "only", 1)).toBe("only");
     expect(getAdjacentConversationId(["only"], "only", -1)).toBe("only");
+  });
+});
+
+describe("getUnreadConversationJumpDirection", () => {
+  it("returns null unless both Alt and Shift are held", () => {
+    expect(getUnreadConversationJumpDirection("ArrowDown", false, false)).toBeNull();
+    expect(getUnreadConversationJumpDirection("ArrowDown", true, false)).toBeNull();
+    expect(getUnreadConversationJumpDirection("ArrowDown", false, true)).toBeNull();
+  });
+
+  it("returns 1 for Alt+Shift+ArrowDown and -1 for Alt+Shift+ArrowUp", () => {
+    expect(getUnreadConversationJumpDirection("ArrowDown", true, true)).toBe(1);
+    expect(getUnreadConversationJumpDirection("ArrowUp", true, true)).toBe(-1);
+  });
+
+  it("returns null for any other key even with both modifiers held", () => {
+    expect(getUnreadConversationJumpDirection("ArrowLeft", true, true)).toBeNull();
+    expect(getUnreadConversationJumpDirection("k", true, true)).toBeNull();
+  });
+});
+
+describe("getUnreadForDisplayConversationIds", () => {
+  it("includes conversations with a real unread count or the manual flag", () => {
+    const conversations = [
+      makeConv({ id: "a", unread_count: 3 }),
+      makeConv({ id: "b", unread_count: 0 }),
+      makeConv({ id: "c", unread_count: 0 }),
+    ];
+    expect(getUnreadForDisplayConversationIds(conversations, ["c"])).toEqual(["a", "c"]);
+  });
+
+  it("returns an empty array when nothing is unread", () => {
+    const conversations = [makeConv({ id: "a", unread_count: 0 })];
+    expect(getUnreadForDisplayConversationIds(conversations, [])).toEqual([]);
+  });
+});
+
+describe("getNextUnreadConversationId", () => {
+  const ids = ["a", "b", "c", "d"];
+
+  it("returns null when there are no conversations or nothing is unread", () => {
+    expect(getNextUnreadConversationId([], "a", 1, ["a"])).toBeNull();
+    expect(getNextUnreadConversationId(ids, "a", 1, [])).toBeNull();
+  });
+
+  it("skips read conversations to find the next unread one, wrapping around", () => {
+    expect(getNextUnreadConversationId(ids, "a", 1, ["c"])).toBe("c");
+    expect(getNextUnreadConversationId(ids, "c", 1, ["a"])).toBe("a");
+  });
+
+  it("skips read conversations stepping backward, wrapping around", () => {
+    expect(getNextUnreadConversationId(ids, "b", -1, ["d"])).toBe("d");
+    expect(getNextUnreadConversationId(ids, "a", -1, ["b"])).toBe("b");
+  });
+
+  it("finds the nearest unread conversation, not just any unread one", () => {
+    expect(getNextUnreadConversationId(ids, "a", 1, ["b", "d"])).toBe("b");
+    expect(getNextUnreadConversationId(ids, "d", -1, ["a", "c"])).toBe("c");
+  });
+
+  it("wraps back to currentId when it's the only unread conversation", () => {
+    expect(getNextUnreadConversationId(ids, "a", 1, ["a"])).toBe("a");
   });
 });
 

@@ -1236,6 +1236,10 @@ export const KEYBOARD_SHORTCUTS: KeyboardShortcutEntry[] = [
   { keys: "Ctrl/Cmd + F", description: "Open search in the current conversation" },
   { keys: "Ctrl/Cmd + K", description: "Open the quick switcher to jump to any conversation" },
   { keys: "Alt + ↓ / ↑", description: "Switch to the next / previous conversation in the sidebar" },
+  {
+    keys: "Alt + Shift + ↓ / ↑",
+    description: "Jump to the next / previous unread conversation",
+  },
   { keys: "/", description: "Focus the sidebar's conversation filter box" },
   { keys: "?", description: "Show this keyboard shortcuts list" },
 ];
@@ -1620,6 +1624,71 @@ export function getAdjacentConversationId(
   }
   const nextIndex = (currentIndex + direction + orderedIds.length) % orderedIds.length;
   return orderedIds[nextIndex];
+}
+
+/**
+ * Decides whether a global keydown should jump to the next/previous
+ * conversation considered UNREAD specifically (issue #100) —
+ * `Alt+Shift+ArrowDown` for the next unread, `Alt+Shift+ArrowUp` for the
+ * previous, mirroring the Gmail/Outlook "go to next unread" convention.
+ * Requires Shift in addition to Alt so it never fires alongside the
+ * existing "step to any adjacent conversation" shortcut (issue #70),
+ * which only checks Alt and would otherwise also match.
+ */
+export function getUnreadConversationJumpDirection(
+  key: string,
+  altKey: boolean,
+  shiftKey: boolean
+): 1 | -1 | null {
+  if (!altKey || !shiftKey) return null;
+  if (key === "ArrowDown") return 1;
+  if (key === "ArrowUp") return -1;
+  return null;
+}
+
+/**
+ * Returns the IDs of every conversation considered unread for display
+ * purposes (issue #100) — the same definition the sidebar's existing
+ * "Unread only" filter (issue #76) and unread badge count use: a real
+ * server-tracked `unread_count` OR the client-side manually-marked-unread
+ * flag (issue #86). Preserves `conversations`' input order.
+ */
+export function getUnreadForDisplayConversationIds(
+  conversations: ConversationDto[],
+  manuallyUnreadIds: string[]
+): string[] {
+  return conversations
+    .filter((conv) => isConversationUnreadForDisplay(conv, manuallyUnreadIds))
+    .map((conv) => conv.id);
+}
+
+/**
+ * Returns the conversation id to select when jumping `direction` (`1` for
+ * next, `-1` for previous) to the nearest UNREAD conversation in
+ * `orderedIds` relative to `currentId` (issue #100), wrapping around at
+ * either end — including wrapping back to `currentId` itself when it is
+ * the only unread conversation in the list. Unlike
+ * `getAdjacentConversationId`, this skips every read conversation in
+ * between rather than stopping one step away, and returns `null` (doing
+ * nothing) when `unreadIds` is empty — there is nothing to jump to — or
+ * when `orderedIds` is empty.
+ */
+export function getNextUnreadConversationId(
+  orderedIds: string[],
+  currentId: string | null,
+  direction: 1 | -1,
+  unreadIds: string[]
+): string | null {
+  const n = orderedIds.length;
+  if (n === 0 || unreadIds.length === 0) return null;
+  const unreadSet = new Set(unreadIds);
+  const currentIndex = currentId ? orderedIds.indexOf(currentId) : -1;
+  for (let step = 1; step <= n; step++) {
+    const idx = (((currentIndex + direction * step) % n) + n) % n;
+    const candidateId = orderedIds[idx];
+    if (unreadSet.has(candidateId)) return candidateId;
+  }
+  return null;
 }
 
 export type PasswordStrengthLabel = "Too short" | "Weak" | "Fair" | "Good" | "Strong";
