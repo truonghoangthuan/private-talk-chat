@@ -25,6 +25,7 @@ import {
   getConversationTitle,
   getDraft,
   getMessageCopyText,
+  getUnreadConversationIds,
   insertTextAtCursor,
   isConversationUnreadForDisplay,
   isScrolledNearBottom,
@@ -558,6 +559,47 @@ describe("isConversationUnreadForDisplay", () => {
     expect(
       isConversationUnreadForDisplay(makeConv({ id: "c1", unread_count: 0 }), ["c2"])
     ).toBe(false);
+  });
+});
+
+describe("getUnreadConversationIds", () => {
+  it("returns an empty array when nothing is unread", () => {
+    expect(
+      getUnreadConversationIds([
+        makeConv({ id: "c1", unread_count: 0 }),
+        makeConv({ id: "c2", unread_count: 0 }),
+      ])
+    ).toEqual([]);
+  });
+
+  it("returns only the IDs of conversations with a real unread count", () => {
+    expect(
+      getUnreadConversationIds([
+        makeConv({ id: "c1", unread_count: 0 }),
+        makeConv({ id: "c2", unread_count: 3 }),
+        makeConv({ id: "c3", unread_count: 1 }),
+      ])
+    ).toEqual(["c2", "c3"]);
+  });
+
+  it("ignores manually-marked-unread conversations with zero real unread count", () => {
+    // getUnreadConversationIds only cares about server-tracked unread_count;
+    // the manual flag (issue #86) is cleared separately by the caller since
+    // it needs no message_mark_seen IPC round trip.
+    expect(getUnreadConversationIds([makeConv({ id: "c1", unread_count: 0 })])).toEqual([]);
+  });
+
+  it("preserves input order", () => {
+    expect(
+      getUnreadConversationIds([
+        makeConv({ id: "c3", unread_count: 2 }),
+        makeConv({ id: "c1", unread_count: 1 }),
+      ])
+    ).toEqual(["c3", "c1"]);
+  });
+
+  it("returns an empty array for an empty conversation list", () => {
+    expect(getUnreadConversationIds([])).toEqual([]);
   });
 });
 
