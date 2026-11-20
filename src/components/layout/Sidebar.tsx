@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { MessageSquarePlus, Pin, Search, UserPlus, Users } from "lucide-react";
+import { Bell, BellOff, MessageSquarePlus, Pin, Search, UserPlus, Users } from "lucide-react";
 import type { ContactDto, ConversationDto, TypingUserDto } from "../../lib/types";
 import {
   filterConversations,
@@ -17,6 +17,8 @@ interface SidebarProps {
   selectedConversationId: string | null;
   onlineUserIds: Set<string>;
   typingByConversation: Record<string, TypingUserDto[]>;
+  mutedConversationIds: string[];
+  onToggleMuted: (conversationId: string) => void;
   onAddContactByUsername: (username: string) => Promise<void>;
   onStartDirectChat: (contactUserId: string) => Promise<void>;
   onSelectConversation: (conversationId: string) => void;
@@ -30,6 +32,8 @@ export function Sidebar({
   selectedConversationId,
   onlineUserIds,
   typingByConversation,
+  mutedConversationIds,
+  onToggleMuted,
   onAddContactByUsername,
   onStartDirectChat,
   onSelectConversation,
@@ -61,6 +65,12 @@ export function Sidebar({
       savePinnedConversationIds(currentUserId, next);
       return next;
     });
+  };
+
+  const handleToggleMuted = (e: React.MouseEvent, conversationId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onToggleMuted(conversationId);
   };
 
   const markAvatarFailed = (url: string) => {
@@ -257,6 +267,7 @@ export function Sidebar({
             const peerAvatarUrl = peer?.avatar_url;
             const showPeerAvatar = Boolean(peerAvatarUrl && !failedAvatars.has(peerAvatarUrl));
             const isPinned = pinnedIds.includes(conv.id);
+            const isMuted = mutedConversationIds.includes(conv.id);
 
             return (
               <div
@@ -298,9 +309,23 @@ export function Sidebar({
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-semibold truncate">{title}</span>
+                    <span className="flex items-center gap-1 min-w-0">
+                      <span className="text-xs font-semibold truncate">{title}</span>
+                      {isMuted && (
+                        <BellOff
+                          className="w-3 h-3 shrink-0 text-[var(--text-muted)]"
+                          aria-label="Muted"
+                        />
+                      )}
+                    </span>
                     {conv.unread_count > 0 && (
-                      <span className="shrink-0 min-w-4 h-4 px-1 rounded-full bg-[#6366F1] text-white text-xs font-bold flex items-center justify-center">
+                      <span
+                        className={`shrink-0 min-w-4 h-4 px-1 rounded-full text-xs font-bold flex items-center justify-center ${
+                          isMuted
+                            ? "bg-[var(--bg-hover)] text-[var(--text-muted)]"
+                            : "bg-[#6366F1] text-white"
+                        }`}
+                      >
                         {conv.unread_count > 99 ? "99+" : conv.unread_count}
                       </span>
                     )}
@@ -316,6 +341,23 @@ export function Sidebar({
                     </p>
                   )}
                 </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => handleToggleMuted(e, conv.id)}
+                  title={isMuted ? "Unmute conversation" : "Mute conversation"}
+                  aria-pressed={isMuted}
+                  className={`shrink-0 p-1.5 rounded-lg transition-opacity ${
+                    isMuted
+                      ? "opacity-100 text-[var(--text-muted)]"
+                      : "opacity-0 group-hover:opacity-100 text-[var(--text-muted)] hover:text-[#6366F1] hover:bg-[var(--bg-hover)]"
+                  }`}
+                >
+                  {isMuted ? (
+                    <BellOff className="w-3.5 h-3.5" />
+                  ) : (
+                    <Bell className="w-3.5 h-3.5" />
+                  )}
                 </button>
                 <button
                   type="button"

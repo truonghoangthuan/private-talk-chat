@@ -387,6 +387,96 @@ export function savePinnedConversationIds(userId: string, pinnedIds: string[]): 
   }
 }
 
+const MUTED_CONVERSATIONS_STORAGE_PREFIX = "bloop:muted-conversations:";
+
+function mutedConversationsStorageKey(userId: string): string {
+  return `${MUTED_CONVERSATIONS_STORAGE_PREFIX}${userId}`;
+}
+
+/**
+ * Toggles a conversation's muted state (WhatsApp/Telegram "mute chat"
+ * convention) — a purely client-side UI preference, separate from any
+ * OS-level desktop notification suppression (which is backend/Rust-owned
+ * and out of scope here). Muting only affects how this conversation's
+ * unread count is surfaced in global UI chrome (see
+ * `sumUnreadExcludingMuted`) and its badge styling in the sidebar; it never
+ * stops messages from arriving or being counted within the conversation
+ * itself. Adds `conversationId` to the end of `mutedIds` when absent,
+ * removes it when already present; returns a new array either way so
+ * callers can rely on referential inequality to detect a change.
+ */
+export function toggleMutedConversationId(
+  mutedIds: string[],
+  conversationId: string
+): string[] {
+  if (mutedIds.includes(conversationId)) {
+    return mutedIds.filter((id) => id !== conversationId);
+  }
+  return [...mutedIds, conversationId];
+}
+
+/**
+ * Loads the muted-conversation IDs persisted for `userId` from
+ * `localStorage` (scoped per user, same convention as
+ * `loadPinnedConversationIds`, so switching accounts on the same machine
+ * never leaks one user's muted chats into another's). Returns an empty
+ * array when nothing is stored, `localStorage` isn't available (e.g. the
+ * Vitest `node` test environment), or the stored value is
+ * missing/corrupt/not a string array — this is a best-effort UI
+ * preference, never something that should throw.
+ */
+export function loadMutedConversationIds(userId: string): string[] {
+  if (typeof localStorage === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(mutedConversationsStorageKey(userId));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((id): id is string => typeof id === "string");
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Persists `mutedIds` for `userId` to `localStorage` so muted chats survive
+ * an app restart. A no-op (rather than a thrown error) when `localStorage`
+ * is unavailable or writing fails (e.g. storage quota) — losing the muted
+ * preference for this session is an acceptable degradation, never worth
+ * surfacing as a user-facing error.
+ */
+export function saveMutedConversationIds(userId: string, mutedIds: string[]): void {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(mutedConversationsStorageKey(userId), JSON.stringify(mutedIds));
+  } catch {
+    // Storage unavailable or full; muted set just won't persist this session.
+  }
+}
+
+/**
+ * Sums `unread_count` across `conversations`, excluding any conversation
+ * whose ID is in `mutedIds` — so a muted chat can keep its own in-chat
+ * unread count (still visible once opened) without inflating the global
+ * nav-rail badge or the window/document title's unread prefix
+ * (`computeDocumentTitle`), matching the real-world expectation that
+ * muting a noisy chat stops it from nagging you everywhere else in the
+ * app.
+ */
+export function sumUnreadExcludingMuted(
+  conversations: ConversationDto[],
+  mutedIds: string[]
+): number {
+  if (mutedIds.length === 0) {
+    return conversations.reduce((acc, c) => acc + c.unread_count, 0);
+  }
+  const mutedSet = new Set(mutedIds);
+  return conversations.reduce(
+    (acc, c) => (mutedSet.has(c.id) ? acc : acc + c.unread_count),
+    0
+  );
+}
+
 const THEME_STORAGE_KEY = "bloop:dark-mode";
 
 /**

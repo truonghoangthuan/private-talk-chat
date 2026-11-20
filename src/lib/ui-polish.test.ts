@@ -19,11 +19,13 @@ import {
   isScrolledNearBottom,
   KEYBOARD_SHORTCUTS,
   loadRecentEmojis,
+  loadMutedConversationIds,
   loadThemePreference,
   QUICK_EMOJIS,
   recordRecentEmoji,
   resolveComposerEscapeAction,
   resolveMessageBubbleEscapeAction,
+  saveMutedConversationIds,
   saveRecentEmojis,
   saveThemePreference,
   shouldOpenConversationSearch,
@@ -32,7 +34,9 @@ import {
   shouldSubmitMessageEditOnKeyDown,
   sortConversationsForSidebar,
   splitMessageTextIntoLinkSegments,
+  sumUnreadExcludingMuted,
   syncPinnedMessage,
+  toggleMutedConversationId,
   togglePinnedConversationId,
   updateDraft,
   upsertMessageWithReplySync,
@@ -286,6 +290,99 @@ describe("sortConversationsForSidebar", () => {
 
   it("ignores pinned IDs that no longer match any conversation in the list", () => {
     expect(sortConversationsForSidebar([c1, c2], ["gone"])).toEqual([c1, c2]);
+  });
+});
+
+describe("toggleMutedConversationId", () => {
+  it("mutes an unmuted conversation by appending its ID", () => {
+    expect(toggleMutedConversationId([], "c1")).toEqual(["c1"]);
+    expect(toggleMutedConversationId(["c1"], "c2")).toEqual(["c1", "c2"]);
+  });
+
+  it("unmutes an already-muted conversation by removing its ID", () => {
+    expect(toggleMutedConversationId(["c1", "c2"], "c1")).toEqual(["c2"]);
+    expect(toggleMutedConversationId(["c1"], "c1")).toEqual([]);
+  });
+
+  it("always returns a new array (never mutates the input)", () => {
+    const original = ["c1"];
+    const result = toggleMutedConversationId(original, "c2");
+    expect(result).not.toBe(original);
+    expect(original).toEqual(["c1"]);
+  });
+});
+
+describe("loadMutedConversationIds / saveMutedConversationIds", () => {
+  let store: Record<string, string>;
+
+  beforeEach(() => {
+    store = {};
+    (globalThis as { localStorage?: Storage }).localStorage = {
+      getItem: (key: string) => (key in store ? store[key] : null),
+      setItem: (key: string, value: string) => {
+        store[key] = value;
+      },
+      removeItem: (key: string) => {
+        delete store[key];
+      },
+      clear: () => {
+        store = {};
+      },
+      get length() {
+        return Object.keys(store).length;
+      },
+      key: (index: number) => Object.keys(store)[index] ?? null,
+    } as Storage;
+  });
+
+  afterEach(() => {
+    delete (globalThis as { localStorage?: Storage }).localStorage;
+  });
+
+  it("returns an empty array when nothing is stored", () => {
+    expect(loadMutedConversationIds("u1")).toEqual([]);
+  });
+
+  it("round-trips a saved muted set", () => {
+    saveMutedConversationIds("u1", ["c1", "c2"]);
+    expect(loadMutedConversationIds("u1")).toEqual(["c1", "c2"]);
+  });
+
+  it("scopes the muted set per user", () => {
+    saveMutedConversationIds("u1", ["c1"]);
+    saveMutedConversationIds("u2", ["c2"]);
+    expect(loadMutedConversationIds("u1")).toEqual(["c1"]);
+    expect(loadMutedConversationIds("u2")).toEqual(["c2"]);
+  });
+
+  it("returns an empty array for a corrupt/unexpected stored value", () => {
+    store["bloop:muted-conversations:u1"] = "not-an-array";
+    expect(loadMutedConversationIds("u1")).toEqual([]);
+  });
+
+  it("returns an empty array when localStorage is unavailable", () => {
+    delete (globalThis as { localStorage?: Storage }).localStorage;
+    expect(loadMutedConversationIds("u1")).toEqual([]);
+    expect(() => saveMutedConversationIds("u1", ["c1"])).not.toThrow();
+  });
+});
+
+describe("sumUnreadExcludingMuted", () => {
+  const c1 = makeConv({ id: "c1", unread_count: 3 });
+  const c2 = makeConv({ id: "c2", unread_count: 5 });
+  const c3 = makeConv({ id: "c3", unread_count: 0 });
+
+  it("sums every conversation's unread_count when nothing is muted", () => {
+    expect(sumUnreadExcludingMuted([c1, c2, c3], [])).toBe(8);
+  });
+
+  it("excludes muted conversations from the total", () => {
+    expect(sumUnreadExcludingMuted([c1, c2, c3], ["c2"])).toBe(3);
+    expect(sumUnreadExcludingMuted([c1, c2, c3], ["c1", "c2"])).toBe(0);
+  });
+
+  it("ignores muted IDs that don't match any conversation in the list", () => {
+    expect(sumUnreadExcludingMuted([c1, c2], ["gone"])).toBe(8);
   });
 });
 
