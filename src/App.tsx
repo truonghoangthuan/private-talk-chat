@@ -15,6 +15,7 @@ import { AuthScreen } from "./components/modals/AuthScreen";
 import { ProfileModal } from "./components/modals/ProfileModal";
 import { GroupManageDrawer } from "./components/modals/GroupManageDrawer";
 import { KeyboardShortcutsModal } from "./components/modals/KeyboardShortcutsModal";
+import { QuickSwitcherModal } from "./components/modals/QuickSwitcherModal";
 import { tauriClient } from "./lib/tauri-client";
 import {
   syncPinnedMessage,
@@ -34,6 +35,7 @@ import {
   loadThemePreference,
   saveThemePreference,
   shouldOpenConversationSearch,
+  shouldOpenQuickSwitcher,
   shouldOpenShortcutsHelp,
   shouldFocusConversationFilter,
   sortConversationsForSidebar,
@@ -118,6 +120,7 @@ export function App() {
   );
   const [reconnectNotice, setReconnectNotice] = useState<string | null>(null);
   const [shortcutsHelpOpen, setShortcutsHelpOpen] = useState(false);
+  const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false);
   const [mutedConversationIds, setMutedConversationIds] = useState<string[]>([]);
   const [manuallyUnreadConversationIds, setManuallyUnreadConversationIds] = useState<string[]>(
     []
@@ -328,6 +331,11 @@ export function App() {
         e.preventDefault();
         setActiveTab("messages");
         setSearchOpen(true);
+        return;
+      }
+      if (shouldOpenQuickSwitcher(e.key, e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        setQuickSwitcherOpen(true);
         return;
       }
       if (
@@ -963,6 +971,16 @@ export function App() {
 
       {shortcutsHelpOpen && (
         <KeyboardShortcutsModal onClose={() => setShortcutsHelpOpen(false)} />
+      )}
+
+      {quickSwitcherOpen && (
+        <QuickSwitcherModal
+          conversations={conversations}
+          currentUserId={user.id}
+          pinnedConversationIds={loadPinnedConversationIds(user.id)}
+          onSelectConversation={handleSelectConversation}
+          onClose={() => setQuickSwitcherOpen(false)}
+        />
       )}
 
       <MessageToastStack
