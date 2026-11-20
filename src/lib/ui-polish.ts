@@ -198,6 +198,75 @@ export function syncPinnedMessage(
   );
 }
 
+export interface MessageTextSegment {
+  text: string;
+  isLink: boolean;
+}
+
+const MESSAGE_URL_PATTERN = /https?:\/\/[^\s]+/gi;
+
+/**
+ * Splits already-decrypted message text into plain-text and link segments
+ * so the timeline can render `http(s)://` URLs as real, clickable anchors
+ * (issue #39) without reaching for `dangerouslySetInnerHTML` — every
+ * segment is plain string data the caller renders as either a text node or
+ * an `<a>`, so this introduces no new injection surface.
+ *
+ * Trailing sentence punctuation immediately after a URL (`.`, `,`, `!`,
+ * `?`, `;`, `:`, a lone closing `)`/`]`/`}`, or a quote mark) is trimmed
+ * back into plain text — matching other chat apps' handling of sentences
+ * like "see https://example.com." or "(https://example.com)". A closing
+ * paren/bracket is kept as part of the link if the URL itself contains a
+ * matching unclosed opener (e.g. a Wikipedia URL with `(disambiguation)`).
+ */
+export function splitMessageTextIntoLinkSegments(text: string): MessageTextSegment[] {
+  if (!text) return [];
+
+  const segments: MessageTextSegment[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  MESSAGE_URL_PATTERN.lastIndex = 0;
+
+  while ((match = MESSAGE_URL_PATTERN.exec(text)) !== null) {
+    let url = match[0];
+    let end = match.index + url.length;
+
+    while (url.length > 0) {
+      const lastChar = url[url.length - 1];
+      if (/[.,!?;:'"]/.test(lastChar)) {
+        url = url.slice(0, -1);
+        end -= 1;
+        continue;
+      }
+      if (lastChar === ")" || lastChar === "]" || lastChar === "}") {
+        const opener = lastChar === ")" ? "(" : lastChar === "]" ? "[" : "{";
+        const openCount = url.split(opener).length - 1;
+        const closeCount = url.split(lastChar).length - 1;
+        if (closeCount > openCount) {
+          url = url.slice(0, -1);
+          end -= 1;
+          continue;
+        }
+      }
+      break;
+    }
+
+    if (!url) continue;
+
+    if (match.index > lastIndex) {
+      segments.push({ text: text.slice(lastIndex, match.index), isLink: false });
+    }
+    segments.push({ text: url, isLink: true });
+    lastIndex = end;
+  }
+
+  if (lastIndex < text.length) {
+    segments.push({ text: text.slice(lastIndex), isLink: false });
+  }
+
+  return segments;
+}
+
 /**
  * Resolves the display title for a conversation: the group name for groups
  * (falling back to "Untitled Group"), or the other member's display name /

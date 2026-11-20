@@ -6,6 +6,7 @@ import {
   getMessageCopyText,
   resolveMessageBubbleEscapeAction,
   shouldSubmitMessageEditOnKeyDown,
+  splitMessageTextIntoLinkSegments,
 } from "../../lib/ui-polish";
 import { MediaViewer } from "./MediaViewer";
 
@@ -326,7 +327,28 @@ export function MessageBubble({
                   </div>
                 </button>
               )}
-              {message.text && <p className="whitespace-pre-wrap break-words">{message.text}</p>}
+              {message.text && (
+                <p className="whitespace-pre-wrap break-words">
+                  {splitMessageTextIntoLinkSegments(message.text).map((segment, i) =>
+                    segment.isLink ? (
+                      <a
+                        key={i}
+                        href={segment.text}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className={`underline underline-offset-2 break-all ${
+                          isOwn ? "text-white hover:text-white/80" : "text-[#6366F1] hover:text-[#6366F1]/80"
+                        }`}
+                      >
+                        {segment.text}
+                      </a>
+                    ) : (
+                      <span key={i}>{segment.text}</span>
+                    )
+                  )}
+                </p>
+              )}
               {message.attachment && <MediaViewer attachment={message.attachment} isOwn={isOwn} />}
             </>
           )}
