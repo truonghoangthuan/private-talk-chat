@@ -1,12 +1,16 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Film, Paperclip, Reply, Send, Smile, X } from "lucide-react";
 import type { MessageDto } from "../../lib/types";
 import {
+  buildEmojiPickerOrder,
   computeComposerCharacterState,
   getAttachmentPreviewKind,
   insertTextAtCursor,
+  loadRecentEmojis,
   QUICK_EMOJIS,
+  recordRecentEmoji,
   resolveComposerEscapeAction,
+  saveRecentEmojis,
   validateAttachmentFile,
 } from "../../lib/ui-polish";
 
@@ -38,6 +42,7 @@ export function MessageComposer({
   const [sending, setSending] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [recentEmojis, setRecentEmojis] = useState<string[]>(() => loadRecentEmojis());
   const dragDepthRef = useRef(0);
   const lastTypingPingRef = useRef<number>(0);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -221,6 +226,14 @@ export function MessageComposer({
     const result = insertTextAtCursor(text, selectionStart, selectionEnd, emoji);
     handleTextChange(result.text);
     setShowEmojiPicker(false);
+    // Track usage so the picker floats recently-used emoji to the front
+    // next time it opens (issue #58), persisted the same way as the
+    // dark/light theme preference.
+    setRecentEmojis((prev) => {
+      const next = recordRecentEmoji(prev, emoji);
+      saveRecentEmojis(next);
+      return next;
+    });
     // Restore focus and caret position so picking an emoji feels like typing
     // it rather than knocking focus out of the composer.
     requestAnimationFrame(() => {
@@ -229,6 +242,10 @@ export function MessageComposer({
     });
   };
 
+  const emojiPickerOrder = useMemo(
+    () => buildEmojiPickerOrder(QUICK_EMOJIS, recentEmojis),
+    [recentEmojis]
+  );
   const charState = computeComposerCharacterState(text.length);
   const attachmentPreviewKind = attachmentMimeType
     ? getAttachmentPreviewKind(attachmentMimeType)
@@ -330,7 +347,7 @@ export function MessageComposer({
               ref={emojiPickerRef}
               className="absolute bottom-full left-0 mb-2 z-20 grid grid-cols-8 gap-0.5 p-2 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-hairline)] shadow-lg"
             >
-              {QUICK_EMOJIS.map((emoji) => (
+              {emojiPickerOrder.map((emoji) => (
                 <button
                   key={emoji}
                   type="button"

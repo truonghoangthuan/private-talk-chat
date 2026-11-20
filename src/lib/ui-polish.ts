@@ -885,6 +885,78 @@ export const QUICK_EMOJIS: string[] = [
   "🙏", "🎉", "🔥", "❤️", "👀", "✅", "❌", "🚀",
 ];
 
+const RECENT_EMOJIS_STORAGE_KEY = "bloop:recent-emoji";
+const MAX_RECENT_EMOJIS = 8;
+
+/**
+ * Moves `emoji` to the front of `recent` (most-recently-used first),
+ * dropping any earlier occurrence of it, and caps the result at
+ * `MAX_RECENT_EMOJIS` entries (issue #58) — mirrors the
+ * `togglePinnedConversationId` convention of always returning a new array
+ * so callers can rely on referential inequality to detect a change.
+ */
+export function recordRecentEmoji(recent: string[], emoji: string): string[] {
+  const withoutEmoji = recent.filter((e) => e !== emoji);
+  return [emoji, ...withoutEmoji].slice(0, MAX_RECENT_EMOJIS);
+}
+
+/**
+ * Builds the quick emoji picker's display order (issue #58): recently
+ * used emoji from `recent` (most recent first) float to the front,
+ * followed by the remaining entries of `allEmojis` in their original
+ * curated order — the Slack/Discord/OS emoji-picker convention of
+ * surfacing what's actually used instead of a static fixed layout.
+ * Entries in `recent` that aren't in `allEmojis` (e.g. a stale
+ * `localStorage` value left over from a previously different curated
+ * set) are silently ignored rather than erroring.
+ */
+export function buildEmojiPickerOrder(allEmojis: string[], recent: string[]): string[] {
+  const validRecent = recent.filter((e) => allEmojis.includes(e));
+  if (validRecent.length === 0) return allEmojis;
+  const rest = allEmojis.filter((e) => !validRecent.includes(e));
+  return [...validRecent, ...rest];
+}
+
+/**
+ * Loads the persisted recently-used emoji list (most-recent first) from
+ * `localStorage` (issue #58). Stored globally rather than per-user — same
+ * reasoning as the dark/light theme preference (issue #56): a low-stakes
+ * UI preference that isn't worth plumbing `currentUserId` through the
+ * composer for. Returns an empty array when nothing is stored,
+ * `localStorage` isn't available (e.g. the Vitest `node` test
+ * environment), or the stored value is missing/corrupt/not a string
+ * array — this is a best-effort UI preference, never something that
+ * should throw and break the composer from rendering.
+ */
+export function loadRecentEmojis(): string[] {
+  if (typeof localStorage === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(RECENT_EMOJIS_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((e): e is string => typeof e === "string");
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Persists the recently-used emoji list to `localStorage` (issue #58). A
+ * no-op (rather than a thrown error) when `localStorage` is unavailable
+ * or writing fails (e.g. storage quota) — losing the recent-emoji order
+ * for this session is an acceptable degradation, never worth surfacing
+ * as a user-facing error.
+ */
+export function saveRecentEmojis(recent: string[]): void {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(RECENT_EMOJIS_STORAGE_KEY, JSON.stringify(recent));
+  } catch {
+    // Storage unavailable or full; recent-emoji order just won't persist this session.
+  }
+}
+
 export interface TextInsertionResult {
   /** The full text after inserting `insertion` in place of the selected range. */
   text: string;
