@@ -47,6 +47,9 @@ import {
   toggleManuallyUnreadConversationId,
   toggleMutedConversationId,
   getConversationTitle,
+  buildConversationExportText,
+  buildConversationExportFilename,
+  downloadTextFile,
   shouldShowMessageNotificationToast,
   buildMessageNotificationPreview,
   appendMessageToast,
@@ -713,6 +716,16 @@ export function App() {
   const activeConversation =
     conversations.find((c) => c.id === selectedConversationId) || null;
   const totalUnread = sumUnreadExcludingMuted(conversations, mutedConversationIds);
+
+  const handleExportConversation = () => {
+    if (!activeConversation) return;
+    const title = getConversationTitle(activeConversation, user.id);
+    const exportedAt = new Date();
+    const text = buildConversationExportText(messages, title, exportedAt);
+    const filename = buildConversationExportFilename(title, exportedAt);
+    downloadTextFile(filename, text);
+  };
+
   const activeTypingUsers = activeConversation
     ? (typingByConv[activeConversation.id] || []).filter(
         (t) => t.user_id !== user.id
@@ -840,6 +853,7 @@ export function App() {
                     setActiveTab("messages");
                   }}
                   onOpenGroupDrawer={() => setGroupDrawerMode("manage")}
+                  onExportConversation={handleExportConversation}
                 />
                 {searchOpen && activeTab === "messages" && (
                   <MessageSearchBar
