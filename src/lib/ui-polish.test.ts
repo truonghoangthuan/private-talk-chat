@@ -3,6 +3,7 @@ import {
   assessPasswordStrength,
   getPasswordVisibilityToggleLabel,
   resolvePasswordInputType,
+  buildConversationPreviewLabel,
   buildEmojiPickerOrder,
   buildTimelineItems,
   computeComposerCharacterState,
@@ -565,6 +566,54 @@ describe("updateDraft & getDraft", () => {
     const afterTypingInC1 = updateDraft({}, "c1", "draft for c1");
     // Switching to c2 should read an empty draft, not c1's leftover text.
     expect(getDraft(afterTypingInC1, "c2")).toBe("");
+  });
+});
+
+describe("buildConversationPreviewLabel", () => {
+  it("prefixes a non-empty draft with 'Draft: ' and flags it as a draft", () => {
+    expect(buildConversationPreviewLabel("their last message", "hey there")).toEqual({
+      text: "Draft: hey there",
+      isDraft: true,
+    });
+  });
+
+  it("falls back to the latest message preview when there is no draft", () => {
+    expect(buildConversationPreviewLabel("their last message", "")).toEqual({
+      text: "their last message",
+      isDraft: false,
+    });
+  });
+
+  it("falls back to the empty-channel placeholder when both are blank", () => {
+    expect(buildConversationPreviewLabel(null, "   ")).toEqual({
+      text: "Encrypted channel ready",
+      isDraft: false,
+    });
+    expect(buildConversationPreviewLabel(undefined, "")).toEqual({
+      text: "Encrypted channel ready",
+      isDraft: false,
+    });
+  });
+
+  it("treats a whitespace-only draft as no draft at all", () => {
+    expect(buildConversationPreviewLabel("their last message", "   ")).toEqual({
+      text: "their last message",
+      isDraft: false,
+    });
+  });
+
+  it("trims the draft text before prefixing it", () => {
+    expect(buildConversationPreviewLabel(null, "  padded draft  ")).toEqual({
+      text: "Draft: padded draft",
+      isDraft: true,
+    });
+  });
+
+  it("accepts a custom empty-channel placeholder", () => {
+    expect(buildConversationPreviewLabel(null, "", "No messages yet")).toEqual({
+      text: "No messages yet",
+      isDraft: false,
+    });
   });
 });
 

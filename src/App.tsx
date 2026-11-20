@@ -631,6 +631,7 @@ export function App() {
             onlineUserIds={onlineUserIds}
             typingByConversation={typingByConv}
             mutedConversationIds={mutedConversationIds}
+            drafts={drafts}
             onToggleMuted={handleToggleMutedConversation}
             onAddContactByUsername={async (uname) => {
               await tauriClient.contactAddByUsername(uname);
