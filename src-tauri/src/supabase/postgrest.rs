@@ -132,6 +132,13 @@ impl TryFrom<RemoteKeyDto> for ConversationMemberKeyRow {
     }
 }
 
+fn is_auth_error(status: u16, body: &str) -> bool {
+    status == 401
+        || body.contains("PGRST303")
+        || body.contains("JWT expired")
+        || body.contains("NOT_AUTHENTICATED")
+}
+
 impl SupabaseClient {
     pub async fn insert_profile(
         &self,
@@ -184,6 +191,13 @@ impl SupabaseClient {
                 .await
                 .map_err(|_| SupabaseError::NetworkError)?;
             if !resp.status().is_success() {
+                let status = resp.status().as_u16();
+                let text = resp.text().await.unwrap_or_default();
+                if is_auth_error(status, &text) {
+                    return Err(SupabaseError::AuthRejected(
+                        "session expired, please log in again",
+                    ));
+                }
                 return Err(SupabaseError::NotFound("profile"));
             }
             let mut rows: Vec<RemoteProfileDto> = resp
@@ -275,7 +289,13 @@ impl SupabaseClient {
                 return Err(SupabaseError::NotFound("No user found"));
             }
             if !resp.status().is_success() {
+                let status = resp.status().as_u16();
                 let text = resp.text().await.unwrap_or_default();
+                if is_auth_error(status, &text) {
+                    return Err(SupabaseError::AuthRejected(
+                        "session expired, please log in again",
+                    ));
+                }
                 if text.contains("USER_NOT_FOUND") {
                     return Err(SupabaseError::NotFound("No user found"));
                 }

@@ -53,7 +53,7 @@ pub async fn get_seen_receipts_for_message(
     conversation_id: Uuid,
     message_id: Uuid,
 ) -> Result<Vec<SeenReceiptDto>, AppError> {
-    let sess = state.active_session()?;
+    let sess = state.ensure_active_session().await?;
     let reads = state
         .supabase
         .list_message_reads(&sess.supabase_access_token, conversation_id)
@@ -233,7 +233,7 @@ async fn decrypt_message_row_with_pins(
     row: MessageRow,
     pinned_map: &HashMap<Uuid, (PinnedMessageRow, String)>,
 ) -> Result<MessageDto, AppError> {
-    let sess = state.active_session()?;
+    let sess = state.ensure_active_session().await?;
     let sender = state
         .supabase
         .get_profile(&sess.supabase_access_token, row.sender_id)
@@ -434,7 +434,7 @@ pub async fn fetch_and_decrypt_single_message(
     _conversation_id: Uuid,
     message_id: Uuid,
 ) -> Result<MessageDto, AppError> {
-    let sess = state.active_session()?;
+    let sess = state.ensure_active_session().await?;
     let row = state
         .supabase
         .get_message(&sess.supabase_access_token, message_id)
@@ -448,7 +448,7 @@ pub async fn message_list_core(
     limit: u32,
     before: Option<String>,
 ) -> Result<Vec<MessageDto>, AppError> {
-    let sess = state.active_session()?;
+    let sess = state.ensure_active_session().await?;
     let cid = Uuid::parse_str(conversation_id)
         .map_err(|_| AppError::new("INVALID_ID", "Invalid conversation ID"))?;
     let before_dt = before
@@ -478,7 +478,7 @@ pub async fn message_send_core(
     attachment_path: Option<String>,
     reply_to_message_id: Option<String>,
 ) -> Result<MessageDto, AppError> {
-    let sess = state.active_session()?;
+    let sess = state.ensure_active_session().await?;
     let cid = Uuid::parse_str(conversation_id)
         .map_err(|_| AppError::new("INVALID_ID", "Invalid conversation ID"))?;
 
@@ -644,7 +644,7 @@ pub async fn message_edit_core(
     message_id: &str,
     new_text: &str,
 ) -> Result<MessageDto, AppError> {
-    let sess = state.active_session()?;
+    let sess = state.ensure_active_session().await?;
     let mid = Uuid::parse_str(message_id)
         .map_err(|_| AppError::new("INVALID_ID", "Invalid message ID"))?;
     let trimmed = new_text.trim().to_string();
@@ -729,7 +729,7 @@ pub async fn message_remove_core(
     state: &AppState,
     message_id: &str,
 ) -> Result<MessageDto, AppError> {
-    let sess = state.active_session()?;
+    let sess = state.ensure_active_session().await?;
     let mid = Uuid::parse_str(message_id)
         .map_err(|_| AppError::new("INVALID_ID", "Invalid message ID"))?;
 
@@ -772,7 +772,7 @@ pub async fn message_mark_seen_core(
     conversation_id: &str,
     up_to_message_id: &str,
 ) -> Result<(), AppError> {
-    let sess = state.active_session()?;
+    let sess = state.ensure_active_session().await?;
     let cid = Uuid::parse_str(conversation_id)
         .map_err(|_| AppError::new("INVALID_ID", "Invalid conversation ID"))?;
     let target_mid = Uuid::parse_str(up_to_message_id)
@@ -869,7 +869,7 @@ pub async fn message_pin_core(
     conversation_id: &str,
     message_id: &str,
 ) -> Result<PinnedMessageDto, AppError> {
-    let sess = state.active_session()?;
+    let sess = state.ensure_active_session().await?;
     let cid = Uuid::parse_str(conversation_id)
         .map_err(|_| AppError::new("INVALID_ID", "Invalid conversation ID"))?;
     let mid = Uuid::parse_str(message_id)
@@ -939,7 +939,7 @@ pub async fn message_unpin_core(
     conversation_id: &str,
     message_id: &str,
 ) -> Result<(), AppError> {
-    let sess = state.active_session()?;
+    let sess = state.ensure_active_session().await?;
     let cid = Uuid::parse_str(conversation_id)
         .map_err(|_| AppError::new("INVALID_ID", "Invalid conversation ID"))?;
     let mid = Uuid::parse_str(message_id)
@@ -964,7 +964,7 @@ pub async fn message_list_pinned_core(
     state: &AppState,
     conversation_id: &str,
 ) -> Result<Vec<PinnedMessageDto>, AppError> {
-    let sess = state.active_session()?;
+    let sess = state.ensure_active_session().await?;
     let cid = Uuid::parse_str(conversation_id)
         .map_err(|_| AppError::new("INVALID_ID", "Invalid conversation ID"))?;
 
@@ -1082,7 +1082,7 @@ pub async fn typing_set_status<R: Runtime>(
     conversation_id: String,
     is_typing: bool,
 ) -> Result<(), AppError> {
-    let sess = state.active_session()?;
+    let sess = state.ensure_active_session().await?;
     let cid = Uuid::parse_str(&conversation_id)
         .map_err(|_| AppError::new("INVALID_ID", "Invalid conversation ID"))?;
     state
