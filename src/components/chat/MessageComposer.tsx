@@ -1,5 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Film, Image as ImageIcon, Paperclip, Reply, Send, Smile, X } from "lucide-react";
+import {
+  CornerDownLeft,
+  Film,
+  Image as ImageIcon,
+  Paperclip,
+  Reply,
+  Send,
+  Smile,
+  X,
+} from "lucide-react";
 import { extractErrorMessage, tauriClient } from "../../lib/tauri-client";
 import type { ConversationMemberDto, MessageDto } from "../../lib/types";
 import {
@@ -10,11 +19,14 @@ import {
   detectMentionQuery,
   filterMentionCandidates,
   insertTextAtCursor,
+  loadComposerSendShortcutPreference,
   loadRecentEmojis,
   QUICK_EMOJIS,
   recordRecentEmoji,
   resolveComposerEscapeAction,
+  saveComposerSendShortcutPreference,
   saveRecentEmojis,
+  shouldSubmitComposerOnEnterKeyPress,
   shouldTriggerEditLastMessage,
   validateAttachmentPath,
 } from "../../lib/ui-polish";
@@ -57,6 +69,7 @@ export function MessageComposer({
   const [isDragOver, setIsDragOver] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [recentEmojis, setRecentEmojis] = useState<string[]>(() => loadRecentEmojis());
+  const [sendShortcut, setSendShortcut] = useState(() => loadComposerSendShortcutPreference());
   const [mentionState, setMentionState] = useState<{ query: string; start: number } | null>(
     null
   );
@@ -241,12 +254,22 @@ export function MessageComposer({
         return;
       }
     }
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      if (!sending && (text.trim().length > 0 || attachmentPath)) {
-        void submitMessage();
+    if (e.key === "Enter") {
+      const shouldSubmit = shouldSubmitComposerOnEnterKeyPress(
+        sendShortcut,
+        e.shiftKey,
+        e.ctrlKey,
+        e.metaKey
+      );
+      if (shouldSubmit) {
+        e.preventDefault();
+        if (!sending && (text.trim().length > 0 || attachmentPath)) {
+          void submitMessage();
+        }
+        return;
       }
-      return;
+      // Not the configured send combo: let Enter fall through to the
+      // textarea's native newline-insertion behavior.
     }
     if (
       e.key === "ArrowUp" &&
@@ -300,6 +323,14 @@ export function MessageComposer({
     requestAnimationFrame(() => {
       el?.focus();
       el?.setSelectionRange(result.cursor, result.cursor);
+    });
+  };
+
+  const toggleSendShortcut = () => {
+    setSendShortcut((prev) => {
+      const next = prev === "ctrl_enter" ? "enter" : "ctrl_enter";
+      saveComposerSendShortcutPreference(next);
+      return next;
     });
   };
 
@@ -450,6 +481,23 @@ export function MessageComposer({
           title="Attach image, GIF, or video (up to 50 MB)"
         >
           <Paperclip className="w-4 h-4" />
+        </button>
+
+        <button
+          type="button"
+          onClick={toggleSendShortcut}
+          className={`p-2.5 rounded-xl hover:bg-[var(--bg-hover)] transition-colors ${
+            sendShortcut === "ctrl_enter"
+              ? "text-[#6366F1] bg-[#6366F1]/10"
+              : "text-[var(--text-muted)] hover:text-[#6366F1]"
+          }`}
+          title={
+            sendShortcut === "ctrl_enter"
+              ? "Send with: Ctrl+Enter (Enter inserts a newline). Click to switch to Enter-to-send."
+              : "Send with: Enter (Shift+Enter inserts a newline). Click to switch to Ctrl+Enter-to-send."
+          }
+        >
+          <CornerDownLeft className="w-4 h-4" />
         </button>
 
         <textarea

@@ -33,6 +33,7 @@ import {
   isConversationUnreadForDisplay,
   isScrolledNearBottom,
   KEYBOARD_SHORTCUTS,
+  loadComposerSendShortcutPreference,
   loadRecentEmojis,
   loadManuallyUnreadConversationIds,
   loadMutedConversationIds,
@@ -42,6 +43,7 @@ import {
   resolveComposerEscapeAction,
   resolveMessageBubbleEscapeAction,
   saveManuallyUnreadConversationIds,
+  saveComposerSendShortcutPreference,
   saveMutedConversationIds,
   saveRecentEmojis,
   saveThemePreference,
@@ -51,6 +53,7 @@ import {
   shouldOpenShortcutsHelp,
   shouldFocusConversationFilter,
   shouldShowScrollToBottomButton,
+  shouldSubmitComposerOnEnterKeyPress,
   shouldSubmitMessageEditOnKeyDown,
   sortConversationsForSidebar,
   splitMessageTextIntoLinkSegments,
@@ -2297,5 +2300,90 @@ describe("messageMentionsUser", () => {
   it("escapes regex-special characters in the username", () => {
     expect(messageMentionsUser("hey @john.doe check this", "john.doe")).toBe(true);
     expect(messageMentionsUser("hey @johnXdoe check this", "john.doe")).toBe(false);
+  });
+});
+
+describe("loadComposerSendShortcutPreference / saveComposerSendShortcutPreference", () => {
+  let store: Record<string, string>;
+
+  beforeEach(() => {
+    store = {};
+    (globalThis as { localStorage?: Storage }).localStorage = {
+      getItem: (key: string) => (key in store ? store[key] : null),
+      setItem: (key: string, value: string) => {
+        store[key] = value;
+      },
+      removeItem: (key: string) => {
+        delete store[key];
+      },
+      clear: () => {
+        store = {};
+      },
+      get length() {
+        return Object.keys(store).length;
+      },
+      key: (index: number) => Object.keys(store)[index] ?? null,
+    } as Storage;
+  });
+
+  afterEach(() => {
+    delete (globalThis as { localStorage?: Storage }).localStorage;
+  });
+
+  it("defaults to 'enter' when nothing has been saved yet", () => {
+    expect(loadComposerSendShortcutPreference()).toBe("enter");
+  });
+
+  it("round-trips an explicitly saved preference", () => {
+    saveComposerSendShortcutPreference("ctrl_enter");
+    expect(loadComposerSendShortcutPreference()).toBe("ctrl_enter");
+    saveComposerSendShortcutPreference("enter");
+    expect(loadComposerSendShortcutPreference()).toBe("enter");
+  });
+
+  it("falls back to 'enter' on a corrupt stored value", () => {
+    store["bloop:composer-send-shortcut"] = "not-a-valid-value";
+    expect(loadComposerSendShortcutPreference()).toBe("enter");
+  });
+
+  it("falls back to 'enter' when localStorage is unavailable, and save is a no-op", () => {
+    delete (globalThis as { localStorage?: Storage }).localStorage;
+    expect(loadComposerSendShortcutPreference()).toBe("enter");
+    expect(() => saveComposerSendShortcutPreference("ctrl_enter")).not.toThrow();
+  });
+});
+
+describe("shouldSubmitComposerOnEnterKeyPress", () => {
+  it("'enter' preference: sends on a bare Enter", () => {
+    expect(shouldSubmitComposerOnEnterKeyPress("enter", false, false, false)).toBe(true);
+  });
+
+  it("'enter' preference: Shift+Enter inserts a newline instead of sending", () => {
+    expect(shouldSubmitComposerOnEnterKeyPress("enter", true, false, false)).toBe(false);
+  });
+
+  it("'enter' preference: ignores Ctrl/Cmd, since Enter alone already sends", () => {
+    expect(shouldSubmitComposerOnEnterKeyPress("enter", false, true, false)).toBe(true);
+    expect(shouldSubmitComposerOnEnterKeyPress("enter", false, false, true)).toBe(true);
+  });
+
+  it("'ctrl_enter' preference: a bare Enter inserts a newline instead of sending", () => {
+    expect(shouldSubmitComposerOnEnterKeyPress("ctrl_enter", false, false, false)).toBe(false);
+  });
+
+  it("'ctrl_enter' preference: Shift+Enter (no Ctrl/Cmd) still inserts a newline", () => {
+    expect(shouldSubmitComposerOnEnterKeyPress("ctrl_enter", true, false, false)).toBe(false);
+  });
+
+  it("'ctrl_enter' preference: Ctrl+Enter sends", () => {
+    expect(shouldSubmitComposerOnEnterKeyPress("ctrl_enter", false, true, false)).toBe(true);
+  });
+
+  it("'ctrl_enter' preference: Cmd+Enter (metaKey) sends too, for macOS", () => {
+    expect(shouldSubmitComposerOnEnterKeyPress("ctrl_enter", false, false, true)).toBe(true);
+  });
+
+  it("'ctrl_enter' preference: Ctrl+Shift+Enter still sends (Shift doesn't override Ctrl)", () => {
+    expect(shouldSubmitComposerOnEnterKeyPress("ctrl_enter", true, true, false)).toBe(true);
   });
 });
