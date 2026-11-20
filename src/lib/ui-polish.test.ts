@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+  buildEmojiPickerOrder,
   buildTimelineItems,
   computeComposerCharacterState,
   computeDocumentTitle,
@@ -17,10 +18,13 @@ import {
   insertTextAtCursor,
   isScrolledNearBottom,
   KEYBOARD_SHORTCUTS,
+  loadRecentEmojis,
   loadThemePreference,
   QUICK_EMOJIS,
+  recordRecentEmoji,
   resolveComposerEscapeAction,
   resolveMessageBubbleEscapeAction,
+  saveRecentEmojis,
   saveThemePreference,
   shouldOpenMediaLightbox,
   shouldOpenShortcutsHelp,
@@ -628,6 +632,92 @@ describe("QUICK_EMOJIS", () => {
     for (const emoji of QUICK_EMOJIS) {
       expect(emoji.trim().length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe("recordRecentEmoji", () => {
+  it("adds a newly-used emoji to the front of an empty list", () => {
+    expect(recordRecentEmoji([], "🔥")).toEqual(["🔥"]);
+  });
+
+  it("moves an already-recorded emoji to the front instead of duplicating it", () => {
+    expect(recordRecentEmoji(["🔥", "👍", "🎉"], "👍")).toEqual(["👍", "🔥", "🎉"]);
+  });
+
+  it("caps the list at 8 entries, dropping the oldest", () => {
+    const eightOldest = ["a", "b", "c", "d", "e", "f", "g", "h"];
+    expect(recordRecentEmoji(eightOldest, "new")).toEqual([
+      "new", "a", "b", "c", "d", "e", "f", "g",
+    ]);
+  });
+});
+
+describe("buildEmojiPickerOrder", () => {
+  it("returns the curated list unchanged when nothing has been used yet", () => {
+    expect(buildEmojiPickerOrder(QUICK_EMOJIS, [])).toBe(QUICK_EMOJIS);
+  });
+
+  it("floats recently-used emoji to the front, most recent first", () => {
+    expect(buildEmojiPickerOrder(["😀", "😂", "👍", "🔥"], ["🔥", "👍"])).toEqual([
+      "🔥", "👍", "😀", "😂",
+    ]);
+  });
+
+  it("ignores recent entries that aren't part of the curated list", () => {
+    expect(buildEmojiPickerOrder(["😀", "😂"], ["🛑", "😂"])).toEqual(["😂", "😀"]);
+  });
+});
+
+describe("loadRecentEmojis / saveRecentEmojis", () => {
+  let store: Record<string, string>;
+
+  beforeEach(() => {
+    store = {};
+    (globalThis as { localStorage?: Storage }).localStorage = {
+      getItem: (key: string) => (key in store ? store[key] : null),
+      setItem: (key: string, value: string) => {
+        store[key] = value;
+      },
+      removeItem: (key: string) => {
+        delete store[key];
+      },
+      clear: () => {
+        store = {};
+      },
+      get length() {
+        return Object.keys(store).length;
+      },
+      key: (index: number) => Object.keys(store)[index] ?? null,
+    } as Storage;
+  });
+
+  afterEach(() => {
+    delete (globalThis as { localStorage?: Storage }).localStorage;
+  });
+
+  it("returns an empty array when nothing has been saved yet", () => {
+    expect(loadRecentEmojis()).toEqual([]);
+  });
+
+  it("round-trips a saved recent-emoji list", () => {
+    saveRecentEmojis(["🔥", "👍"]);
+    expect(loadRecentEmojis()).toEqual(["🔥", "👍"]);
+  });
+
+  it("returns an empty array when localStorage is unavailable", () => {
+    delete (globalThis as { localStorage?: Storage }).localStorage;
+    expect(loadRecentEmojis()).toEqual([]);
+    expect(() => saveRecentEmojis(["🔥"])).not.toThrow();
+  });
+
+  it("returns an empty array on a corrupt/unexpected stored value", () => {
+    store["bloop:recent-emoji"] = JSON.stringify({ not: "an array" });
+    expect(loadRecentEmojis()).toEqual([]);
+  });
+
+  it("filters out non-string entries from a malformed stored array", () => {
+    store["bloop:recent-emoji"] = JSON.stringify(["🔥", 42, null, "👍"]);
+    expect(loadRecentEmojis()).toEqual(["🔥", "👍"]);
   });
 });
 
