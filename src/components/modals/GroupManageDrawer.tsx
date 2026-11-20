@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { Crown, LogOut, UserMinus, UserPlus, X } from "lucide-react";
+import { Crown, LogOut, Search, UserMinus, UserPlus, X } from "lucide-react";
 import type { ContactDto, ConversationDto } from "../../lib/types";
+import { filterContacts } from "../../lib/ui-polish";
 
 interface GroupManageDrawerProps {
   mode: "create" | "manage";
@@ -35,12 +36,15 @@ export function GroupManageDrawer({
   const [busy, setBusy] = useState(false);
   const [confirmingRemoveUserId, setConfirmingRemoveUserId] = useState<string | null>(null);
   const [confirmingLeave, setConfirmingLeave] = useState(false);
+  const [contactQuery, setContactQuery] = useState("");
 
   const isHost = conversation?.host_id === currentUserId;
   const existingMemberIds = new Set(
     conversation?.members.map((m) => m.user_id) || []
   );
   const addableContacts = contacts.filter((c) => !existingMemberIds.has(c.id));
+  const filteredContacts = filterContacts(contacts, contactQuery);
+  const filteredAddableContacts = filterContacts(addableContacts, contactQuery);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -120,8 +124,20 @@ export function GroupManageDrawer({
               <div className="text-xs font-medium text-[var(--text-muted)] mb-2">
                 Select Contacts
               </div>
+              {contacts.length > 5 && (
+                <div className="relative mb-2">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--text-muted)]" />
+                  <input
+                    type="text"
+                    value={contactQuery}
+                    onChange={(e) => setContactQuery(e.target.value)}
+                    placeholder="Filter contacts..."
+                    className="w-full pl-8 pr-3 py-2 text-xs rounded-xl bg-[var(--bg-canvas)] border border-[var(--border-hairline)] focus:outline-none focus:border-[#6366F1]"
+                  />
+                </div>
+              )}
               <div className="space-y-1.5">
-                {contacts.map((c) => {
+                {filteredContacts.map((c) => {
                   const checked = selectedContactIds.includes(c.id);
                   return (
                     <label
@@ -145,6 +161,11 @@ export function GroupManageDrawer({
                     </label>
                   );
                 })}
+                {contactQuery.trim() && filteredContacts.length === 0 && (
+                  <div className="text-xs text-[var(--text-muted)] text-center py-3">
+                    No contacts match "{contactQuery.trim()}".
+                  </div>
+                )}
               </div>
             </div>
 
@@ -252,8 +273,20 @@ export function GroupManageDrawer({
                   <div className="text-xs font-medium text-[var(--text-muted)] mb-2">
                     Add Contacts (shares full history)
                   </div>
+                  {addableContacts.length > 5 && (
+                    <div className="relative mb-2">
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--text-muted)]" />
+                      <input
+                        type="text"
+                        value={contactQuery}
+                        onChange={(e) => setContactQuery(e.target.value)}
+                        placeholder="Filter contacts..."
+                        className="w-full pl-8 pr-3 py-2 text-xs rounded-xl bg-[var(--bg-canvas)] border border-[var(--border-hairline)] focus:outline-none focus:border-[#6366F1]"
+                      />
+                    </div>
+                  )}
                   <div className="space-y-1.5">
-                    {addableContacts.map((c) => (
+                    {filteredAddableContacts.map((c) => (
                       <div
                         key={c.id}
                         className="flex items-center justify-between gap-2 p-2 rounded-xl bg-[var(--bg-canvas)] border border-[var(--border-hairline)]"
@@ -272,6 +305,11 @@ export function GroupManageDrawer({
                         </button>
                       </div>
                     ))}
+                    {contactQuery.trim() && filteredAddableContacts.length === 0 && (
+                      <div className="text-xs text-[var(--text-muted)] text-center py-3">
+                        No contacts match "{contactQuery.trim()}".
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

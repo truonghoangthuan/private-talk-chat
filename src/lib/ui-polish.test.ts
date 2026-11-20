@@ -5,6 +5,7 @@ import {
   computeComposerCharacterState,
   computeDocumentTitle,
   computeScrollFollowState,
+  filterContacts,
   filterConversations,
   filterPinnedMessages,
   findMessageSearchMatches,
@@ -46,7 +47,7 @@ import {
   upsertMessageWithReplySync,
   validateAttachmentFile,
 } from "./ui-polish";
-import type { ConversationDto, MessageDto, PinnedMessageDto } from "./types";
+import type { ContactDto, ConversationDto, MessageDto, PinnedMessageDto } from "./types";
 
 function makeMsg(overrides: Partial<MessageDto> = {}): MessageDto {
   return {
@@ -1372,5 +1373,55 @@ describe("getAdjacentConversationId", () => {
   it("wraps correctly for a single-conversation list", () => {
     expect(getAdjacentConversationId(["only"], "only", 1)).toBe("only");
     expect(getAdjacentConversationId(["only"], "only", -1)).toBe("only");
+  });
+});
+
+describe("filterContacts", () => {
+  function makeContact(overrides: Partial<ContactDto> = {}): ContactDto {
+    return {
+      id: "u1",
+      username: "alice",
+      display_name: "Alice Nguyen",
+      avatar_url: null,
+      is_online: true,
+      ...overrides,
+    };
+  }
+
+  it("returns every contact unchanged for a blank/whitespace-only query", () => {
+    const contacts = [makeContact(), makeContact({ id: "u2", username: "bob" })];
+    expect(filterContacts(contacts, "")).toBe(contacts);
+    expect(filterContacts(contacts, "   ")).toBe(contacts);
+  });
+
+  it("matches case-insensitively against the display name", () => {
+    const contacts = [
+      makeContact({ id: "u1", display_name: "Alice Nguyen" }),
+      makeContact({ id: "u2", display_name: "Bob Tran", username: "bobt" }),
+    ];
+    expect(filterContacts(contacts, "ALICE").map((c) => c.id)).toEqual(["u1"]);
+  });
+
+  it("matches against the username (with or without the @ the caller types)", () => {
+    const contacts = [
+      makeContact({ id: "u1", display_name: "Alice Nguyen", username: "alice" }),
+      makeContact({ id: "u2", display_name: "Bob Tran", username: "bobt" }),
+    ];
+    expect(filterContacts(contacts, "bobt").map((c) => c.id)).toEqual(["u2"]);
+  });
+
+  it("matches a substring anywhere in the name, not just a prefix", () => {
+    const contacts = [makeContact({ id: "u1", display_name: "Alice Nguyen" })];
+    expect(filterContacts(contacts, "guye")).toHaveLength(1);
+  });
+
+  it("returns an empty array when nothing matches", () => {
+    const contacts = [makeContact()];
+    expect(filterContacts(contacts, "zzz-nonexistent")).toEqual([]);
+  });
+
+  it("trims surrounding whitespace from the query before matching", () => {
+    const contacts = [makeContact({ id: "u1", display_name: "Alice Nguyen" })];
+    expect(filterContacts(contacts, "  alice  ")).toHaveLength(1);
   });
 });
