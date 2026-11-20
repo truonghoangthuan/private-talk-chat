@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { syncPinnedMessage, upsertMessageWithReplySync } from "./ui-polish";
+import {
+  getMessageCopyText,
+  syncPinnedMessage,
+  upsertMessageWithReplySync,
+} from "./ui-polish";
 import type { MessageDto, PinnedMessageDto } from "./types";
 
 function makeMsg(overrides: Partial<MessageDto> = {}): MessageDto {
@@ -85,5 +89,43 @@ describe("upsertMessageWithReplySync & syncPinnedMessage", () => {
       makeMsg({ id: "m1", status: "removed", is_removed: true, text: null })
     );
     expect(removed).toHaveLength(0);
+  });
+});
+
+describe("getMessageCopyText", () => {
+  it("returns trimmed text for a verified text message", () => {
+    expect(getMessageCopyText(makeMsg({ text: "  hello world  " }))).toBe("hello world");
+  });
+
+  it("returns null for removed messages", () => {
+    expect(
+      getMessageCopyText(makeMsg({ is_removed: true, status: "removed", text: null }))
+    ).toBeNull();
+  });
+
+  it("returns null for messages that failed verification", () => {
+    expect(
+      getMessageCopyText(makeMsg({ status: "verification_failed", text: null }))
+    ).toBeNull();
+  });
+
+  it("returns null for attachment-only messages with no caption text", () => {
+    expect(
+      getMessageCopyText(
+        makeMsg({
+          text: null,
+          attachment: {
+            mime_type: "image/png",
+            file_name: "photo.png",
+            size_bytes: 1024,
+            media_url: "privatetalk-media://localhost/c1/m1",
+          },
+        })
+      )
+    ).toBeNull();
+  });
+
+  it("returns null for blank/whitespace-only text", () => {
+    expect(getMessageCopyText(makeMsg({ text: "   " }))).toBeNull();
   });
 });

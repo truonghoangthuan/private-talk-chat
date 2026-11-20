@@ -120,6 +120,16 @@ export function upsertMessageWithReplySync(
 }
 
 /**
+ * Returns the plain text to copy to the clipboard for a message, or null when there is
+ * nothing copyable (removed, unverified, or attachment-only messages with no caption).
+ */
+export function getMessageCopyText(message: MessageDto): string | null {
+  if (message.is_removed || message.status !== "verified") return null;
+  const trimmed = message.text?.trim();
+  return trimmed ? trimmed : null;
+}
+
+/**
  * Keeps the Pinned subtab list synchronized when a pinned message is edited, removed,
  * or fails verification.
  */

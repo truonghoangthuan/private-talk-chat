@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { Check, Pencil, Pin, PinOff, Reply, ShieldAlert, Trash2, X } from "lucide-react";
+import { Check, Copy, Pencil, Pin, PinOff, Reply, ShieldAlert, Trash2, X } from "lucide-react";
 import type { MessageDto } from "../../lib/types";
+import { getMessageCopyText } from "../../lib/ui-polish";
 import { MediaViewer } from "./MediaViewer";
 
 interface MessageBubbleProps {
@@ -30,6 +31,20 @@ export function MessageBubble({
   const [confirmingRemove, setConfirmingRemove] = useState(false);
   const [draftText, setDraftText] = useState(message.text || "");
   const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const copyText = getMessageCopyText(message);
+
+  const handleCopy = async () => {
+    if (!copyText) return;
+    try {
+      await navigator.clipboard.writeText(copyText);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard access unavailable; silently ignore (non-critical UX affordance).
+    }
+  };
 
   const timeLabel = new Date(message.created_at).toLocaleTimeString([], {
     hour: "2-digit",
@@ -137,6 +152,21 @@ export function MessageBubble({
                 >
                   <Reply className="w-3.5 h-3.5" />
                 </button>
+                {copyText && (
+                  <button
+                    type="button"
+                    onClick={() => void handleCopy()}
+                    disabled={busy}
+                    className="p-1 rounded-md hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                    title={copied ? "Copied!" : "Copy text"}
+                  >
+                    {copied ? (
+                      <Check className="w-3.5 h-3.5 text-[#10B981]" />
+                    ) : (
+                      <Copy className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => void onTogglePin(message)}
@@ -264,6 +294,21 @@ export function MessageBubble({
             >
               <Reply className="w-3.5 h-3.5" />
             </button>
+            {copyText && (
+              <button
+                type="button"
+                onClick={() => void handleCopy()}
+                disabled={busy}
+                className="p-1 rounded-md hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                title={copied ? "Copied!" : "Copy text"}
+              >
+                {copied ? (
+                  <Check className="w-3.5 h-3.5 text-[#10B981]" />
+                ) : (
+                  <Copy className="w-3.5 h-3.5" />
+                )}
+              </button>
+            )}
             <button
               type="button"
               onClick={() => void onTogglePin(message)}
