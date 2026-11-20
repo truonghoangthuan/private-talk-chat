@@ -9,6 +9,7 @@ import {
   filterContacts,
   filterConversations,
   filterPinnedMessages,
+  filterUnreadOnlyConversations,
   findMessageSearchMatches,
   findUnreadDividerMessageId,
   formatFullMessageTimestamp,
@@ -257,6 +258,24 @@ describe("filterConversations", () => {
 
   it("returns an empty list when nothing matches", () => {
     expect(filterConversations([direct, group], "nonexistent", "u1")).toEqual([]);
+  });
+});
+
+describe("filterUnreadOnlyConversations", () => {
+  const read = makeConv({ id: "c1", unread_count: 0 });
+  const unread = makeConv({ id: "c2", unread_count: 3 });
+
+  it("returns every conversation unchanged (same reference) when unreadOnly is false", () => {
+    const input = [read, unread];
+    expect(filterUnreadOnlyConversations(input, false)).toBe(input);
+  });
+
+  it("keeps only conversations with unread_count > 0 when unreadOnly is true", () => {
+    expect(filterUnreadOnlyConversations([read, unread], true)).toEqual([unread]);
+  });
+
+  it("returns an empty list when nothing is unread", () => {
+    expect(filterUnreadOnlyConversations([read], true)).toEqual([]);
   });
 });
 

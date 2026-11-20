@@ -301,6 +301,25 @@ export function filterConversations(
   });
 }
 
+/**
+ * Narrows the sidebar conversation list down to only conversations with
+ * at least one unread message (Gmail/Slack "unreads only" convention),
+ * so a long conversation list can be scanned for what's actually new
+ * without eyeballing every unread badge. When `unreadOnly` is false,
+ * returns `conversations` unchanged (including order/reference) so
+ * callers can skip extra array allocations on the common case. Intended
+ * to run alongside (not instead of) the existing text filter — apply
+ * both before `sortConversationsForSidebar`, in either order, since
+ * neither reorders the input.
+ */
+export function filterUnreadOnlyConversations(
+  conversations: ConversationDto[],
+  unreadOnly: boolean
+): ConversationDto[] {
+  if (!unreadOnly) return conversations;
+  return conversations.filter((conv) => conv.unread_count > 0);
+}
+
 const PINNED_CONVERSATIONS_STORAGE_PREFIX = "bloop:pinned-conversations:";
 
 function pinnedConversationsStorageKey(userId: string): string {
