@@ -1223,6 +1223,10 @@ export const KEYBOARD_SHORTCUTS: KeyboardShortcutEntry[] = [
   { keys: "Enter", description: "Send message, or save a message edit" },
   { keys: "Shift + Enter", description: "Insert a new line instead of sending/saving" },
   {
+    keys: "↑ (empty composer)",
+    description: "Edit your last message",
+  },
+  {
     keys: "Escape",
     description:
       "Cancel an active reply or clear a staged attachment, cancel an in-progress message edit, or dismiss a pending remove confirmation",
@@ -1848,4 +1852,48 @@ export function saveSidebarWidth(width: number): void {
   } catch {
     // Storage unavailable or full; the sidebar width just won't persist this session.
   }
+}
+
+/**
+ * Finds the most recent message in `messages` that the current user sent
+ * and can actually edit (issue #98) — matches the same eligibility the
+ * message bubble's own hover "Edit message" pencil button already
+ * requires: verified, not removed, and has text (an attachment-only
+ * message has nothing to edit). Used by the composer's Discord/Slack/
+ * Twitter "press Up Arrow in an empty composer to edit your last message"
+ * shortcut instead of requiring a hover + click on a message that may
+ * have scrolled out of view. Returns `null` when there is no such
+ * message — nothing sent yet, or every own message is
+ * removed/unverified/attachment-only.
+ */
+export function findLastEditableOwnMessageId(
+  messages: MessageDto[],
+  currentUserId: string
+): string | null {
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const candidate = messages[i];
+    if (candidate.sender_id !== currentUserId) continue;
+    if (candidate.is_removed || candidate.status !== "verified") continue;
+    if (!candidate.text) continue;
+    return candidate.id;
+  }
+  return null;
+}
+
+/**
+ * Decides whether an ArrowUp keypress inside the message composer should
+ * trigger the "edit last message" shortcut (issue #98). Only fires when
+ * the composer's text is empty — so normal caret movement through a
+ * multi-line in-progress draft is never hijacked — and no "@mention"
+ * autocomplete dropdown is currently open, since that already claims
+ * ArrowUp/ArrowDown for its own candidate navigation (checked ahead of
+ * this in the composer's keydown handler either way, but kept here too
+ * so this helper stays correct standalone).
+ */
+export function shouldTriggerEditLastMessage(
+  text: string,
+  hasMentionDropdownOpen: boolean
+): boolean {
+  if (hasMentionDropdownOpen) return false;
+  return text.length === 0;
 }

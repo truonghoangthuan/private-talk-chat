@@ -24,6 +24,10 @@ interface MessageBubbleProps {
   onReply: (message: MessageDto) => void;
   onTogglePin: (message: MessageDto) => Promise<void>;
   onJumpToMessage?: (messageId: string) => void;
+  /** Set by the parent (issue #98) when this message should immediately enter edit mode — e.g. via the composer's "ArrowUp to edit last message" shortcut. */
+  autoEditMessageId?: string | null;
+  /** Called once `autoEditMessageId` has been consumed, so the parent can clear it and avoid re-triggering. */
+  onAutoEditConsumed?: () => void;
 }
 
 export function MessageBubble({
@@ -37,6 +41,8 @@ export function MessageBubble({
   onReply,
   onTogglePin,
   onJumpToMessage,
+  autoEditMessageId = null,
+  onAutoEditConsumed,
 }: MessageBubbleProps) {
   const [editing, setEditing] = useState(false);
   const [confirmingRemove, setConfirmingRemove] = useState(false);
@@ -46,6 +52,18 @@ export function MessageBubble({
   const editTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const copyText = getMessageCopyText(message);
+
+  // Enter edit mode automatically when the parent flags this message via
+  // the composer's "ArrowUp to edit last message" shortcut (issue #98),
+  // instead of requiring a hover + click on a message that may have
+  // scrolled out of view. `onAutoEditConsumed` is called right away so
+  // the parent clears the flag and this effect doesn't re-fire.
+  useEffect(() => {
+    if (autoEditMessageId !== message.id) return;
+    setDraftText(message.text || "");
+    setEditing(true);
+    onAutoEditConsumed?.();
+  }, [autoEditMessageId, message.id, message.text, onAutoEditConsumed]);
 
   const resizeEditTextarea = () => {
     const el = editTextareaRef.current;
