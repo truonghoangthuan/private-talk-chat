@@ -13,6 +13,7 @@ import { MessageSearchBar } from "./components/chat/MessageSearchBar";
 import { AuthScreen } from "./components/modals/AuthScreen";
 import { ProfileModal } from "./components/modals/ProfileModal";
 import { GroupManageDrawer } from "./components/modals/GroupManageDrawer";
+import { KeyboardShortcutsModal } from "./components/modals/KeyboardShortcutsModal";
 import { tauriClient } from "./lib/tauri-client";
 import {
   syncPinnedMessage,
@@ -22,6 +23,7 @@ import {
   findUnreadDividerMessageId,
   computeDocumentTitle,
   formatOfflineDuration,
+  shouldOpenShortcutsHelp,
 } from "./lib/ui-polish";
 import type {
   ContactDto,
@@ -86,6 +88,7 @@ export function App() {
     typeof navigator !== "undefined" ? navigator.onLine : true
   );
   const [reconnectNotice, setReconnectNotice] = useState<string | null>(null);
+  const [shortcutsHelpOpen, setShortcutsHelpOpen] = useState(false);
 
   const handleCheckUpdate = useCallback(() => {
     setUpdateBannerDismissed(false);
@@ -187,6 +190,26 @@ export function App() {
     const timer = setTimeout(() => setReconnectNotice(null), 5000);
     return () => clearTimeout(timer);
   }, [reconnectNotice]);
+
+  // Open the keyboard shortcuts help modal on the conventional `?` key
+  // (Slack/Discord/Linear), unless the user is actively typing in an
+  // editable field — see `shouldOpenShortcutsHelp` (issue #48).
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const active = document.activeElement as HTMLElement | null;
+      if (
+        shouldOpenShortcutsHelp(
+          e.key,
+          active?.tagName ?? null,
+          active?.isContentEditable ?? false
+        )
+      ) {
+        setShortcutsHelpOpen(true);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   const refreshContactsAndConversations = useCallback(async () => {
     const [cList, convList] = await Promise.all([
@@ -458,6 +481,7 @@ export function App() {
             updateStatus={updateStatus}
             onToggleTheme={() => setDarkMode((d) => !d)}
             onOpenProfile={() => setProfileOpen(true)}
+            onOpenShortcutsHelp={() => setShortcutsHelpOpen(true)}
             onCheckUpdate={handleCheckUpdate}
             onInstallUpdate={handleInstallUpdate}
             onLogout={async () => {
@@ -746,6 +770,10 @@ export function App() {
             await refreshContactsAndConversations();
           }}
         />
+      )}
+
+      {shortcutsHelpOpen && (
+        <KeyboardShortcutsModal onClose={() => setShortcutsHelpOpen(false)} />
       )}
       </div>
       {privacyShieldOverlay}

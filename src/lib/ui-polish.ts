@@ -687,3 +687,48 @@ export function formatOfflineDuration(durationMs: number): string {
   const minutes = totalMinutes % 60;
   return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
 }
+
+/** One row of the keyboard shortcuts help modal (issue #48). */
+export interface KeyboardShortcutEntry {
+  keys: string;
+  description: string;
+}
+
+/**
+ * The full list of keyboard shortcuts already supported across the
+ * composer, message timeline, and in-conversation search (issue #48) —
+ * previously only discoverable by accident. Kept as a single exported
+ * constant so the help modal and its tests read from the same source of
+ * truth instead of a duplicated hardcoded list drifting out of sync.
+ */
+export const KEYBOARD_SHORTCUTS: KeyboardShortcutEntry[] = [
+  { keys: "Enter", description: "Send message, or save a message edit" },
+  { keys: "Shift + Enter", description: "Insert a new line instead of sending/saving" },
+  {
+    keys: "Escape",
+    description:
+      "Cancel an active reply or clear a staged attachment, cancel an in-progress message edit, or dismiss a pending remove confirmation",
+  },
+  { keys: "Enter / Shift + Enter", description: "Jump to the next / previous search match" },
+  { keys: "↓ / ↑", description: "Jump to the next / previous search match" },
+  { keys: "?", description: "Show this keyboard shortcuts list" },
+];
+
+/**
+ * Decides whether a global `?` keypress should open the keyboard shortcuts
+ * help modal (issue #48), matching the Slack/Discord/Linear convention.
+ * Suppressed while the user is actively typing in an editable field (a
+ * text input, textarea, select, or `contenteditable` element) so typing a
+ * literal `?` into a message, search box, or display-name field never gets
+ * hijacked into opening the modal instead.
+ */
+export function shouldOpenShortcutsHelp(
+  key: string,
+  activeElementTagName: string | null,
+  isContentEditable: boolean
+): boolean {
+  if (key !== "?") return false;
+  if (isContentEditable) return false;
+  const tag = activeElementTagName?.toUpperCase() ?? "";
+  return tag !== "INPUT" && tag !== "TEXTAREA" && tag !== "SELECT";
+}

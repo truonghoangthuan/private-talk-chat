@@ -1,5 +1,6 @@
 import {
   Download,
+  Keyboard,
   LogOut,
   Moon,
   RefreshCw,
@@ -16,6 +17,7 @@ interface NavRailProps {
   updateStatus: UpdateStatusDto;
   onToggleTheme: () => void;
   onOpenProfile: () => void;
+  onOpenShortcutsHelp: () => void;
   onCheckUpdate: () => void;
   onInstallUpdate: () => void;
   onLogout: () => void;
@@ -28,6 +30,7 @@ export function NavRail({
   updateStatus,
   onToggleTheme,
   onOpenProfile,
+  onOpenShortcutsHelp,
   onCheckUpdate,
   onInstallUpdate,
   onLogout,
@@ -124,6 +127,14 @@ export function NavRail({
           title="Profile Settings"
         >
           <Settings className="w-4 h-4" />
+        </button>
+
+        <button
+          onClick={onOpenShortcutsHelp}
+          className="w-10 h-10 rounded-xl hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] flex items-center justify-center transition-colors"
+          title="Keyboard shortcuts (?)"
+        >
+          <Keyboard className="w-4 h-4" />
         </button>
 
         <button
