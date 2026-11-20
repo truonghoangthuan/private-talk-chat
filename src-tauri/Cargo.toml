@@ -1,6 +1,6 @@
 [package]
 name = "private-talk"
-version = "0.2.1"
+version = "0.2.2"
 description = "Private Talk Windows End-to-End Encrypted Desktop Chat"
 authors = ["Private Talk"]
 edition = "2021"
