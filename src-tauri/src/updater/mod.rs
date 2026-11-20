@@ -416,6 +416,19 @@ impl Default for HttpUpdateFeedTransport {
     }
 }
 
+fn check_http_success(resp: &reqwest::Response, subject: &str) -> Result<(), AppError> {
+    let status = resp.status();
+    if status.is_success() {
+        return Ok(());
+    }
+    let code = status.as_u16();
+    tracing::warn!(status = code, subject, "Update HTTP request failed");
+    Err(AppError::new(
+        "UPDATE_NETWORK_ERROR",
+        format!("{subject} returned unexpected HTTP {code}."),
+    ))
+}
+
 impl UpdateFeedTransport for HttpUpdateFeedTransport {
     fn fetch_manifest<'a>(&'a self, url: &'a str) -> BoxFuture<'a, Result<Vec<u8>, AppError>> {
         Box::pin(async move {
@@ -425,12 +438,7 @@ impl UpdateFeedTransport for HttpUpdateFeedTransport {
                 .send()
                 .await
                 .map_err(|_| AppError::new("UPDATE_NETWORK_ERROR", "Unable to reach GitHub Releases."))?;
-            if !resp.status().is_success() {
-                return Err(AppError::new(
-                    "UPDATE_NETWORK_ERROR",
-                    "Release feed returned an unexpected HTTP status.",
-                ));
-            }
+            check_http_success(&resp, "Release feed")?;
             let bytes = resp
                 .bytes()
                 .await
@@ -457,12 +465,7 @@ impl UpdateFeedTransport for HttpUpdateFeedTransport {
                 .send()
                 .await
                 .map_err(|_| AppError::new("UPDATE_NETWORK_ERROR", "Unable to download update package."))?;
-            if !resp.status().is_success() {
-                return Err(AppError::new(
-                    "UPDATE_NETWORK_ERROR",
-                    "Update download returned an unexpected HTTP status.",
-                ));
-            }
+            check_http_success(&resp, "Update download")?;
 
             let total_hint = resp.content_length();
             if let Some(len) = total_hint {
