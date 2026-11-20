@@ -17,6 +17,8 @@ interface MessageTimelineProps {
   unreadDividerMessageId?: string | null;
   /** Active in-conversation search query (issue #65); forwarded to bubbles for inline `<mark>` highlighting. */
   searchQuery?: string;
+  /** Current viewer's own username (issue #102), forwarded to bubbles to detect/highlight an "@mention" of them. */
+  currentUsername?: string;
   onEditMessage: (messageId: string, newText: string) => Promise<void>;
   onRemoveMessage: (messageId: string) => Promise<void>;
   onReplyMessage: (message: MessageDto) => void;
@@ -33,6 +35,7 @@ export function MessageTimeline({
   highlightedMessageId,
   unreadDividerMessageId = null,
   searchQuery = "",
+  currentUsername = "",
   onEditMessage,
   onRemoveMessage,
   onReplyMessage,
@@ -136,6 +139,7 @@ export function MessageTimeline({
                 isGroupedWithPrev={item.isGroupedWithPrev}
                 isHighlighted={highlightedMessageId === item.message.id}
                 searchQuery={searchQuery}
+                currentUsername={currentUsername}
                 onEdit={onEditMessage}
                 onRemove={onRemoveMessage}
                 onReply={onReplyMessage}

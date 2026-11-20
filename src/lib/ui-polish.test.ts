@@ -79,6 +79,7 @@ import {
   DEFAULT_SIDEBAR_WIDTH,
   findLastEditableOwnMessageId,
   shouldTriggerEditLastMessage,
+  messageMentionsUser,
 } from "./ui-polish";
 import type { ContactDto, ConversationDto, MessageDto, PinnedMessageDto } from "./types";
 import type { MessageNotificationToast } from "./ui-polish";
@@ -2248,5 +2249,53 @@ describe("loadSidebarWidth / saveSidebarWidth", () => {
     delete (globalThis as { localStorage?: Storage }).localStorage;
     expect(loadSidebarWidth()).toBe(DEFAULT_SIDEBAR_WIDTH);
     expect(() => saveSidebarWidth(300)).not.toThrow();
+  });
+});
+
+describe("messageMentionsUser", () => {
+  it("matches a mention at the start of the text", () => {
+    expect(messageMentionsUser("@john can you take a look?", "john")).toBe(true);
+  });
+
+  it("matches a mention mid-sentence preceded by whitespace", () => {
+    expect(messageMentionsUser("hey @john check this out", "john")).toBe(true);
+  });
+
+  it("matches case-insensitively", () => {
+    expect(messageMentionsUser("hey @John check this out", "john")).toBe(true);
+    expect(messageMentionsUser("hey @john check this out", "John")).toBe(true);
+  });
+
+  it("matches when the mention is immediately followed by punctuation", () => {
+    expect(messageMentionsUser("done, @john.", "john")).toBe(true);
+    expect(messageMentionsUser("cc @john, @jane", "john")).toBe(true);
+  });
+
+  it("does not match a longer username that merely starts with the same text", () => {
+    expect(messageMentionsUser("hey @johnsmith, got a sec?", "john")).toBe(false);
+  });
+
+  it("does not match a mid-word '@' (e.g. an email-like token)", () => {
+    expect(messageMentionsUser("reach me at me@john.com", "john")).toBe(false);
+  });
+
+  it("does not match when there is no '@' mention at all", () => {
+    expect(messageMentionsUser("john, can you take a look?", "john")).toBe(false);
+  });
+
+  it("returns false for null/empty text", () => {
+    expect(messageMentionsUser(null, "john")).toBe(false);
+    expect(messageMentionsUser(undefined, "john")).toBe(false);
+    expect(messageMentionsUser("", "john")).toBe(false);
+  });
+
+  it("returns false for a blank/whitespace-only username", () => {
+    expect(messageMentionsUser("hey @john", "")).toBe(false);
+    expect(messageMentionsUser("hey @john", "   ")).toBe(false);
+  });
+
+  it("escapes regex-special characters in the username", () => {
+    expect(messageMentionsUser("hey @john.doe check this", "john.doe")).toBe(true);
+    expect(messageMentionsUser("hey @johnXdoe check this", "john.doe")).toBe(false);
   });
 });

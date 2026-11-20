@@ -1966,3 +1966,28 @@ export function shouldTriggerEditLastMessage(
   if (hasMentionDropdownOpen) return false;
   return text.length === 0;
 }
+
+/**
+ * Detects whether `text` contains an "@username" mention of `username`
+ * (issue #102) — so the timeline can call out a message that mentions the
+ * current viewer (Slack/Discord "you were mentioned" highlight
+ * convention), distinct from the composer's own "@mention" autocomplete
+ * (issue #88), which is about *typing* a mention rather than *receiving*
+ * one. Matches the same token shape `detectMentionQuery`/
+ * `applyMentionSelection` produce: an "@" preceded by start-of-string or
+ * whitespace, immediately followed by `username` (case-insensitive), with
+ * no further word character directly after it — so `@john` matches
+ * "john" but `@johnsmith` does not, and an email-like `me@john.com`
+ * (the "@" preceded by a word character) never matches either. Returns
+ * `false` for blank/null `text` or a blank/whitespace-only `username`.
+ */
+export function messageMentionsUser(
+  text: string | null | undefined,
+  username: string
+): boolean {
+  const trimmedUsername = username.trim();
+  if (!text || !trimmedUsername) return false;
+  const escaped = trimmedUsername.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pattern = new RegExp(`(^|\\s)@${escaped}(?!\\w)`, "i");
+  return pattern.test(text);
+}

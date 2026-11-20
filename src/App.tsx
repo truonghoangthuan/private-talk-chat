@@ -885,6 +885,7 @@ export function App() {
                       highlightedMessageId={highlightedMessageId}
                       unreadDividerMessageId={unreadDividerMessageId}
                       searchQuery={searchOpen ? searchQuery : ""}
+                      currentUsername={user.username}
                       onEditMessage={async (mid, text) => {
                         const updated = await tauriClient.messageEdit(mid, text);
                         setMessages((prev) =>
