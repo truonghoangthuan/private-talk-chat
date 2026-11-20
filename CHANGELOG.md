@@ -10,6 +10,8 @@ applicable.
 
 ## [Unreleased]
 
+- chore: add a dev-only Playwright screenshot harness (`harness.html`, `scripts/harness-main.tsx`, `scripts/screenshot-component.mjs` — `npm run screenshot`) for capturing before/after PNGs of a single component in isolation, to attach visual diffs to PRs. Not part of the shipped app build.
+
 ## [0.3.0] - 2026-11-20
 
 - feat: add one-click copy-to-clipboard for message text on hover
