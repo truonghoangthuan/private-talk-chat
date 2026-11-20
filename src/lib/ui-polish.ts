@@ -344,3 +344,26 @@ export function computeComposerCharacterState(
   const isNearLimit = isOverLimit || remaining <= limit * 0.2;
   return { show: isNearLimit, remaining, isNearLimit, isOverLimit };
 }
+
+/** What pressing Escape in the composer should do, in priority order. */
+export type ComposerEscapeAction = "cancel_reply" | "clear_attachment" | "none";
+
+/**
+ * Resolves what the composer's Escape key should do, so a user can back out
+ * of a reply context or drop a staged attachment without reaching for the
+ * mouse (matching Slack/Discord/Telegram conventions). An active reply
+ * takes priority over a staged attachment when both are present, since
+ * canceling the reply is the more surprising/stateful thing to leave
+ * lingering; a second Escape press then clears any remaining attachment.
+ * Returns "none" when there's nothing to back out of, so callers can skip
+ * calling preventDefault() and let Escape propagate normally (e.g. to close
+ * an unrelated modal).
+ */
+export function resolveComposerEscapeAction(
+  hasReply: boolean,
+  hasAttachment: boolean
+): ComposerEscapeAction {
+  if (hasReply) return "cancel_reply";
+  if (hasAttachment) return "clear_attachment";
+  return "none";
+}

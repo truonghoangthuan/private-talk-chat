@@ -1,7 +1,10 @@
 import { useRef, useState } from "react";
 import { Paperclip, Reply, Send, X } from "lucide-react";
 import type { MessageDto } from "../../lib/types";
-import { computeComposerCharacterState } from "../../lib/ui-polish";
+import {
+  computeComposerCharacterState,
+  resolveComposerEscapeAction,
+} from "../../lib/ui-polish";
 
 interface MessageComposerProps {
   replyingTo: MessageDto | null;
@@ -120,6 +123,21 @@ export function MessageComposer({
       if (!sending && (text.trim().length > 0 || attachmentPath)) {
         void submitMessage();
       }
+      return;
+    }
+    if (e.key === "Escape") {
+      const action = resolveComposerEscapeAction(Boolean(replyingTo), Boolean(attachmentPath));
+      if (action === "cancel_reply") {
+        e.preventDefault();
+        e.stopPropagation();
+        onCancelReply();
+      } else if (action === "clear_attachment") {
+        e.preventDefault();
+        e.stopPropagation();
+        setAttachmentPath(null);
+        setAttachmentName(null);
+      }
+      // action === "none": let Escape propagate (e.g. to close an unrelated modal).
     }
   };
 

@@ -8,6 +8,7 @@ import {
   getDraft,
   getMessageCopyText,
   isScrolledNearBottom,
+  resolveComposerEscapeAction,
   syncPinnedMessage,
   updateDraft,
   upsertMessageWithReplySync,
@@ -418,5 +419,20 @@ describe("computeComposerCharacterState", () => {
     expect(farState.show).toBe(false);
     const nearState = computeComposerCharacterState(3300);
     expect(nearState.show).toBe(true);
+  });
+});
+
+describe("resolveComposerEscapeAction", () => {
+  it("cancels the reply when a reply is active, regardless of attachment state", () => {
+    expect(resolveComposerEscapeAction(true, false)).toBe("cancel_reply");
+    expect(resolveComposerEscapeAction(true, true)).toBe("cancel_reply");
+  });
+
+  it("clears the attachment when there's no reply but an attachment is staged", () => {
+    expect(resolveComposerEscapeAction(false, true)).toBe("clear_attachment");
+  });
+
+  it("does nothing when there's neither a reply nor an attachment", () => {
+    expect(resolveComposerEscapeAction(false, false)).toBe("none");
   });
 });
