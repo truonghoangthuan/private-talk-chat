@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildTimelineItems,
   computeComposerCharacterState,
   computeScrollFollowState,
   filterConversations,
   findMessageSearchMatches,
+  findUnreadDividerMessageId,
   formatMessageTimestamp,
   getAttachmentPreviewKind,
   getConversationTitle,
@@ -582,5 +584,59 @@ describe("shouldSubmitMessageEditOnKeyDown", () => {
   it("does not submit on any other key", () => {
     expect(shouldSubmitMessageEditOnKeyDown("a", false)).toBe(false);
     expect(shouldSubmitMessageEditOnKeyDown("Escape", false)).toBe(false);
+  });
+});
+
+describe("findUnreadDividerMessageId", () => {
+  const msgs = [
+    makeMsg({ id: "m1", sender_id: "u1" }),
+    makeMsg({ id: "m2", sender_id: "u1" }),
+    makeMsg({ id: "m3", sender_id: "u2" }),
+    makeMsg({ id: "m4", sender_id: "u1" }),
+    makeMsg({ id: "m5", sender_id: "u2" }),
+  ];
+
+  it("returns null when there is nothing unread", () => {
+    expect(findUnreadDividerMessageId(msgs, 0, "u1")).toBeNull();
+    expect(findUnreadDividerMessageId(msgs, -1, "u1")).toBeNull();
+  });
+
+  it("returns null for an empty message list", () => {
+    expect(findUnreadDividerMessageId([], 3, "u1")).toBeNull();
+  });
+
+  it("anchors at the earliest message in the unread streak, counting only other senders", () => {
+    // Viewer is u1; unreadCount=1 should land on the last message from someone else (m5).
+    expect(findUnreadDividerMessageId(msgs, 1, "u1")).toBe("m5");
+    // unreadCount=2 must skip the viewer's own m4 and land on the next other-sender message (m3).
+    expect(findUnreadDividerMessageId(msgs, 2, "u1")).toBe("m3");
+  });
+
+  it("anchors at the oldest loaded other-sender message when unreadCount exceeds what's loaded", () => {
+    expect(findUnreadDividerMessageId(msgs, 99, "u1")).toBe("m3");
+  });
+
+  it("returns null when every loaded message is the viewer's own", () => {
+    const ownOnly = [makeMsg({ id: "a", sender_id: "u1" }), makeMsg({ id: "b", sender_id: "u1" })];
+    expect(findUnreadDividerMessageId(ownOnly, 5, "u1")).toBeNull();
+  });
+});
+
+describe("buildTimelineItems unread divider", () => {
+  it("inserts an unread_divider item directly above the target message", () => {
+    const msgs = [
+      makeMsg({ id: "m1", epoch: 1 }),
+      makeMsg({ id: "m2", epoch: 1 }),
+      makeMsg({ id: "m3", epoch: 1 }),
+    ];
+    const items = buildTimelineItems(msgs, "m2");
+    const kinds = items.map((i) => i.kind);
+    expect(kinds).toEqual(["message", "unread_divider", "message", "message"]);
+  });
+
+  it("omits the divider entirely when the target id is null", () => {
+    const msgs = [makeMsg({ id: "m1" }), makeMsg({ id: "m2" })];
+    const items = buildTimelineItems(msgs, null);
+    expect(items.every((i) => i.kind !== "unread_divider")).toBe(true);
   });
 });

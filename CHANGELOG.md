@@ -10,6 +10,7 @@ applicable.
 
 ## [Unreleased]
 
+- feat: show an inline "New messages" divider in the timeline, anchored above the first message that was unread when the conversation was opened (Slack/Discord-style), so the viewer knows exactly where to start reading instead of only seeing a sidebar unread badge. Client-side only, snapshotting `unread_count` before it's reset by marking messages seen (issue #37)
 - fix: message editing now uses an auto-growing textarea (Shift+Enter for a newline, Enter to save) instead of a single-line text input, so multi-line messages can actually be edited without losing their line breaks (issue #35)
 - feat: add in-conversation message search — a search icon in the chat header opens an inline bar that filters the currently-loaded message history by text, shows an `N of M` match counter, and steps through matches with the up/down buttons or Enter/Shift+Enter/Arrow keys, jumping to and highlighting each one the same way "jump to pinned message" already does. Client-side only, matching against already-loaded messages — no new backend search endpoint (issue #33)
 - feat: the composer is now a drag-and-drop target for attachments — dragging a file from the OS file explorer over it shows a dashed-border highlight, and dropping it stages the file exactly like the paperclip picker (same MIME/size validation, now shared via a new `validateAttachmentFile` helper instead of being duplicated) (issue #31)
