@@ -1420,6 +1420,92 @@ export function insertTextAtCursor(
   return { text: nextText, cursor: start + insertion.length };
 }
 
+export interface MentionTriggerState {
+  /** The in-progress "@query" text typed so far (without the leading "@"). */
+  query: string;
+  /** Index of the triggering "@" within the full composer text. */
+  start: number;
+}
+
+/**
+ * Detects an in-progress "@mention" token at the caret (Slack/Discord
+ * autocomplete convention), so the composer can show a live suggestion
+ * dropdown instead of requiring a whole `@username` to be typed blind.
+ * Only triggers when the "@" sits at the very start of the text or is
+ * preceded by whitespace (so an email-like `foo@bar` or a mid-word "@"
+ * never fires it) and the span between that "@" and the caret contains no
+ * whitespace (so the token ends the moment a space is typed, same as
+ * Slack). Returns `null` when no such token is open.
+ */
+export function detectMentionQuery(text: string, cursor: number): MentionTriggerState | null {
+  const upToCursor = text.slice(0, Math.max(0, Math.min(cursor, text.length)));
+  const at = upToCursor.lastIndexOf("@");
+  if (at === -1) return null;
+  if (at > 0 && !/\s/.test(upToCursor[at - 1])) return null;
+  const token = upToCursor.slice(at + 1);
+  if (/\s/.test(token)) return null;
+  return { query: token, start: at };
+}
+
+export interface MentionCandidate {
+  user_id: string;
+  username: string;
+  display_name: string;
+}
+
+const MAX_MENTION_SUGGESTIONS = 6;
+
+/**
+ * Narrows a group conversation's member list to mention-autocomplete
+ * candidates matching `query` (case-insensitive substring against
+ * `username` or `display_name`), same filter convention as
+ * `filterContacts`. A match at the very start of either field ranks ahead
+ * of one only found mid-string, then ties break alphabetically by display
+ * name; results are capped at `MAX_MENTION_SUGGESTIONS` so a large group
+ * doesn't render an unbounded dropdown. An empty query matches everyone
+ * (so typing a bare "@" immediately shows the full member list, up to the
+ * cap), ordered the same way.
+ */
+export function filterMentionCandidates<T extends MentionCandidate>(
+  members: T[],
+  query: string
+): T[] {
+  const needle = query.trim().toLowerCase();
+  const ranked = members
+    .map((member) => {
+      const username = member.username.toLowerCase();
+      const displayName = member.display_name.toLowerCase();
+      if (needle && !username.includes(needle) && !displayName.includes(needle)) return null;
+      const prefixRank = username.startsWith(needle) || displayName.startsWith(needle) ? 0 : 1;
+      return { member, prefixRank };
+    })
+    .filter((entry): entry is { member: T; prefixRank: number } => entry !== null)
+    .sort(
+      (a, b) =>
+        a.prefixRank - b.prefixRank || a.member.display_name.localeCompare(b.member.display_name)
+    );
+  return ranked.slice(0, MAX_MENTION_SUGGESTIONS).map((entry) => entry.member);
+}
+
+/**
+ * Replaces the in-progress "@query" token — from `start` (the triggering
+ * "@") through `cursor` (the caret) — with the chosen member's
+ * "@username " (trailing space so typing can continue immediately without
+ * the mention running into the next word), mirroring
+ * `insertTextAtCursor`'s splice-and-reposition-caret pattern.
+ */
+export function applyMentionSelection(
+  text: string,
+  start: number,
+  cursor: number,
+  username: string
+): TextInsertionResult {
+  const before = text.slice(0, Math.max(0, Math.min(start, text.length)));
+  const after = text.slice(Math.max(0, Math.min(cursor, text.length)));
+  const inserted = `@${username} `;
+  return { text: before + inserted + after, cursor: before.length + inserted.length };
+}
+
 /**
  * Decides whether a global keydown should switch the selected conversation,
  * and in which direction (issue #70) — `Alt + ArrowDown` steps to the next
