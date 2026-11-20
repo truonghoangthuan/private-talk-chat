@@ -1217,6 +1217,7 @@ export const KEYBOARD_SHORTCUTS: KeyboardShortcutEntry[] = [
   { keys: "Enter / Shift + Enter", description: "Jump to the next / previous search match" },
   { keys: "↓ / ↑", description: "Jump to the next / previous search match" },
   { keys: "Ctrl/Cmd + F", description: "Open search in the current conversation" },
+  { keys: "Ctrl/Cmd + K", description: "Open the quick switcher to jump to any conversation" },
   { keys: "Alt + ↓ / ↑", description: "Switch to the next / previous conversation in the sidebar" },
   { keys: "/", description: "Focus the sidebar's conversation filter box" },
   { keys: "?", description: "Show this keyboard shortcuts list" },
@@ -1276,6 +1277,43 @@ export function shouldFocusConversationFilter(
   if (isContentEditable) return false;
   const tag = activeElementTagName?.toUpperCase() ?? "";
   return tag !== "INPUT" && tag !== "TEXTAREA" && tag !== "SELECT";
+}
+
+/**
+ * Decides whether a global keydown should open the quick-switcher modal
+ * (a "jump to any conversation" command palette), matching the Slack/
+ * Linear/VS Code `Ctrl+K` (`Cmd+K` on macOS) convention. Never suppressed
+ * while typing in an editable field — same rationale as
+ * `shouldOpenConversationSearch`'s `Ctrl+F`: holding Ctrl/Cmd means the
+ * browser would not insert a literal "k" into that field anyway, so
+ * there's nothing to protect by checking the active element. `key` is
+ * matched case-insensitively since some keyboard layouts/OSes report an
+ * uppercase "K" while the modifier is held.
+ */
+export function shouldOpenQuickSwitcher(key: string, ctrlOrMetaKey: boolean): boolean {
+  return ctrlOrMetaKey && key.toLowerCase() === "k";
+}
+
+/**
+ * Resolves the ordered, filtered list of conversations the quick-switcher
+ * modal should display: starts from the same pinned-first sidebar order
+ * (`sortConversationsForSidebar`) and then narrows it by the same
+ * title/preview substring match the sidebar's own text filter already
+ * uses (`filterConversations`), so a conversation found here sorts the
+ * same way it would if the sidebar filter box had been used instead. An
+ * empty/blank query returns every conversation in pinned-first order
+ * rather than an empty list, matching a freshly-opened, not-yet-typed-in
+ * command palette convention (Slack/Linear/VS Code all list recent/all
+ * items before a query narrows them).
+ */
+export function buildQuickSwitcherResults(
+  conversations: ConversationDto[],
+  query: string,
+  currentUserId: string,
+  pinnedIds: string[]
+): ConversationDto[] {
+  const ordered = sortConversationsForSidebar(conversations, pinnedIds);
+  return filterConversations(ordered, query, currentUserId);
 }
 
 /**

@@ -5,6 +5,7 @@ import {
   resolvePasswordInputType,
   buildConversationPreviewLabel,
   buildEmojiPickerOrder,
+  buildQuickSwitcherResults,
   buildTimelineItems,
   computeComposerCharacterState,
   computeDocumentTitle,
@@ -42,6 +43,7 @@ import {
   saveThemePreference,
   shouldOpenConversationSearch,
   shouldOpenMediaLightbox,
+  shouldOpenQuickSwitcher,
   shouldOpenShortcutsHelp,
   shouldFocusConversationFilter,
   shouldShowScrollToBottomButton,
@@ -276,6 +278,46 @@ describe("filterConversations", () => {
 
   it("returns an empty list when nothing matches", () => {
     expect(filterConversations([direct, group], "nonexistent", "u1")).toEqual([]);
+  });
+});
+
+describe("buildQuickSwitcherResults", () => {
+  const pinned = makeConv({ id: "c1" });
+  const direct = makeConv({ id: "c2" });
+  const group = makeConv({
+    id: "c3",
+    is_group: true,
+    name: "Engineering Team",
+    latest_preview: "Deploy is green",
+    members: [],
+  });
+  const all = [direct, group, pinned];
+
+  it("orders pinned-first, same as sortConversationsForSidebar, for a blank query", () => {
+    expect(buildQuickSwitcherResults(all, "", "u1", ["c1"])).toEqual([
+      pinned,
+      direct,
+      group,
+    ]);
+  });
+
+  it("returns every conversation (pinned-first) rather than none for a blank query", () => {
+    expect(buildQuickSwitcherResults(all, "   ", "u1", [])).toEqual(all);
+  });
+
+  it("narrows by the same title/preview substring match filterConversations uses", () => {
+    expect(buildQuickSwitcherResults(all, "engineering", "u1", [])).toEqual([group]);
+    expect(buildQuickSwitcherResults(all, "deploy", "u1", [])).toEqual([group]);
+  });
+
+  it("applies the pinned-first order before narrowing by the query", () => {
+    // Both "direct" and "pinned" share the same resolved title ("Bob Builder");
+    // pinning c1 should still surface it ahead of c2 among the matches.
+    expect(buildQuickSwitcherResults(all, "bob", "u1", ["c1"])).toEqual([pinned, direct]);
+  });
+
+  it("returns an empty list when nothing matches", () => {
+    expect(buildQuickSwitcherResults(all, "nonexistent", "u1", [])).toEqual([]);
   });
 });
 
@@ -1385,6 +1427,25 @@ describe("shouldOpenConversationSearch", () => {
   it("ignores every other key even with the modifier held", () => {
     expect(shouldOpenConversationSearch("g", true)).toBe(false);
     expect(shouldOpenConversationSearch("Enter", true)).toBe(false);
+  });
+});
+
+describe("shouldOpenQuickSwitcher", () => {
+  it("opens on Ctrl+K", () => {
+    expect(shouldOpenQuickSwitcher("k", true)).toBe(true);
+  });
+
+  it("matches the key case-insensitively", () => {
+    expect(shouldOpenQuickSwitcher("K", true)).toBe(true);
+  });
+
+  it("requires the Ctrl/Cmd modifier", () => {
+    expect(shouldOpenQuickSwitcher("k", false)).toBe(false);
+  });
+
+  it("ignores every other key even with the modifier held", () => {
+    expect(shouldOpenQuickSwitcher("f", true)).toBe(false);
+    expect(shouldOpenQuickSwitcher("Enter", true)).toBe(false);
   });
 });
 
