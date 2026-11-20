@@ -214,14 +214,18 @@ export function syncPinnedMessage(
  * noted by file name only (`[Attachment: <name>]`); the binary itself is
  * never embedded in the export. `exportedAt` is injectable (defaults to
  * the real current time) so the header line stays deterministic in tests.
+ * `use24Hour` (issue #108) threads the same clock-format preference the
+ * timeline bubbles use into the exported timestamps.
  */
 export function buildConversationExportText(
   messages: MessageDto[],
   conversationTitle: string,
-  exportedAt: Date = new Date()
+  exportedAt: Date = new Date(),
+  use24Hour: boolean = false
 ): string {
   const header = `Bloop conversation export — ${conversationTitle}\nExported ${formatFullMessageTimestamp(
-    exportedAt.toISOString()
+    exportedAt.toISOString(),
+    use24Hour
   )}\n${"=".repeat(60)}`;
 
   if (messages.length === 0) {
@@ -229,7 +233,7 @@ export function buildConversationExportText(
   }
 
   const lines = messages.map((message) => {
-    const timestamp = formatFullMessageTimestamp(message.created_at);
+    const timestamp = formatFullMessageTimestamp(message.created_at, use24Hour);
     let body: string;
     if (message.is_removed || message.status === "removed") {
       body = "Message removed";
@@ -913,10 +917,15 @@ export interface MessageTimestampLabel {
  */
 export function formatMessageTimestamp(
   isoString: string,
-  referenceNow: Date = new Date()
+  referenceNow: Date = new Date(),
+  use24Hour: boolean = false
 ): MessageTimestampLabel {
   const sent = new Date(isoString);
-  const timeLabel = sent.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const timeLabel = sent.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: !use24Hour,
+  });
 
   const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
   const dayDiff = Math.round((startOfDay(referenceNow) - startOfDay(sent)) / 86_400_000);
@@ -944,7 +953,10 @@ export function formatMessageTimestamp(
  * regardless of how recent the message is, since a tooltip is opt-in
  * (hover) rather than always-visible chrome competing for timeline space.
  */
-export function formatFullMessageTimestamp(isoString: string): string {
+export function formatFullMessageTimestamp(
+  isoString: string,
+  use24Hour: boolean = false
+): string {
   const sent = new Date(isoString);
   const datePart = sent.toLocaleDateString([], {
     weekday: "long",
@@ -956,8 +968,57 @@ export function formatFullMessageTimestamp(isoString: string): string {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
+    hour12: !use24Hour,
   });
   return `${datePart} at ${timePart}`;
+}
+
+const CLOCK_FORMAT_STORAGE_KEY = "bloop:clock-format";
+
+/**
+ * Whether message timestamps (bubble short label, full hover tooltip, and
+ * the plain-text conversation export) render in 12-hour AM/PM or 24-hour
+ * time (issue #108). The app previously always deferred to the browser
+ * locale's default, which is 12-hour for this app's locale and had no
+ * in-app override short of changing OS-wide locale settings.
+ */
+export type ClockFormatPreference = "12h" | "24h";
+
+/**
+ * Loads the persisted clock-format preference from `localStorage`
+ * (issue #108). Stored globally (same convention as the dark/light theme
+ * preference) rather than per-user, since it's a display-habit setting
+ * rather than anything tied to an account. Falls back to `"12h"` — the
+ * app's original, unconfigurable behavior — when nothing has been
+ * explicitly saved yet, `localStorage` is unavailable (e.g. the Vitest
+ * `node` test environment), or the stored value is anything other than
+ * the two values this module ever writes, since this is a best-effort UI
+ * preference that should never throw.
+ */
+export function loadClockFormatPreference(): ClockFormatPreference {
+  if (typeof localStorage === "undefined") return "12h";
+  try {
+    const raw = localStorage.getItem(CLOCK_FORMAT_STORAGE_KEY);
+    return raw === "24h" ? "24h" : "12h";
+  } catch {
+    return "12h";
+  }
+}
+
+/**
+ * Persists the clock-format preference to `localStorage` so it survives
+ * an app restart (issue #108). A no-op (rather than a thrown error) when
+ * `localStorage` is unavailable or writing fails (e.g. storage quota) —
+ * losing this preference for the session is an acceptable degradation,
+ * never worth surfacing as a user-facing error.
+ */
+export function saveClockFormatPreference(preference: ClockFormatPreference): void {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(CLOCK_FORMAT_STORAGE_KEY, preference);
+  } catch {
+    // Storage unavailable or full; preference just won't persist this session.
+  }
 }
 
 /**

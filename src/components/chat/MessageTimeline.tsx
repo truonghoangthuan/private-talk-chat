@@ -19,6 +19,8 @@ interface MessageTimelineProps {
   searchQuery?: string;
   /** Current viewer's own username (issue #102), forwarded to bubbles to detect/highlight an "@mention" of them. */
   currentUsername?: string;
+  /** Render message timestamps in 24-hour time instead of 12-hour AM/PM (issue #108), forwarded to bubbles. */
+  use24Hour?: boolean;
   onEditMessage: (messageId: string, newText: string) => Promise<void>;
   onRemoveMessage: (messageId: string) => Promise<void>;
   onReplyMessage: (message: MessageDto) => void;
@@ -36,6 +38,7 @@ export function MessageTimeline({
   unreadDividerMessageId = null,
   searchQuery = "",
   currentUsername = "",
+  use24Hour = false,
   onEditMessage,
   onRemoveMessage,
   onReplyMessage,
@@ -140,6 +143,7 @@ export function MessageTimeline({
                 isHighlighted={highlightedMessageId === item.message.id}
                 searchQuery={searchQuery}
                 currentUsername={currentUsername}
+                use24Hour={use24Hour}
                 onEdit={onEditMessage}
                 onRemove={onRemoveMessage}
                 onReply={onReplyMessage}

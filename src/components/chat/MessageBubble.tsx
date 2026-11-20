@@ -22,6 +22,8 @@ interface MessageBubbleProps {
   searchQuery?: string;
   /** Current viewer's own username (issue #102), used to detect and call out an "@mention" of them in a received message. */
   currentUsername?: string;
+  /** Render timestamps in 24-hour time instead of 12-hour AM/PM (issue #108). */
+  use24Hour?: boolean;
   onEdit: (messageId: string, newText: string) => Promise<void>;
   onRemove: (messageId: string) => Promise<void>;
   onReply: (message: MessageDto) => void;
@@ -40,6 +42,7 @@ export function MessageBubble({
   isHighlighted = false,
   searchQuery = "",
   currentUsername = "",
+  use24Hour = false,
   onEdit,
   onRemove,
   onReply,
@@ -93,9 +96,9 @@ export function MessageBubble({
     }
   };
 
-  const { timeLabel, dateLabel } = formatMessageTimestamp(message.created_at);
+  const { timeLabel, dateLabel } = formatMessageTimestamp(message.created_at, new Date(), use24Hour);
   const timestampDisplay = dateLabel ? `${dateLabel}, ${timeLabel}` : timeLabel;
-  const fullTimestamp = formatFullMessageTimestamp(message.created_at);
+  const fullTimestamp = formatFullMessageTimestamp(message.created_at, use24Hour);
 
   // Slack/Discord "you were mentioned" highlight (issue #102): only ever
   // called out on a received message — the viewer's own sends are never

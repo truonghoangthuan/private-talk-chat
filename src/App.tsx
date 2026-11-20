@@ -38,6 +38,8 @@ import {
   saveMutedConversationIds,
   loadThemePreference,
   saveThemePreference,
+  loadClockFormatPreference,
+  saveClockFormatPreference,
   shouldOpenConversationSearch,
   shouldOpenQuickSwitcher,
   shouldOpenShortcutsHelp,
@@ -89,6 +91,9 @@ export function App() {
         ? window.matchMedia("(prefers-color-scheme: dark)").matches
         : true
     )
+  );
+  const [use24Hour, setUse24Hour] = useState<boolean>(
+    () => loadClockFormatPreference() === "24h"
   );
   const [contacts, setContacts] = useState<ContactDto[]>([]);
   const [conversations, setConversations] = useState<ConversationDto[]>([]);
@@ -164,6 +169,10 @@ export function App() {
     document.documentElement.classList.toggle("dark", darkMode);
     saveThemePreference(darkMode);
   }, [darkMode]);
+
+  useEffect(() => {
+    saveClockFormatPreference(use24Hour ? "24h" : "12h");
+  }, [use24Hour]);
 
   // Reload the muted-conversation set whenever the signed-in user changes
   // (login, logout, or switching accounts without restarting the app), so
@@ -721,7 +730,7 @@ export function App() {
     if (!activeConversation) return;
     const title = getConversationTitle(activeConversation, user.id);
     const exportedAt = new Date();
-    const text = buildConversationExportText(messages, title, exportedAt);
+    const text = buildConversationExportText(messages, title, exportedAt, use24Hour);
     const filename = buildConversationExportFilename(title, exportedAt);
     downloadTextFile(filename, text);
   };
@@ -900,6 +909,7 @@ export function App() {
                       unreadDividerMessageId={unreadDividerMessageId}
                       searchQuery={searchOpen ? searchQuery : ""}
                       currentUsername={user.username}
+                      use24Hour={use24Hour}
                       onEditMessage={async (mid, text) => {
                         const updated = await tauriClient.messageEdit(mid, text);
                         setMessages((prev) =>
@@ -1017,6 +1027,8 @@ export function App() {
         <ProfileModal
           user={user}
           updateStatus={updateStatus}
+          use24Hour={use24Hour}
+          onToggleClockFormat={() => setUse24Hour((v) => !v)}
           onCheckUpdate={handleCheckUpdate}
           onInstallUpdate={handleInstallUpdate}
           onClose={() => setProfileOpen(false)}
