@@ -639,6 +639,38 @@ export function getDraft(
   return drafts[conversationId] ?? "";
 }
 
+/** Sidebar's resolved preview line for a conversation: either its unsent draft or the latest-message preview. */
+export interface ConversationPreviewLabel {
+  /** The text to render in place of the plain latest-message preview. */
+  text: string;
+  /** Whether `text` is an unsent draft rather than the latest message preview. */
+  isDraft: boolean;
+}
+
+/**
+ * Resolves the sidebar's preview line for a conversation (issue #84):
+ * an unsent draft, Telegram/WhatsApp-style, takes priority over the
+ * latest-message preview so a conversation left mid-compose is easy to
+ * find again — "Draft: " is prefixed to call out that it isn't the
+ * other side's message. Falls back to the ordinary latest-message
+ * preview (or the empty-conversation placeholder text supplied by the
+ * caller) once the draft is blank/whitespace-only, matching `getDraft`'s
+ * own blank-is-empty convention. Caller is expected to give this lower
+ * priority than an active typing indicator, which is more time-sensitive
+ * than a stale draft.
+ */
+export function buildConversationPreviewLabel(
+  latestPreview: string | null | undefined,
+  draftText: string,
+  emptyPlaceholder = "Encrypted channel ready"
+): ConversationPreviewLabel {
+  const trimmedDraft = draftText.trim();
+  if (trimmedDraft) {
+    return { text: `Draft: ${trimmedDraft}`, isDraft: true };
+  }
+  return { text: latestPreview || emptyPlaceholder, isDraft: false };
+}
+
 export interface MessageTimestampLabel {
   /** Always-shown locale time, e.g. "14:32". */
   timeLabel: string;

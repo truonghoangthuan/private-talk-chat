@@ -11,9 +11,11 @@ import {
 } from "lucide-react";
 import type { ContactDto, ConversationDto, TypingUserDto } from "../../lib/types";
 import {
+  buildConversationPreviewLabel,
   filterConversations,
   filterUnreadOnlyConversations,
   getConversationTitle,
+  getDraft,
   loadPinnedConversationIds,
   savePinnedConversationIds,
   sortConversationsForSidebar,
@@ -28,6 +30,8 @@ interface SidebarProps {
   onlineUserIds: Set<string>;
   typingByConversation: Record<string, TypingUserDto[]>;
   mutedConversationIds: string[];
+  /** Unsent per-conversation composer drafts, so the preview line can surface "Draft: ..." (issue #84). */
+  drafts: Record<string, string>;
   onToggleMuted: (conversationId: string) => void;
   onAddContactByUsername: (username: string) => Promise<void>;
   onStartDirectChat: (contactUserId: string) => Promise<void>;
@@ -43,6 +47,7 @@ export function Sidebar({
   onlineUserIds,
   typingByConversation,
   mutedConversationIds,
+  drafts,
   onToggleMuted,
   onAddContactByUsername,
   onStartDirectChat,
@@ -311,6 +316,10 @@ export function Sidebar({
             const showPeerAvatar = Boolean(peerAvatarUrl && !failedAvatars.has(peerAvatarUrl));
             const isPinned = pinnedIds.includes(conv.id);
             const isMuted = mutedConversationIds.includes(conv.id);
+            const previewLabel = buildConversationPreviewLabel(
+              conv.latest_preview,
+              getDraft(drafts, conv.id)
+            );
 
             return (
               <div
@@ -379,8 +388,14 @@ export function Sidebar({
                       {typing.map((t) => t.display_name).join(", ")} typing...
                     </p>
                   ) : (
-                    <p className="text-xs text-[var(--text-muted)] truncate">
-                      {conv.latest_preview || "Encrypted channel ready"}
+                    <p
+                      className={`text-xs truncate ${
+                        previewLabel.isDraft
+                          ? "text-[#F59E0B]"
+                          : "text-[var(--text-muted)]"
+                      }`}
+                    >
+                      {previewLabel.text}
                     </p>
                   )}
                 </div>
