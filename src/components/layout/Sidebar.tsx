@@ -250,6 +250,7 @@ export function Sidebar({
             <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
             <input
               type="text"
+              id="sidebar-conversation-filter"
               value={conversationQuery}
               onChange={(e) => setConversationQuery(e.target.value)}
               placeholder="Filter conversations..."

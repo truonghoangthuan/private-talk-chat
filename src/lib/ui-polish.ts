@@ -1077,6 +1077,7 @@ export const KEYBOARD_SHORTCUTS: KeyboardShortcutEntry[] = [
   { keys: "↓ / ↑", description: "Jump to the next / previous search match" },
   { keys: "Ctrl/Cmd + F", description: "Open search in the current conversation" },
   { keys: "Alt + ↓ / ↑", description: "Switch to the next / previous conversation in the sidebar" },
+  { keys: "/", description: "Focus the sidebar's conversation filter box" },
   { keys: "?", description: "Show this keyboard shortcuts list" },
 ];
 
@@ -1112,6 +1113,28 @@ export function shouldOpenShortcutsHelp(
  */
 export function shouldOpenConversationSearch(key: string, ctrlOrMetaKey: boolean): boolean {
   return ctrlOrMetaKey && key.toLowerCase() === "f";
+}
+
+/**
+ * Decides whether a global keydown should focus the sidebar's "Filter
+ * conversations..." input (issue #78), matching the Slack/Linear/GitHub
+ * `/` convention for jumping straight to a search/filter box instead of it
+ * only being reachable by clicking in. Suppressed the same way
+ * `shouldOpenShortcutsHelp`'s `?` shortcut is — while the user is actively
+ * typing in an editable field (a text input, textarea, select, or
+ * `contenteditable` element) — so typing a literal `/` into a message,
+ * search box, or display-name field never gets hijacked into refocusing
+ * the sidebar filter instead.
+ */
+export function shouldFocusConversationFilter(
+  key: string,
+  activeElementTagName: string | null,
+  isContentEditable: boolean
+): boolean {
+  if (key !== "/") return false;
+  if (isContentEditable) return false;
+  const tag = activeElementTagName?.toUpperCase() ?? "";
+  return tag !== "INPUT" && tag !== "TEXTAREA" && tag !== "SELECT";
 }
 
 /**

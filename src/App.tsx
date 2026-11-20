@@ -32,6 +32,7 @@ import {
   saveThemePreference,
   shouldOpenConversationSearch,
   shouldOpenShortcutsHelp,
+  shouldFocusConversationFilter,
   sortConversationsForSidebar,
   sumUnreadExcludingMuted,
   toggleMutedConversationId,
@@ -239,7 +240,9 @@ export function App() {
   // the in-conversation search bar on Ctrl+F / Cmd+F — the browser/Slack/
   // Discord "find" convention — as an alternative to the header's search
   // icon, overriding the browser's own native find-in-page since there's
-  // nothing for it to search within a desktop webview shell.
+  // nothing for it to search within a desktop webview shell. And focus the
+  // sidebar's conversation filter box on a bare `/` press, the Slack/
+  // Linear/GitHub "jump to search" convention (issue #78).
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const active = document.activeElement as HTMLElement | null;
@@ -257,6 +260,18 @@ export function App() {
         e.preventDefault();
         setActiveTab("messages");
         setSearchOpen(true);
+        return;
+      }
+      if (
+        shouldFocusConversationFilter(
+          e.key,
+          active?.tagName ?? null,
+          active?.isContentEditable ?? false
+        )
+      ) {
+        e.preventDefault();
+        document.getElementById("sidebar-conversation-filter")?.focus();
+        return;
       }
       const direction = getConversationSwitchDirection(e.key, e.altKey);
       if (direction !== null && conversations.length > 0) {
