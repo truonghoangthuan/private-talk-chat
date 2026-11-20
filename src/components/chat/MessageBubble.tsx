@@ -1,7 +1,12 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Check, Copy, Pencil, Pin, PinOff, Reply, ShieldAlert, Trash2, X } from "lucide-react";
 import type { MessageDto } from "../../lib/types";
-import { formatMessageTimestamp, getMessageCopyText, resolveMessageBubbleEscapeAction } from "../../lib/ui-polish";
+import {
+  formatMessageTimestamp,
+  getMessageCopyText,
+  resolveMessageBubbleEscapeAction,
+  shouldSubmitMessageEditOnKeyDown,
+} from "../../lib/ui-polish";
 import { MediaViewer } from "./MediaViewer";
 
 interface MessageBubbleProps {
@@ -32,8 +37,22 @@ export function MessageBubble({
   const [draftText, setDraftText] = useState(message.text || "");
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  const editTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const copyText = getMessageCopyText(message);
+
+  const resizeEditTextarea = () => {
+    const el = editTextareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+  };
+
+  // Autosize once the textarea mounts (editing starts) so an existing
+  // multi-line message doesn't open clipped to a single row.
+  useEffect(() => {
+    if (editing) resizeEditTextarea();
+  }, [editing]);
 
   const handleCopy = async () => {
     if (!copyText) return;
@@ -49,8 +68,7 @@ export function MessageBubble({
   const { timeLabel, dateLabel } = formatMessageTimestamp(message.created_at);
   const timestampDisplay = dateLabel ? `${dateLabel}, ${timeLabel}` : timeLabel;
 
-  const handleSaveEdit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const submitEdit = async () => {
     const trimmed = draftText.trim();
     if (!trimmed) return;
     setBusy(true);
@@ -59,6 +77,18 @@ export function MessageBubble({
       setEditing(false);
     } finally {
       setBusy(false);
+    }
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await submitEdit();
+  };
+
+  const handleEditKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (shouldSubmitMessageEditOnKeyDown(e.key, e.shiftKey)) {
+      e.preventDefault();
+      if (!busy) void submitEdit();
     }
   };
 
@@ -234,27 +264,32 @@ export function MessageBubble({
           }`}
         >
           {editing ? (
-            <form onSubmit={handleSaveEdit} className="flex items-center gap-1.5 min-w-[220px]">
-              <input
-                type="text"
+            <form onSubmit={handleSaveEdit} className="flex items-end gap-1.5 min-w-[220px] max-w-sm">
+              <textarea
+                ref={editTextareaRef}
                 value={draftText}
-                onChange={(e) => setDraftText(e.target.value)}
+                onChange={(e) => {
+                  setDraftText(e.target.value);
+                  resizeEditTextarea();
+                }}
+                onKeyDown={handleEditKeyDown}
                 autoFocus
-                className="flex-1 px-2 py-1 rounded-lg bg-black/25 text-white text-xs focus:outline-none"
+                rows={1}
+                className="flex-1 px-2 py-1 rounded-lg bg-black/25 text-white text-xs leading-[1.4] resize-none overflow-y-auto max-h-40 focus:outline-none"
               />
               <button
                 type="submit"
                 disabled={busy}
-                className="p-1 rounded-md bg-white/20 hover:bg-white/30"
-                title="Save"
+                className="p-1 rounded-md bg-white/20 hover:bg-white/30 shrink-0"
+                title="Save (Enter)"
               >
                 <Check className="w-3.5 h-3.5" />
               </button>
               <button
                 type="button"
                 onClick={() => setEditing(false)}
-                className="p-1 rounded-md hover:bg-[var(--bg-hover)]"
-                title="Cancel"
+                className="p-1 rounded-md hover:bg-[var(--bg-hover)] shrink-0"
+                title="Cancel (Esc)"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
