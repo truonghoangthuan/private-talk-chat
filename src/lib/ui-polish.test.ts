@@ -3,9 +3,11 @@ import {
   computeScrollFollowState,
   filterConversations,
   getConversationTitle,
+  getDraft,
   getMessageCopyText,
   isScrolledNearBottom,
   syncPinnedMessage,
+  updateDraft,
   upsertMessageWithReplySync,
 } from "./ui-polish";
 import type { ConversationDto, MessageDto, PinnedMessageDto } from "./types";
@@ -276,5 +278,42 @@ describe("computeScrollFollowState", () => {
       shouldAutoScroll: true,
       unseenCount: 0,
     });
+  });
+});
+
+describe("updateDraft & getDraft", () => {
+  it("stores a draft and reads it back for the right conversation only", () => {
+    let drafts = updateDraft({}, "c1", "hello there");
+    expect(getDraft(drafts, "c1")).toBe("hello there");
+    expect(getDraft(drafts, "c2")).toBe("");
+
+    drafts = updateDraft(drafts, "c2", "second conversation draft");
+    expect(getDraft(drafts, "c1")).toBe("hello there");
+    expect(getDraft(drafts, "c2")).toBe("second conversation draft");
+  });
+
+  it("returns an empty string for a null conversation id", () => {
+    expect(getDraft({ c1: "leftover" }, null)).toBe("");
+  });
+
+  it("clears the entry when text is blank or whitespace-only", () => {
+    const withDraft = updateDraft({}, "c1", "draft text");
+    const cleared = updateDraft(withDraft, "c1", "   ");
+    expect(getDraft(cleared, "c1")).toBe("");
+    expect(Object.keys(cleared)).not.toContain("c1");
+  });
+
+  it("returns the same map reference when the update is a no-op", () => {
+    const empty: Record<string, string> = {};
+    expect(updateDraft(empty, "c1", "")).toBe(empty);
+
+    const withDraft = updateDraft({}, "c1", "same text");
+    expect(updateDraft(withDraft, "c1", "same text")).toBe(withDraft);
+  });
+
+  it("never leaks one conversation's draft into another's", () => {
+    const afterTypingInC1 = updateDraft({}, "c1", "draft for c1");
+    // Switching to c2 should read an empty draft, not c1's leftover text.
+    expect(getDraft(afterTypingInC1, "c2")).toBe("");
   });
 });
