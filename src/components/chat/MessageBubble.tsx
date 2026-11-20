@@ -8,6 +8,7 @@ import {
   resolveMessageBubbleEscapeAction,
   shouldSubmitMessageEditOnKeyDown,
   splitMessageTextIntoLinkSegments,
+  splitTextForSearchHighlight,
 } from "../../lib/ui-polish";
 import { MediaViewer } from "./MediaViewer";
 
@@ -16,6 +17,8 @@ interface MessageBubbleProps {
   isOwn: boolean;
   isGroupedWithPrev?: boolean;
   isHighlighted?: boolean;
+  /** Active in-conversation search query (issue #65); matches render with a `<mark>` highlight. */
+  searchQuery?: string;
   onEdit: (messageId: string, newText: string) => Promise<void>;
   onRemove: (messageId: string) => Promise<void>;
   onReply: (message: MessageDto) => void;
@@ -28,6 +31,7 @@ export function MessageBubble({
   isOwn,
   isGroupedWithPrev = false,
   isHighlighted = false,
+  searchQuery = "",
   onEdit,
   onRemove,
   onReply,
@@ -346,7 +350,20 @@ export function MessageBubble({
                         {segment.text}
                       </a>
                     ) : (
-                      <span key={i}>{segment.text}</span>
+                      <span key={i}>
+                        {splitTextForSearchHighlight(segment.text, searchQuery).map((hseg, j) =>
+                          hseg.isMatch ? (
+                            <mark
+                              key={j}
+                              className="rounded-sm px-0.5 bg-[#F59E0B] text-[#1A1A1A]"
+                            >
+                              {hseg.text}
+                            </mark>
+                          ) : (
+                            <span key={j}>{hseg.text}</span>
+                          )
+                        )}
+                      </span>
                     )
                   )}
                 </p>

@@ -34,6 +34,7 @@ import {
   shouldSubmitMessageEditOnKeyDown,
   sortConversationsForSidebar,
   splitMessageTextIntoLinkSegments,
+  splitTextForSearchHighlight,
   sumUnreadExcludingMuted,
   syncPinnedMessage,
   toggleMutedConversationId,
@@ -1185,5 +1186,62 @@ describe("KEYBOARD_SHORTCUTS", () => {
       expect(entry.keys.length).toBeGreaterThan(0);
       expect(entry.description.length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe("splitTextForSearchHighlight", () => {
+  it("returns an empty array for empty text", () => {
+    expect(splitTextForSearchHighlight("", "foo")).toEqual([]);
+  });
+
+  it("returns the whole text unmatched when the query is blank", () => {
+    expect(splitTextForSearchHighlight("Hello world", "")).toEqual([
+      { text: "Hello world", isMatch: false },
+    ]);
+    expect(splitTextForSearchHighlight("Hello world", "   ")).toEqual([
+      { text: "Hello world", isMatch: false },
+    ]);
+  });
+
+  it("returns the whole text unmatched when there is no match", () => {
+    expect(splitTextForSearchHighlight("Hello world", "xyz")).toEqual([
+      { text: "Hello world", isMatch: false },
+    ]);
+  });
+
+  it("splits out a single match in the middle of the text", () => {
+    expect(splitTextForSearchHighlight("Hello world", "world")).toEqual([
+      { text: "Hello ", isMatch: false },
+      { text: "world", isMatch: true },
+    ]);
+  });
+
+  it("matches case-insensitively while preserving original casing", () => {
+    expect(splitTextForSearchHighlight("Hello World", "WORLD")).toEqual([
+      { text: "Hello ", isMatch: false },
+      { text: "World", isMatch: true },
+    ]);
+  });
+
+  it("finds every non-overlapping occurrence of the query", () => {
+    expect(splitTextForSearchHighlight("ba na na", "na")).toEqual([
+      { text: "ba ", isMatch: false },
+      { text: "na", isMatch: true },
+      { text: " ", isMatch: false },
+      { text: "na", isMatch: true },
+    ]);
+  });
+
+  it("treats a query matching the entire text as a single match segment", () => {
+    expect(splitTextForSearchHighlight("secret", "secret")).toEqual([
+      { text: "secret", isMatch: true },
+    ]);
+  });
+
+  it("trims surrounding whitespace from the query before matching", () => {
+    expect(splitTextForSearchHighlight("Hello world", "  world  ")).toEqual([
+      { text: "Hello ", isMatch: false },
+      { text: "world", isMatch: true },
+    ]);
   });
 });

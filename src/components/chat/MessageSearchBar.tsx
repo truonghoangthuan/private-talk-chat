@@ -7,6 +7,8 @@ interface MessageSearchBarProps {
   messages: MessageDto[];
   onJumpToMessage: (messageId: string) => void;
   onClose: () => void;
+  /** Reports the live query text (issue #65) so the timeline can `<mark>`-highlight matches inline. */
+  onQueryChange?: (query: string) => void;
 }
 
 /**
@@ -19,6 +21,7 @@ export function MessageSearchBar({
   messages,
   onJumpToMessage,
   onClose,
+  onQueryChange,
 }: MessageSearchBarProps) {
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
@@ -81,6 +84,7 @@ export function MessageSearchBar({
         onChange={(e) => {
           setQuery(e.target.value);
           setActiveIndex(0);
+          onQueryChange?.(e.target.value);
         }}
         onKeyDown={handleKeyDown}
         placeholder="Search in conversation..."

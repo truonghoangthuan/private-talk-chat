@@ -13,6 +13,8 @@ interface MessageTimelineProps {
   currentUserId: string;
   highlightedMessageId: string | null;
   unreadDividerMessageId?: string | null;
+  /** Active in-conversation search query (issue #65); forwarded to bubbles for inline `<mark>` highlighting. */
+  searchQuery?: string;
   onEditMessage: (messageId: string, newText: string) => Promise<void>;
   onRemoveMessage: (messageId: string) => Promise<void>;
   onReplyMessage: (message: MessageDto) => void;
@@ -25,6 +27,7 @@ export function MessageTimeline({
   currentUserId,
   highlightedMessageId,
   unreadDividerMessageId = null,
+  searchQuery = "",
   onEditMessage,
   onRemoveMessage,
   onReplyMessage,
@@ -116,6 +119,7 @@ export function MessageTimeline({
                 isOwn={item.message.sender_id === currentUserId}
                 isGroupedWithPrev={item.isGroupedWithPrev}
                 isHighlighted={highlightedMessageId === item.message.id}
+                searchQuery={searchQuery}
                 onEdit={onEditMessage}
                 onRemove={onRemoveMessage}
                 onReply={onReplyMessage}
