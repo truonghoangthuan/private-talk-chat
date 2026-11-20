@@ -114,5 +114,5 @@ pub fn run() {
             commands::window_focus_conversation,
         ])
         .run(tauri::generate_context!())
-        .expect("error while running Private Talk application");
+        .expect("error while running Bloop application");
 }

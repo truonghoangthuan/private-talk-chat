@@ -15,17 +15,17 @@
 
 ### User Story 1 - Automatic Privacy Blur on Focus Loss (Priority: P1)
 
-When an authenticated or unauthenticated user switches away from the Private Talk window (for example, clicking another application, pressing Alt+Tab, or minimizing/deactivating the window), the entire application viewport immediately blurs to obscure on-screen conversations, contact names, and sensitive content from shoulder-surfing or screen-sharing exposure. When the user focuses the Private Talk window again, the blur immediately clears and normal interaction resumes.
+When an authenticated or unauthenticated user switches away from the Bloop window (for example, clicking another application, pressing Alt+Tab, or minimizing/deactivating the window), the entire application viewport immediately blurs to obscure on-screen conversations, contact names, and sensitive content from shoulder-surfing or screen-sharing exposure. When the user focuses the Bloop window again, the blur immediately clears and normal interaction resumes.
 
 **Why this priority**: Directly protects visual confidentiality of private conversations in accordance with the project's security-first architecture whenever the user is not actively focused on the window.
 
-**Independent Test**: Can be fully tested by opening Private Talk with an active conversation visible, clicking outside the application window to remove focus, verifying the entire interface becomes visually obscured and illegible, and clicking back into the window to verify the interface immediately restores clarity.
+**Independent Test**: Can be fully tested by opening Bloop with an active conversation visible, clicking outside the application window to remove focus, verifying the entire interface becomes visually obscured and illegible, and clicking back into the window to verify the interface immediately restores clarity.
 
 **Acceptance Scenarios**:
 
-1. **Given** Private Talk is open and actively focused on the desktop, **When** the application window loses focus to another window or the desktop shell, **Then** the application immediately applies a full-window privacy blur that obscures all text, avatars, and media previews.
-2. **Given** Private Talk is currently in an unfocused, blurred state, **When** the user brings focus back to the Private Talk window, **Then** the privacy blur is removed immediately and the user can interact with the interface without delay.
-3. **Given** Private Talk is unfocused and blurred, **When** a new message arrives in the background, **Then** the incoming message content remains obscured behind the privacy blur until the window regains focus.
+1. **Given** Bloop is open and actively focused on the desktop, **When** the application window loses focus to another window or the desktop shell, **Then** the application immediately applies a full-window privacy blur that obscures all text, avatars, and media previews.
+2. **Given** Bloop is currently in an unfocused, blurred state, **When** the user brings focus back to the Bloop window, **Then** the privacy blur is removed immediately and the user can interact with the interface without delay.
+3. **Given** Bloop is unfocused and blurred, **When** a new message arrives in the background, **Then** the incoming message content remains obscured behind the privacy blur until the window regains focus.
 
 ---
 
@@ -66,7 +66,7 @@ A participant in a 1-to-1 or group chat pins one or more important messages in t
 
 ### User Story 4 - Custom Branded Application Icon (Priority: P3)
 
-When a user installs, launches, or views Private Talk on Windows, the application displays the user-supplied blue emblem icon across the desktop shortcut, executable, window titlebar, taskbar button (preserving unread badge overlays), and in-app brand surfaces.
+When a user installs, launches, or views Bloop on Windows, the application displays the user-supplied blue emblem icon across the desktop shortcut, executable, window titlebar, taskbar button (preserving unread badge overlays), and in-app brand surfaces.
 
 **Why this priority**: Establishes consistent visual identity across the Windows operating system shell and application chrome using the user's provided artwork.
 
@@ -74,8 +74,8 @@ When a user installs, launches, or views Private Talk on Windows, the applicatio
 
 **Acceptance Scenarios**:
 
-1. **Given** Private Talk is installed or running on Windows, **When** the user views the application in the Windows taskbar, Alt+Tab switcher, window titlebar, or executable file properties, **Then** the application displays the provided custom icon sharp and proportioned at standard resolutions.
-2. **Given** Private Talk has unread messages while using the updated application icon, **When** the taskbar unread badge is rendered, **Then** the numeric unread badge remains clearly legible over the updated taskbar icon.
+1. **Given** Bloop is installed or running on Windows, **When** the user views the application in the Windows taskbar, Alt+Tab switcher, window titlebar, or executable file properties, **Then** the application displays the provided custom icon sharp and proportioned at standard resolutions.
+2. **Given** Bloop has unread messages while using the updated application icon, **When** the taskbar unread badge is rendered, **Then** the numeric unread badge remains clearly legible over the updated taskbar icon.
 
 ---
 

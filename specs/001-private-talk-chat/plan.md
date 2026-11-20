@@ -1,4 +1,4 @@
-# Implementation Plan: Private Talk Windows Chat Application
+# Implementation Plan: Bloop Windows Chat Application
 
 **Branch**: `001-private-talk-chat` | **Date**: 2026-11-19 | **Spec**: [spec.md](file:///c:/work/temp/playground/private-talk-chat/specs/001-private-talk-chat/spec.md)
 
@@ -6,7 +6,7 @@
 
 ## Summary
 
-Build **Private Talk**, a native Windows 10/11 end-to-end encrypted desktop chat application using **Rust (Tauri v2)** and **Supabase** (Auth, PostgreSQL with RLS, Realtime Broadcast/Presence/Postgres-Changes, and Storage) featuring a **modern, clean, minimal, premium, and aesthetic UI/UX**. All cryptographic operations (`Argon2id` + `HKDF` split-credential key derivation, `X25519` ECDH key wrapping, `ChaCha20-Poly1305` authenticated encryption for messages and media attachments, `Ed25519` sender signatures, and group epoch key rotation), Windows DPAPI local secret protection, in-memory media streaming (`privatetalk-media://`), native Windows toast notifications, and `ITaskbarList3` numeric taskbar unread badges execute inside the compiled Rust core. Real-time message delivery, live typing indicators, online presence (`who is online`), and per-message seen receipts (`who seen message`) are synchronized over Supabase Realtime WebSockets.
+Build **Bloop**, a native Windows 10/11 end-to-end encrypted desktop chat application using **Rust (Tauri v2)** and **Supabase** (Auth, PostgreSQL with RLS, Realtime Broadcast/Presence/Postgres-Changes, and Storage) featuring a **modern, clean, minimal, premium, and aesthetic UI/UX**. All cryptographic operations (`Argon2id` + `HKDF` split-credential key derivation, `X25519` ECDH key wrapping, `ChaCha20-Poly1305` authenticated encryption for messages and media attachments, `Ed25519` sender signatures, and group epoch key rotation), Windows DPAPI local secret protection, in-memory media streaming (`privatetalk-media://`), native Windows toast notifications, and `ITaskbarList3` numeric taskbar unread badges execute inside the compiled Rust core. Real-time message delivery, live typing indicators, online presence (`who is online`), and per-message seen receipts (`who seen message`) are synchronized over Supabase Realtime WebSockets.
 
 ## Technical Context
 

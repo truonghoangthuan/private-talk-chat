@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Download, X } from "lucide-react";
+import { Download, Wifi, WifiOff, X } from "lucide-react";
 import appIcon from "./assets/app-icon.png";
 import { AppShell } from "./components/layout/AppShell";
 import { NavRail } from "./components/layout/NavRail";
@@ -13,8 +13,25 @@ import { MessageSearchBar } from "./components/chat/MessageSearchBar";
 import { AuthScreen } from "./components/modals/AuthScreen";
 import { ProfileModal } from "./components/modals/ProfileModal";
 import { GroupManageDrawer } from "./components/modals/GroupManageDrawer";
+import { KeyboardShortcutsModal } from "./components/modals/KeyboardShortcutsModal";
 import { tauriClient } from "./lib/tauri-client";
-import { syncPinnedMessage, upsertMessageWithReplySync, getDraft, updateDraft, findUnreadDividerMessageId } from "./lib/ui-polish";
+import {
+  syncPinnedMessage,
+  upsertMessageWithReplySync,
+  getDraft,
+  updateDraft,
+  findUnreadDividerMessageId,
+  computeDocumentTitle,
+  formatOfflineDuration,
+  loadMutedConversationIds,
+  saveMutedConversationIds,
+  loadThemePreference,
+  saveThemePreference,
+  shouldOpenConversationSearch,
+  shouldOpenShortcutsHelp,
+  sumUnreadExcludingMuted,
+  toggleMutedConversationId,
+} from "./lib/ui-polish";
 import type {
   ContactDto,
   ConversationDto,
@@ -41,7 +58,13 @@ const INITIAL_UPDATE_STATUS: UpdateStatusDto = {
 export function App() {
   const [user, setUser] = useState<UserProfileDto | null>(null);
   const [booting, setBooting] = useState(true);
-  const [darkMode, setDarkMode] = useState(true);
+  const [darkMode, setDarkMode] = useState<boolean>(() =>
+    loadThemePreference(
+      typeof window !== "undefined" && typeof window.matchMedia === "function"
+        ? window.matchMedia("(prefers-color-scheme: dark)").matches
+        : true
+    )
+  );
   const [contacts, setContacts] = useState<ContactDto[]>([]);
   const [conversations, setConversations] = useState<ConversationDto[]>([]);
   const [selectedConversationId, setSelectedConversationId] = useState<
@@ -74,6 +97,12 @@ export function App() {
   const [isWindowFocused, setIsWindowFocused] = useState<boolean>(() =>
     typeof document !== "undefined" ? document.hasFocus() : true
   );
+  const [isOnline, setIsOnline] = useState<boolean>(() =>
+    typeof navigator !== "undefined" ? navigator.onLine : true
+  );
+  const [reconnectNotice, setReconnectNotice] = useState<string | null>(null);
+  const [shortcutsHelpOpen, setShortcutsHelpOpen] = useState(false);
+  const [mutedConversationIds, setMutedConversationIds] = useState<string[]>([]);
 
   const handleCheckUpdate = useCallback(() => {
     setUpdateBannerDismissed(false);
@@ -92,7 +121,44 @@ export function App() {
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", darkMode);
+    saveThemePreference(darkMode);
   }, [darkMode]);
+
+  // Reload the muted-conversation set whenever the signed-in user changes
+  // (login, logout, or switching accounts without restarting the app), so
+  // one user's muted chats never bleed into another's unread badges/title.
+  useEffect(() => {
+    setMutedConversationIds(user ? loadMutedConversationIds(user.id) : []);
+  }, [user?.id]);
+
+  const handleToggleMutedConversation = useCallback(
+    (conversationId: string) => {
+      if (!user) return;
+      setMutedConversationIds((prev) => {
+        const next = toggleMutedConversationId(prev, conversationId);
+        saveMutedConversationIds(user.id, next);
+        return next;
+      });
+    },
+    [user]
+  );
+
+  // Mirror the total unread message count into the window/document title
+  // (e.g. "(3) Bloop") so there's a way to tell at a glance whether anything
+  // new has arrived while minimized, behind other windows, or just not
+  // focused — matching the Slack/Discord/Gmail convention (issue #42).
+  // Muted conversations (see `mutedConversationIds`) are excluded from the
+  // count, same as the nav-rail's `totalUnread` below, so a muted chat
+  // never puts a number back in front of the app the viewer just silenced.
+  // Computed directly from `conversations` rather than reusing the
+  // render-scoped `totalUnread` further down, since this effect must run
+  // unconditionally (reverting the title to plain "Bloop" once
+  // conversations are cleared on logout, before the authenticated view's
+  // early return would even compute that render-scoped value).
+  useEffect(() => {
+    const totalUnreadForTitle = sumUnreadExcludingMuted(conversations, mutedConversationIds);
+    document.title = computeDocumentTitle("Bloop", totalUnreadForTitle);
+  }, [conversations, mutedConversationIds]);
 
   useEffect(() => {
     const onFocus = () => setIsWindowFocused(!document.hidden);
@@ -122,6 +188,75 @@ export function App() {
       unlistenPromise.then((fn) => fn?.());
     };
   }, []);
+
+  // Surface OS-level network connectivity loss/recovery (issue #46): the
+  // app otherwise gives no feedback when `navigator.onLine` goes false, so
+  // sends and realtime updates would silently stop working with no
+  // explanation. `offlineSince` is a plain local timestamp (not state) since
+  // it only feeds the one-shot duration calculation on reconnect and
+  // shouldn't itself trigger a re-render.
+  useEffect(() => {
+    let offlineSince: number | null =
+      typeof navigator !== "undefined" && !navigator.onLine ? Date.now() : null;
+
+    const handleOffline = () => {
+      offlineSince = Date.now();
+      setIsOnline(false);
+      setReconnectNotice(null);
+    };
+    const handleOnline = () => {
+      setIsOnline(true);
+      if (offlineSince !== null) {
+        setReconnectNotice(formatOfflineDuration(Date.now() - offlineSince));
+        offlineSince = null;
+      }
+    };
+
+    window.addEventListener("offline", handleOffline);
+    window.addEventListener("online", handleOnline);
+    return () => {
+      window.removeEventListener("offline", handleOffline);
+      window.removeEventListener("online", handleOnline);
+    };
+  }, []);
+
+  // Auto-dismiss the "Back online" confirmation a few seconds after it
+  // appears, same convention as other transient confirmations in the app.
+  useEffect(() => {
+    if (reconnectNotice === null) return;
+    const timer = setTimeout(() => setReconnectNotice(null), 5000);
+    return () => clearTimeout(timer);
+  }, [reconnectNotice]);
+
+  // Open the keyboard shortcuts help modal on the conventional `?` key
+  // (Slack/Discord/Linear), unless the user is actively typing in an
+  // editable field — see `shouldOpenShortcutsHelp` (issue #48). Also open
+  // the in-conversation search bar on Ctrl+F / Cmd+F — the browser/Slack/
+  // Discord "find" convention — as an alternative to the header's search
+  // icon, overriding the browser's own native find-in-page since there's
+  // nothing for it to search within a desktop webview shell.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const active = document.activeElement as HTMLElement | null;
+      if (
+        shouldOpenShortcutsHelp(
+          e.key,
+          active?.tagName ?? null,
+          active?.isContentEditable ?? false
+        )
+      ) {
+        setShortcutsHelpOpen(true);
+        return;
+      }
+      if (shouldOpenConversationSearch(e.key, e.ctrlKey || e.metaKey) && selectedConversationId) {
+        e.preventDefault();
+        setActiveTab("messages");
+        setSearchOpen(true);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [selectedConversationId]);
 
   const refreshContactsAndConversations = useCallback(async () => {
     const [cList, convList] = await Promise.all([
@@ -367,7 +502,7 @@ export function App() {
 
   const activeConversation =
     conversations.find((c) => c.id === selectedConversationId) || null;
-  const totalUnread = conversations.reduce((acc, c) => acc + c.unread_count, 0);
+  const totalUnread = sumUnreadExcludingMuted(conversations, mutedConversationIds);
   const activeTypingUsers = activeConversation
     ? (typingByConv[activeConversation.id] || []).filter(
         (t) => t.user_id !== user.id
@@ -393,6 +528,7 @@ export function App() {
             updateStatus={updateStatus}
             onToggleTheme={() => setDarkMode((d) => !d)}
             onOpenProfile={() => setProfileOpen(true)}
+            onOpenShortcutsHelp={() => setShortcutsHelpOpen(true)}
             onCheckUpdate={handleCheckUpdate}
             onInstallUpdate={handleInstallUpdate}
             onLogout={async () => {
@@ -410,6 +546,8 @@ export function App() {
             selectedConversationId={selectedConversationId}
             onlineUserIds={onlineUserIds}
             typingByConversation={typingByConv}
+            mutedConversationIds={mutedConversationIds}
+            onToggleMuted={handleToggleMutedConversation}
             onAddContactByUsername={async (uname) => {
               await tauriClient.contactAddByUsername(uname);
               await refreshContactsAndConversations();
@@ -425,6 +563,29 @@ export function App() {
         }
         stage={
           <>
+            {!isOnline && (
+              <div className="px-4 py-2 border-b border-[var(--border-hairline)] bg-red-500/10 flex items-center gap-2 text-xs">
+                <WifiOff className="w-3.5 h-3.5" />
+                <span>
+                  You&rsquo;re offline. Messages will send once your connection is back.
+                </span>
+              </div>
+            )}
+            {isOnline && reconnectNotice && (
+              <div className="px-4 py-2 border-b border-[var(--border-hairline)] bg-emerald-500/10 flex items-center justify-between gap-3 text-xs">
+                <span className="inline-flex items-center gap-2">
+                  <Wifi className="w-3.5 h-3.5" />
+                  Back online — you were offline for {reconnectNotice}.
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setReconnectNotice(null)}
+                  className="px-2 py-1 rounded-lg text-[var(--text-muted)] hover:bg-[var(--bg-hover)]"
+                >
+                  Dismiss
+                </button>
+              </div>
+            )}
             {updateStatus.phase === "available" && !updateBannerDismissed && (
               <div className="px-4 py-2 border-b border-[var(--border-hairline)] bg-[#6366F1]/10 flex items-center justify-between gap-3 text-xs">
                 <span>
@@ -660,6 +821,10 @@ export function App() {
             await refreshContactsAndConversations();
           }}
         />
+      )}
+
+      {shortcutsHelpOpen && (
+        <KeyboardShortcutsModal onClose={() => setShortcutsHelpOpen(false)} />
       )}
       </div>
       {privacyShieldOverlay}

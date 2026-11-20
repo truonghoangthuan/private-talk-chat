@@ -20,8 +20,8 @@ Searching for a contact username (e.g. `cubu69`) and clicking the Add Contact bu
 
 ## Reproduction
 
-1. Log in to Private Talk against remote Supabase (`https://bhsansqjmllapeuypjrf.supabase.co`), which seals `DpapiProtectedSession` (`supabase_access_token` with 1-hour TTL and `supabase_refresh_token`) to `%LOCALAPPDATA%\PrivateTalk\session.dpapi`.
-2. Wait until the 1-hour Supabase access token expires (verified in local `session.dpapi`: `exp = 1795109717 < now = 1795149358`) and relaunch Private Talk (or keep the app open past the 1-hour JWT expiration).
+1. Log in to Bloop against remote Supabase (`https://bhsansqjmllapeuypjrf.supabase.co`), which seals `DpapiProtectedSession` (`supabase_access_token` with 1-hour TTL and `supabase_refresh_token`) to `%LOCALAPPDATA%\PrivateTalk\session.dpapi`.
+2. Wait until the 1-hour Supabase access token expires (verified in local `session.dpapi`: `exp = 1795109717 < now = 1795149358`) and relaunch Bloop (or keep the app open past the 1-hour JWT expiration).
 3. On startup, `App.tsx:130` calls `auth_restore_session` (`src-tauri/src/commands/auth.rs:190-224`), which calls `state.supabase.get_profile(&restored.supabase_access_token, restored.user_id)`.
 4. Supabase PostgREST returns `HTTP 401 Unauthorized` with `{"code":"PGRST303","details":null,"hint":null,"message":"JWT expired"}`, which `get_profile` (`src-tauri/src/supabase/postgrest.rs:186-188`) maps to `Err(SupabaseError::NotFound("profile"))`.
 5. `auth_restore_session_core` (`src-tauri/src/commands/auth.rs:209-218`) swallows the `Err(_)`, does not attempt to refresh the session via `restored.supabase_refresh_token`, stores the expired session into `state.session`, and returns `Ok(Some(dto))` so the main chat UI loads in an unauthenticated state.

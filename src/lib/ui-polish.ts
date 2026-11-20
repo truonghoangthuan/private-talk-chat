@@ -301,6 +301,228 @@ export function filterConversations(
   });
 }
 
+const PINNED_CONVERSATIONS_STORAGE_PREFIX = "bloop:pinned-conversations:";
+
+function pinnedConversationsStorageKey(userId: string): string {
+  return `${PINNED_CONVERSATIONS_STORAGE_PREFIX}${userId}`;
+}
+
+/**
+ * Toggles a conversation's pinned-to-top state in the sidebar (WhatsApp/
+ * Telegram "pin chat" convention) — purely a client-side UI preference, not
+ * the same thing as pinning an individual *message* inside a conversation
+ * (`message_pin`/`is_pinned` on `MessageDto`), which is a separate,
+ * server-synced feature. Adds `conversationId` to the end of `pinnedIds`
+ * when absent, removes it when already present; returns a new array either
+ * way so callers can rely on referential inequality to detect a change.
+ */
+export function togglePinnedConversationId(
+  pinnedIds: string[],
+  conversationId: string
+): string[] {
+  if (pinnedIds.includes(conversationId)) {
+    return pinnedIds.filter((id) => id !== conversationId);
+  }
+  return [...pinnedIds, conversationId];
+}
+
+/**
+ * Reorders the sidebar conversation list so every conversation whose ID is
+ * in `pinnedIds` sorts ahead of the rest, preserving each group's original
+ * relative order (a stable partition, not a full re-sort) — pinning a chat
+ * moves it to the top without scrambling the order of everything else.
+ * Conversation IDs in `pinnedIds` that no longer match any conversation in
+ * the list (e.g. a pinned conversation was left or deleted) are silently
+ * ignored rather than erroring. Returns `conversations` unchanged when
+ * nothing is pinned, so callers can skip the extra array allocations.
+ */
+export function sortConversationsForSidebar(
+  conversations: ConversationDto[],
+  pinnedIds: string[]
+): ConversationDto[] {
+  if (pinnedIds.length === 0) return conversations;
+  const pinnedSet = new Set(pinnedIds);
+  const pinned = conversations.filter((c) => pinnedSet.has(c.id));
+  if (pinned.length === 0) return conversations;
+  const rest = conversations.filter((c) => !pinnedSet.has(c.id));
+  return [...pinned, ...rest];
+}
+
+/**
+ * Loads the pinned-conversation IDs persisted for `userId` from
+ * `localStorage` (scoped per user so switching accounts on the same
+ * machine never leaks one user's pinned chats into another's sidebar).
+ * Returns an empty array when nothing is stored, `localStorage` isn't
+ * available (e.g. under the Vitest `node` test environment), or the
+ * stored value is missing/corrupt/not a string array — this is a
+ * best-effort UI preference, never something that should throw and break
+ * the sidebar from rendering.
+ */
+export function loadPinnedConversationIds(userId: string): string[] {
+  if (typeof localStorage === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(pinnedConversationsStorageKey(userId));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((id): id is string => typeof id === "string");
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Persists `pinnedIds` for `userId` to `localStorage` so pinned chats
+ * survive an app restart. A no-op (rather than a thrown error) when
+ * `localStorage` is unavailable or writing fails (e.g. storage quota) —
+ * losing the pinned-order preference for this session is an acceptable
+ * degradation, never worth surfacing as a user-facing error.
+ */
+export function savePinnedConversationIds(userId: string, pinnedIds: string[]): void {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(pinnedConversationsStorageKey(userId), JSON.stringify(pinnedIds));
+  } catch {
+    // Storage unavailable or full; pinned order just won't persist this session.
+  }
+}
+
+const MUTED_CONVERSATIONS_STORAGE_PREFIX = "bloop:muted-conversations:";
+
+function mutedConversationsStorageKey(userId: string): string {
+  return `${MUTED_CONVERSATIONS_STORAGE_PREFIX}${userId}`;
+}
+
+/**
+ * Toggles a conversation's muted state (WhatsApp/Telegram "mute chat"
+ * convention) — a purely client-side UI preference, separate from any
+ * OS-level desktop notification suppression (which is backend/Rust-owned
+ * and out of scope here). Muting only affects how this conversation's
+ * unread count is surfaced in global UI chrome (see
+ * `sumUnreadExcludingMuted`) and its badge styling in the sidebar; it never
+ * stops messages from arriving or being counted within the conversation
+ * itself. Adds `conversationId` to the end of `mutedIds` when absent,
+ * removes it when already present; returns a new array either way so
+ * callers can rely on referential inequality to detect a change.
+ */
+export function toggleMutedConversationId(
+  mutedIds: string[],
+  conversationId: string
+): string[] {
+  if (mutedIds.includes(conversationId)) {
+    return mutedIds.filter((id) => id !== conversationId);
+  }
+  return [...mutedIds, conversationId];
+}
+
+/**
+ * Loads the muted-conversation IDs persisted for `userId` from
+ * `localStorage` (scoped per user, same convention as
+ * `loadPinnedConversationIds`, so switching accounts on the same machine
+ * never leaks one user's muted chats into another's). Returns an empty
+ * array when nothing is stored, `localStorage` isn't available (e.g. the
+ * Vitest `node` test environment), or the stored value is
+ * missing/corrupt/not a string array — this is a best-effort UI
+ * preference, never something that should throw.
+ */
+export function loadMutedConversationIds(userId: string): string[] {
+  if (typeof localStorage === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(mutedConversationsStorageKey(userId));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((id): id is string => typeof id === "string");
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Persists `mutedIds` for `userId` to `localStorage` so muted chats survive
+ * an app restart. A no-op (rather than a thrown error) when `localStorage`
+ * is unavailable or writing fails (e.g. storage quota) — losing the muted
+ * preference for this session is an acceptable degradation, never worth
+ * surfacing as a user-facing error.
+ */
+export function saveMutedConversationIds(userId: string, mutedIds: string[]): void {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(mutedConversationsStorageKey(userId), JSON.stringify(mutedIds));
+  } catch {
+    // Storage unavailable or full; muted set just won't persist this session.
+  }
+}
+
+/**
+ * Sums `unread_count` across `conversations`, excluding any conversation
+ * whose ID is in `mutedIds` — so a muted chat can keep its own in-chat
+ * unread count (still visible once opened) without inflating the global
+ * nav-rail badge or the window/document title's unread prefix
+ * (`computeDocumentTitle`), matching the real-world expectation that
+ * muting a noisy chat stops it from nagging you everywhere else in the
+ * app.
+ */
+export function sumUnreadExcludingMuted(
+  conversations: ConversationDto[],
+  mutedIds: string[]
+): number {
+  if (mutedIds.length === 0) {
+    return conversations.reduce((acc, c) => acc + c.unread_count, 0);
+  }
+  const mutedSet = new Set(mutedIds);
+  return conversations.reduce(
+    (acc, c) => (mutedSet.has(c.id) ? acc : acc + c.unread_count),
+    0
+  );
+}
+
+const THEME_STORAGE_KEY = "bloop:dark-mode";
+
+/**
+ * Loads the persisted dark/light theme preference from `localStorage`
+ * (issue #56). Unlike pinned conversations, this is stored globally rather
+ * than per-user: the theme also applies to the unauthenticated
+ * `AuthScreen`, which renders before any user is known, so scoping it to a
+ * user ID would leave the login screen with no persisted preference at
+ * all. Falls back to `systemPrefersDark` (the OS `prefers-color-scheme`
+ * media query, read by the caller) when nothing has been explicitly saved
+ * yet — e.g. on a brand-new install — so a light-OS user doesn't land in
+ * dark mode by surprise just because that happened to be the app's
+ * original hardcoded default. Also falls back to it when `localStorage`
+ * isn't available (e.g. the Vitest `node` test environment) or the stored
+ * value is anything other than the two values this module ever writes,
+ * since this is a best-effort UI preference that should never throw.
+ */
+export function loadThemePreference(systemPrefersDark: boolean): boolean {
+  if (typeof localStorage === "undefined") return systemPrefersDark;
+  try {
+    const raw = localStorage.getItem(THEME_STORAGE_KEY);
+    if (raw === "dark") return true;
+    if (raw === "light") return false;
+    return systemPrefersDark;
+  } catch {
+    return systemPrefersDark;
+  }
+}
+
+/**
+ * Persists the dark/light theme preference to `localStorage` so it
+ * survives an app restart (issue #56) instead of always resetting to the
+ * hardcoded dark default. A no-op (rather than a thrown error) when
+ * `localStorage` is unavailable or writing fails (e.g. storage quota) —
+ * losing the theme preference for this session is an acceptable
+ * degradation, never worth surfacing as a user-facing error.
+ */
+export function saveThemePreference(darkMode: boolean): void {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(THEME_STORAGE_KEY, darkMode ? "dark" : "light");
+  } catch {
+    // Storage unavailable or full; theme preference just won't persist this session.
+  }
+}
+
 const SCROLL_BOTTOM_THRESHOLD_PX = 120;
 
 /**
@@ -443,6 +665,33 @@ export function formatMessageTimestamp(
 }
 
 /**
+ * Formats the full, unambiguous date and time for a message timestamp
+ * (e.g. "Thursday, November 20, 2025 at 2:32:45 PM"), for use as a hover
+ * tooltip on the bubble's short `formatMessageTimestamp` label — matching
+ * the Slack/Discord/Gmail convention where the compact in-timeline time
+ * (and the "Yesterday"/"Nov 18" date context once it's shown) hides the
+ * exact second and weekday until the viewer hovers over it. Always
+ * includes the weekday, full month name, day, year, and seconds
+ * regardless of how recent the message is, since a tooltip is opt-in
+ * (hover) rather than always-visible chrome competing for timeline space.
+ */
+export function formatFullMessageTimestamp(isoString: string): string {
+  const sent = new Date(isoString);
+  const datePart = sent.toLocaleDateString([], {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+  const timePart = sent.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+  return `${datePart} at ${timePart}`;
+}
+
+/**
  * Soft, purely client-side guidance limit for composer text length. There is
  * no confirmed server-side cap on message text to match, so this never
  * blocks sending — it only drives when/how the composer surfaces a
@@ -480,23 +729,30 @@ export function computeComposerCharacterState(
 }
 
 /** What pressing Escape in the composer should do, in priority order. */
-export type ComposerEscapeAction = "cancel_reply" | "clear_attachment" | "none";
+export type ComposerEscapeAction =
+  | "close_emoji_picker"
+  | "cancel_reply"
+  | "clear_attachment"
+  | "none";
 
 /**
  * Resolves what the composer's Escape key should do, so a user can back out
- * of a reply context or drop a staged attachment without reaching for the
- * mouse (matching Slack/Discord/Telegram conventions). An active reply
- * takes priority over a staged attachment when both are present, since
- * canceling the reply is the more surprising/stateful thing to leave
- * lingering; a second Escape press then clears any remaining attachment.
- * Returns "none" when there's nothing to back out of, so callers can skip
- * calling preventDefault() and let Escape propagate normally (e.g. to close
- * an unrelated modal).
+ * of an open emoji picker, a reply context, or a staged attachment without
+ * reaching for the mouse (matching Slack/Discord/Telegram conventions). An
+ * open emoji picker (issue #50) takes priority over everything else since
+ * it's a transient popover floating above the rest of the composer; an
+ * active reply then takes priority over a staged attachment when both are
+ * present, since canceling the reply is the more surprising/stateful thing
+ * to leave lingering. Returns "none" when there's nothing to back out of,
+ * so callers can skip calling preventDefault() and let Escape propagate
+ * normally (e.g. to close an unrelated modal).
  */
 export function resolveComposerEscapeAction(
   hasReply: boolean,
-  hasAttachment: boolean
+  hasAttachment: boolean,
+  hasEmojiPickerOpen: boolean = false
 ): ComposerEscapeAction {
+  if (hasEmojiPickerOpen) return "close_emoji_picker";
   if (hasReply) return "cancel_reply";
   if (hasAttachment) return "clear_attachment";
   return "none";
@@ -683,4 +939,224 @@ export function findMessageSearchMatches(
  */
 export function shouldSubmitMessageEditOnKeyDown(key: string, shiftKey: boolean): boolean {
   return key === "Enter" && !shiftKey;
+}
+
+/**
+ * Computes the browser/OS window title to reflect the total unread message
+ * count across all conversations (issue #42), the same way Slack/Discord/Gmail
+ * surface unread counts in a tab or taskbar title — so there's a way to tell
+ * at a glance whether anything new has arrived while the app is minimized,
+ * behind other windows, or just not currently focused, without switching
+ * back to it. A zero or negative count (nothing unread) returns the plain
+ * `appName` unchanged; any positive count is prefixed as `(N) <appName>`,
+ * capped at the same "99+" display convention the sidebar/nav-rail unread
+ * badges already use so an extreme count never grows the title unbounded.
+ */
+export function computeDocumentTitle(appName: string, totalUnread: number): string {
+  if (totalUnread <= 0) return appName;
+  const display = totalUnread > 99 ? "99+" : String(totalUnread);
+  return `(${display}) ${appName}`;
+}
+
+/**
+ * Formats a millisecond duration as a short, human-readable offline-outage
+ * length (e.g. "45s", "1m 30s", "1h", "1h 1m") for the "Back online — you
+ * were offline for <duration>" reconnect banner (issue #46). Mirrors the
+ * compact style already used by relative timestamps elsewhere in the app
+ * rather than a verbose `Intl.DurationFormat`-style string. Negative or
+ * non-finite input (e.g. a clock skew edge case) is clamped to zero so the
+ * banner never shows a nonsensical duration; whole seconds under a minute
+ * drop the minutes/hours units entirely, and a unit with a zero remainder
+ * (e.g. exactly 60s, exactly 3600s) is omitted rather than shown as "1m 0s".
+ */
+export function formatOfflineDuration(durationMs: number): string {
+  const totalSeconds =
+    Number.isFinite(durationMs) && durationMs > 0 ? Math.round(durationMs / 1000) : 0;
+  if (totalSeconds < 60) return `${totalSeconds}s`;
+
+  const totalMinutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (totalMinutes < 60) {
+    return seconds > 0 ? `${totalMinutes}m ${seconds}s` : `${totalMinutes}m`;
+  }
+
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
+}
+
+/** One row of the keyboard shortcuts help modal (issue #48). */
+export interface KeyboardShortcutEntry {
+  keys: string;
+  description: string;
+}
+
+/**
+ * The full list of keyboard shortcuts already supported across the
+ * composer, message timeline, and in-conversation search (issue #48) —
+ * previously only discoverable by accident. Kept as a single exported
+ * constant so the help modal and its tests read from the same source of
+ * truth instead of a duplicated hardcoded list drifting out of sync.
+ */
+export const KEYBOARD_SHORTCUTS: KeyboardShortcutEntry[] = [
+  { keys: "Enter", description: "Send message, or save a message edit" },
+  { keys: "Shift + Enter", description: "Insert a new line instead of sending/saving" },
+  {
+    keys: "Escape",
+    description:
+      "Cancel an active reply or clear a staged attachment, cancel an in-progress message edit, or dismiss a pending remove confirmation",
+  },
+  { keys: "Enter / Shift + Enter", description: "Jump to the next / previous search match" },
+  { keys: "↓ / ↑", description: "Jump to the next / previous search match" },
+  { keys: "Ctrl/Cmd + F", description: "Open search in the current conversation" },
+  { keys: "?", description: "Show this keyboard shortcuts list" },
+];
+
+/**
+ * Decides whether a global `?` keypress should open the keyboard shortcuts
+ * help modal (issue #48), matching the Slack/Discord/Linear convention.
+ * Suppressed while the user is actively typing in an editable field (a
+ * text input, textarea, select, or `contenteditable` element) so typing a
+ * literal `?` into a message, search box, or display-name field never gets
+ * hijacked into opening the modal instead.
+ */
+export function shouldOpenShortcutsHelp(
+  key: string,
+  activeElementTagName: string | null,
+  isContentEditable: boolean
+): boolean {
+  if (key !== "?") return false;
+  if (isContentEditable) return false;
+  const tag = activeElementTagName?.toUpperCase() ?? "";
+  return tag !== "INPUT" && tag !== "TEXTAREA" && tag !== "SELECT";
+}
+
+/**
+ * Decides whether a global keydown should open the in-conversation message
+ * search bar, matching the browser/Slack/Discord `Ctrl+F` (`Cmd+F` on
+ * macOS) "find" convention instead of only being reachable via the header's
+ * search icon. Unlike `shouldOpenShortcutsHelp`, this is never suppressed
+ * while typing in an editable field: holding Ctrl/Cmd means the browser
+ * would not insert a literal "f" character into that field anyway, so there
+ * is nothing to protect by checking the active element. `key` is matched
+ * case-insensitively since some keyboard layouts/OSes report an uppercase
+ * "F" while the modifier is held.
+ */
+export function shouldOpenConversationSearch(key: string, ctrlOrMetaKey: boolean): boolean {
+  return ctrlOrMetaKey && key.toLowerCase() === "f";
+}
+
+/**
+ * A small, curated set of common reaction/sentiment emoji for the
+ * composer's quick emoji picker (issue #50). Deliberately a fixed list
+ * rather than a full emoji library/picker dependency — covers the most
+ * common chat reactions (thumbs up, heart, laugh, celebrate, etc.)
+ * without adding a new runtime dependency or a searchable-but-overkill
+ * picker UI for a desktop chat app this size.
+ */
+export const QUICK_EMOJIS: string[] = [
+  "😀", "😂", "😍", "😮", "😢", "😡", "👍", "👎",
+  "🙏", "🎉", "🔥", "❤️", "👀", "✅", "❌", "🚀",
+];
+
+const RECENT_EMOJIS_STORAGE_KEY = "bloop:recent-emoji";
+const MAX_RECENT_EMOJIS = 8;
+
+/**
+ * Moves `emoji` to the front of `recent` (most-recently-used first),
+ * dropping any earlier occurrence of it, and caps the result at
+ * `MAX_RECENT_EMOJIS` entries (issue #58) — mirrors the
+ * `togglePinnedConversationId` convention of always returning a new array
+ * so callers can rely on referential inequality to detect a change.
+ */
+export function recordRecentEmoji(recent: string[], emoji: string): string[] {
+  const withoutEmoji = recent.filter((e) => e !== emoji);
+  return [emoji, ...withoutEmoji].slice(0, MAX_RECENT_EMOJIS);
+}
+
+/**
+ * Builds the quick emoji picker's display order (issue #58): recently
+ * used emoji from `recent` (most recent first) float to the front,
+ * followed by the remaining entries of `allEmojis` in their original
+ * curated order — the Slack/Discord/OS emoji-picker convention of
+ * surfacing what's actually used instead of a static fixed layout.
+ * Entries in `recent` that aren't in `allEmojis` (e.g. a stale
+ * `localStorage` value left over from a previously different curated
+ * set) are silently ignored rather than erroring.
+ */
+export function buildEmojiPickerOrder(allEmojis: string[], recent: string[]): string[] {
+  const validRecent = recent.filter((e) => allEmojis.includes(e));
+  if (validRecent.length === 0) return allEmojis;
+  const rest = allEmojis.filter((e) => !validRecent.includes(e));
+  return [...validRecent, ...rest];
+}
+
+/**
+ * Loads the persisted recently-used emoji list (most-recent first) from
+ * `localStorage` (issue #58). Stored globally rather than per-user — same
+ * reasoning as the dark/light theme preference (issue #56): a low-stakes
+ * UI preference that isn't worth plumbing `currentUserId` through the
+ * composer for. Returns an empty array when nothing is stored,
+ * `localStorage` isn't available (e.g. the Vitest `node` test
+ * environment), or the stored value is missing/corrupt/not a string
+ * array — this is a best-effort UI preference, never something that
+ * should throw and break the composer from rendering.
+ */
+export function loadRecentEmojis(): string[] {
+  if (typeof localStorage === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(RECENT_EMOJIS_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((e): e is string => typeof e === "string");
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Persists the recently-used emoji list to `localStorage` (issue #58). A
+ * no-op (rather than a thrown error) when `localStorage` is unavailable
+ * or writing fails (e.g. storage quota) — losing the recent-emoji order
+ * for this session is an acceptable degradation, never worth surfacing
+ * as a user-facing error.
+ */
+export function saveRecentEmojis(recent: string[]): void {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(RECENT_EMOJIS_STORAGE_KEY, JSON.stringify(recent));
+  } catch {
+    // Storage unavailable or full; recent-emoji order just won't persist this session.
+  }
+}
+
+export interface TextInsertionResult {
+  /** The full text after inserting `insertion` in place of the selected range. */
+  text: string;
+  /** Where the caret should land after the insertion (end of the inserted text). */
+  cursor: number;
+}
+
+/**
+ * Inserts `insertion` (e.g. an emoji) into `text` in place of the current
+ * selection (`selectionStart`..`selectionEnd`, both clamped to the text's
+ * bounds and swapped if given out of order), replacing any selected text
+ * exactly like typing would. Used by the composer's quick emoji picker
+ * (issue #50) so clicking an emoji inserts it at the caret — not just
+ * appended to the end — matching ordinary keyboard typing behavior, and
+ * returns the caret position so the composer can restore focus there
+ * instead of leaving it stranded at the start of the textarea.
+ */
+export function insertTextAtCursor(
+  text: string,
+  selectionStart: number,
+  selectionEnd: number,
+  insertion: string
+): TextInsertionResult {
+  const length = text.length;
+  const start = Math.max(0, Math.min(length, selectionStart, selectionEnd));
+  const end = Math.max(0, Math.min(length, Math.max(selectionStart, selectionEnd)));
+  const nextText = text.slice(0, start) + insertion + text.slice(end);
+  return { text: nextText, cursor: start + insertion.length };
 }

@@ -1,11 +1,17 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Film, Image as ImageIcon, Paperclip, Reply, Send, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Film, Image as ImageIcon, Paperclip, Reply, Send, Smile, X } from "lucide-react";
 import { extractErrorMessage, tauriClient } from "../../lib/tauri-client";
 import type { MessageDto } from "../../lib/types";
 import {
   type AttachmentPreviewKind,
+  buildEmojiPickerOrder,
   computeComposerCharacterState,
+  insertTextAtCursor,
+  loadRecentEmojis,
+  QUICK_EMOJIS,
+  recordRecentEmoji,
   resolveComposerEscapeAction,
+  saveRecentEmojis,
   validateAttachmentPath,
 } from "../../lib/ui-polish";
 
@@ -36,8 +42,27 @@ export function MessageComposer({
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [recentEmojis, setRecentEmojis] = useState<string[]>(() => loadRecentEmojis());
   const lastTypingPingRef = useRef<number>(0);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const emojiPickerRef = useRef<HTMLDivElement | null>(null);
+  const emojiButtonRef = useRef<HTMLButtonElement | null>(null);
+
+  // Close the emoji picker on an outside click, matching other popovers in
+  // the app (e.g. the attachment/reply affordances dismiss without needing
+  // Escape too).
+  useEffect(() => {
+    if (!showEmojiPicker) return;
+    const handlePointerDown = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (emojiPickerRef.current?.contains(target)) return;
+      if (emojiButtonRef.current?.contains(target)) return;
+      setShowEmojiPicker(false);
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, [showEmojiPicker]);
 
   const clearAttachment = () => {
     setAttachmentPath(null);
@@ -147,8 +172,16 @@ export function MessageComposer({
       return;
     }
     if (e.key === "Escape") {
-      const action = resolveComposerEscapeAction(Boolean(replyingTo), Boolean(attachmentPath));
-      if (action === "cancel_reply") {
+      const action = resolveComposerEscapeAction(
+        Boolean(replyingTo),
+        Boolean(attachmentPath),
+        showEmojiPicker
+      );
+      if (action === "close_emoji_picker") {
+        e.preventDefault();
+        e.stopPropagation();
+        setShowEmojiPicker(false);
+      } else if (action === "cancel_reply") {
         e.preventDefault();
         e.stopPropagation();
         onCancelReply();
@@ -161,6 +194,33 @@ export function MessageComposer({
     }
   };
 
+  const handleEmojiPick = (emoji: string) => {
+    const el = textareaRef.current;
+    const selectionStart = el?.selectionStart ?? text.length;
+    const selectionEnd = el?.selectionEnd ?? text.length;
+    const result = insertTextAtCursor(text, selectionStart, selectionEnd, emoji);
+    handleTextChange(result.text);
+    setShowEmojiPicker(false);
+    // Track usage so the picker floats recently-used emoji to the front
+    // next time it opens (issue #58), persisted the same way as the
+    // dark/light theme preference.
+    setRecentEmojis((prev) => {
+      const next = recordRecentEmoji(prev, emoji);
+      saveRecentEmojis(next);
+      return next;
+    });
+    // Restore focus and caret position so picking an emoji feels like typing
+    // it rather than knocking focus out of the composer.
+    requestAnimationFrame(() => {
+      el?.focus();
+      el?.setSelectionRange(result.cursor, result.cursor);
+    });
+  };
+
+  const emojiPickerOrder = useMemo(
+    () => buildEmojiPickerOrder(QUICK_EMOJIS, recentEmojis),
+    [recentEmojis]
+  );
   const charState = computeComposerCharacterState(text.length);
 
   return (
@@ -232,6 +292,40 @@ export function MessageComposer({
       )}
 
       <form onSubmit={handleSubmit} className="flex items-end gap-2">
+        <div className="relative">
+          <button
+            ref={emojiButtonRef}
+            type="button"
+            onClick={() => setShowEmojiPicker((v) => !v)}
+            className={`p-2.5 rounded-xl hover:bg-[var(--bg-hover)] transition-colors ${
+              showEmojiPicker
+                ? "text-[#6366F1] bg-[#6366F1]/10"
+                : "text-[var(--text-muted)] hover:text-[#6366F1]"
+            }`}
+            title="Insert emoji"
+          >
+            <Smile className="w-4 h-4" />
+          </button>
+          {showEmojiPicker && (
+            <div
+              ref={emojiPickerRef}
+              className="absolute bottom-full left-0 mb-2 z-20 grid grid-cols-8 gap-0.5 p-2 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-hairline)] shadow-lg"
+            >
+              {emojiPickerOrder.map((emoji) => (
+                <button
+                  key={emoji}
+                  type="button"
+                  onClick={() => handleEmojiPick(emoji)}
+                  className="w-8 h-8 flex items-center justify-center text-lg rounded-lg hover:bg-[var(--bg-hover)] transition-colors"
+                  title={emoji}
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
         <button
           type="button"
           onClick={() => void handlePickAttachment()}

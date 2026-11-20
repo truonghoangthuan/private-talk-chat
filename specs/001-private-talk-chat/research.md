@@ -1,4 +1,4 @@
-# Phase 0 Research: Private Talk Windows Chat Application
+# Phase 0 Research: Bloop Windows Chat Application
 
 **Feature**: `001-private-talk-chat`  
 **Date**: 2026-11-19  

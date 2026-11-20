@@ -1,23 +1,43 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+  buildEmojiPickerOrder,
   buildTimelineItems,
   computeComposerCharacterState,
+  computeDocumentTitle,
   computeScrollFollowState,
   filterConversations,
   findMessageSearchMatches,
   findUnreadDividerMessageId,
+  formatFullMessageTimestamp,
   formatMessageTimestamp,
+  formatOfflineDuration,
   getAttachmentPreviewKind,
   getConversationTitle,
   getDraft,
   getMessageCopyText,
+  insertTextAtCursor,
   isScrolledNearBottom,
+  KEYBOARD_SHORTCUTS,
+  loadRecentEmojis,
+  loadMutedConversationIds,
+  loadThemePreference,
+  QUICK_EMOJIS,
+  recordRecentEmoji,
   resolveComposerEscapeAction,
   resolveMessageBubbleEscapeAction,
+  saveMutedConversationIds,
+  saveRecentEmojis,
+  saveThemePreference,
+  shouldOpenConversationSearch,
   shouldOpenMediaLightbox,
+  shouldOpenShortcutsHelp,
   shouldSubmitMessageEditOnKeyDown,
+  sortConversationsForSidebar,
   splitMessageTextIntoLinkSegments,
+  sumUnreadExcludingMuted,
   syncPinnedMessage,
+  toggleMutedConversationId,
+  togglePinnedConversationId,
   updateDraft,
   upsertMessageWithReplySync,
   validateAttachmentFile,
@@ -234,6 +254,190 @@ describe("filterConversations", () => {
   });
 });
 
+describe("togglePinnedConversationId", () => {
+  it("pins an unpinned conversation by appending its ID", () => {
+    expect(togglePinnedConversationId([], "c1")).toEqual(["c1"]);
+    expect(togglePinnedConversationId(["c1"], "c2")).toEqual(["c1", "c2"]);
+  });
+
+  it("unpins an already-pinned conversation by removing its ID", () => {
+    expect(togglePinnedConversationId(["c1", "c2"], "c1")).toEqual(["c2"]);
+    expect(togglePinnedConversationId(["c1"], "c1")).toEqual([]);
+  });
+
+  it("always returns a new array (never mutates the input)", () => {
+    const original = ["c1"];
+    const result = togglePinnedConversationId(original, "c2");
+    expect(result).not.toBe(original);
+    expect(original).toEqual(["c1"]);
+  });
+});
+
+describe("sortConversationsForSidebar", () => {
+  const c1 = makeConv({ id: "c1" });
+  const c2 = makeConv({ id: "c2" });
+  const c3 = makeConv({ id: "c3" });
+
+  it("returns the list unchanged when nothing is pinned", () => {
+    const list = [c1, c2, c3];
+    expect(sortConversationsForSidebar(list, [])).toBe(list);
+  });
+
+  it("moves pinned conversations to the top, preserving relative order within each group", () => {
+    expect(sortConversationsForSidebar([c1, c2, c3], ["c3"])).toEqual([c3, c1, c2]);
+    expect(sortConversationsForSidebar([c1, c2, c3], ["c3", "c1"])).toEqual([c1, c3, c2]);
+  });
+
+  it("ignores pinned IDs that no longer match any conversation in the list", () => {
+    expect(sortConversationsForSidebar([c1, c2], ["gone"])).toEqual([c1, c2]);
+  });
+});
+
+describe("toggleMutedConversationId", () => {
+  it("mutes an unmuted conversation by appending its ID", () => {
+    expect(toggleMutedConversationId([], "c1")).toEqual(["c1"]);
+    expect(toggleMutedConversationId(["c1"], "c2")).toEqual(["c1", "c2"]);
+  });
+
+  it("unmutes an already-muted conversation by removing its ID", () => {
+    expect(toggleMutedConversationId(["c1", "c2"], "c1")).toEqual(["c2"]);
+    expect(toggleMutedConversationId(["c1"], "c1")).toEqual([]);
+  });
+
+  it("always returns a new array (never mutates the input)", () => {
+    const original = ["c1"];
+    const result = toggleMutedConversationId(original, "c2");
+    expect(result).not.toBe(original);
+    expect(original).toEqual(["c1"]);
+  });
+});
+
+describe("loadMutedConversationIds / saveMutedConversationIds", () => {
+  let store: Record<string, string>;
+
+  beforeEach(() => {
+    store = {};
+    (globalThis as { localStorage?: Storage }).localStorage = {
+      getItem: (key: string) => (key in store ? store[key] : null),
+      setItem: (key: string, value: string) => {
+        store[key] = value;
+      },
+      removeItem: (key: string) => {
+        delete store[key];
+      },
+      clear: () => {
+        store = {};
+      },
+      get length() {
+        return Object.keys(store).length;
+      },
+      key: (index: number) => Object.keys(store)[index] ?? null,
+    } as Storage;
+  });
+
+  afterEach(() => {
+    delete (globalThis as { localStorage?: Storage }).localStorage;
+  });
+
+  it("returns an empty array when nothing is stored", () => {
+    expect(loadMutedConversationIds("u1")).toEqual([]);
+  });
+
+  it("round-trips a saved muted set", () => {
+    saveMutedConversationIds("u1", ["c1", "c2"]);
+    expect(loadMutedConversationIds("u1")).toEqual(["c1", "c2"]);
+  });
+
+  it("scopes the muted set per user", () => {
+    saveMutedConversationIds("u1", ["c1"]);
+    saveMutedConversationIds("u2", ["c2"]);
+    expect(loadMutedConversationIds("u1")).toEqual(["c1"]);
+    expect(loadMutedConversationIds("u2")).toEqual(["c2"]);
+  });
+
+  it("returns an empty array for a corrupt/unexpected stored value", () => {
+    store["bloop:muted-conversations:u1"] = "not-an-array";
+    expect(loadMutedConversationIds("u1")).toEqual([]);
+  });
+
+  it("returns an empty array when localStorage is unavailable", () => {
+    delete (globalThis as { localStorage?: Storage }).localStorage;
+    expect(loadMutedConversationIds("u1")).toEqual([]);
+    expect(() => saveMutedConversationIds("u1", ["c1"])).not.toThrow();
+  });
+});
+
+describe("sumUnreadExcludingMuted", () => {
+  const c1 = makeConv({ id: "c1", unread_count: 3 });
+  const c2 = makeConv({ id: "c2", unread_count: 5 });
+  const c3 = makeConv({ id: "c3", unread_count: 0 });
+
+  it("sums every conversation's unread_count when nothing is muted", () => {
+    expect(sumUnreadExcludingMuted([c1, c2, c3], [])).toBe(8);
+  });
+
+  it("excludes muted conversations from the total", () => {
+    expect(sumUnreadExcludingMuted([c1, c2, c3], ["c2"])).toBe(3);
+    expect(sumUnreadExcludingMuted([c1, c2, c3], ["c1", "c2"])).toBe(0);
+  });
+
+  it("ignores muted IDs that don't match any conversation in the list", () => {
+    expect(sumUnreadExcludingMuted([c1, c2], ["gone"])).toBe(8);
+  });
+});
+
+describe("loadThemePreference / saveThemePreference", () => {
+  let store: Record<string, string>;
+
+  beforeEach(() => {
+    store = {};
+    (globalThis as { localStorage?: Storage }).localStorage = {
+      getItem: (key: string) => (key in store ? store[key] : null),
+      setItem: (key: string, value: string) => {
+        store[key] = value;
+      },
+      removeItem: (key: string) => {
+        delete store[key];
+      },
+      clear: () => {
+        store = {};
+      },
+      get length() {
+        return Object.keys(store).length;
+      },
+      key: (index: number) => Object.keys(store)[index] ?? null,
+    } as Storage;
+  });
+
+  afterEach(() => {
+    delete (globalThis as { localStorage?: Storage }).localStorage;
+  });
+
+  it("falls back to the system preference when nothing has been saved yet", () => {
+    expect(loadThemePreference(true)).toBe(true);
+    expect(loadThemePreference(false)).toBe(false);
+  });
+
+  it("round-trips an explicitly saved preference, overriding the system default", () => {
+    saveThemePreference(false);
+    expect(loadThemePreference(true)).toBe(false);
+
+    saveThemePreference(true);
+    expect(loadThemePreference(false)).toBe(true);
+  });
+
+  it("falls back to the system preference when localStorage is unavailable", () => {
+    delete (globalThis as { localStorage?: Storage }).localStorage;
+    expect(loadThemePreference(true)).toBe(true);
+    expect(() => saveThemePreference(false)).not.toThrow();
+  });
+
+  it("falls back to the system preference on a corrupt/unexpected stored value", () => {
+    store["bloop:dark-mode"] = "not-a-valid-theme";
+    expect(loadThemePreference(false)).toBe(false);
+  });
+});
+
 describe("isScrolledNearBottom", () => {
   it("is true when flush against the bottom edge", () => {
     expect(isScrolledNearBottom(880, 1000, 120, 120)).toBe(true);
@@ -371,6 +575,36 @@ describe("formatMessageTimestamp", () => {
   });
 });
 
+describe("formatFullMessageTimestamp", () => {
+  it("includes the full weekday, month, day, and year", () => {
+    const sent = new Date(2025, 10, 20, 14, 32, 45).toISOString();
+    const full = formatFullMessageTimestamp(sent);
+    expect(full).toContain("Thursday");
+    expect(full).toContain("November");
+    expect(full).toContain("20");
+    expect(full).toContain("2025");
+  });
+
+  it("includes seconds, unlike the compact formatMessageTimestamp time label", () => {
+    const sent = new Date(2025, 10, 20, 14, 32, 45).toISOString();
+    const full = formatFullMessageTimestamp(sent);
+    const { timeLabel } = formatMessageTimestamp(sent);
+    expect(full.length).toBeGreaterThan(timeLabel.length);
+    expect(full).not.toBe(timeLabel);
+  });
+
+  it("joins the date and time with a connecting word", () => {
+    const sent = new Date(2025, 0, 1, 0, 0, 0).toISOString();
+    expect(formatFullMessageTimestamp(sent)).toContain(" at ");
+  });
+
+  it("produces a different full timestamp for messages on different days", () => {
+    const first = formatFullMessageTimestamp(new Date(2025, 10, 20, 9, 0).toISOString());
+    const second = formatFullMessageTimestamp(new Date(2025, 10, 21, 9, 0).toISOString());
+    expect(first).not.toBe(second);
+  });
+});
+
 describe("computeComposerCharacterState", () => {
   it("hides the counter while comfortably under the limit", () => {
     expect(computeComposerCharacterState(10, 100)).toEqual({
@@ -443,6 +677,145 @@ describe("resolveComposerEscapeAction", () => {
 
   it("does nothing when there's neither a reply nor an attachment", () => {
     expect(resolveComposerEscapeAction(false, false)).toBe("none");
+  });
+
+  it("closes an open emoji picker before anything else", () => {
+    expect(resolveComposerEscapeAction(true, true, true)).toBe("close_emoji_picker");
+    expect(resolveComposerEscapeAction(false, false, true)).toBe("close_emoji_picker");
+  });
+
+  it("defaults the emoji picker flag to closed when omitted", () => {
+    expect(resolveComposerEscapeAction(false, true)).toBe("clear_attachment");
+  });
+});
+
+describe("insertTextAtCursor", () => {
+  it("inserts at the caret when there's no selection", () => {
+    expect(insertTextAtCursor("hi !", 3, 3, "👍")).toEqual({ text: "hi 👍!", cursor: 5 });
+  });
+
+  it("replaces a selected range like typing over it", () => {
+    expect(insertTextAtCursor("hello world", 6, 11, "there")).toEqual({
+      text: "hello there",
+      cursor: 11,
+    });
+  });
+
+  it("appends when the cursor is at the end of the text", () => {
+    // Emoji outside the Basic Multilingual Plane are UTF-16 surrogate pairs,
+    // so the cursor advances by the emoji's UTF-16 length, not 1.
+    expect(insertTextAtCursor("gg", 2, 2, "🎉")).toEqual({ text: "gg🎉", cursor: 4 });
+  });
+
+  it("inserts into empty text", () => {
+    expect(insertTextAtCursor("", 0, 0, "🔥")).toEqual({ text: "🔥", cursor: 2 });
+  });
+
+  it("clamps out-of-bounds selection to the text length", () => {
+    expect(insertTextAtCursor("abc", 10, 20, "!")).toEqual({ text: "abc!", cursor: 4 });
+  });
+
+  it("handles a reversed selection (end before start) the same as a forward one", () => {
+    expect(insertTextAtCursor("hello world", 11, 6, "there")).toEqual({
+      text: "hello there",
+      cursor: 11,
+    });
+  });
+});
+
+describe("QUICK_EMOJIS", () => {
+  it("is a non-empty list of unique, non-blank emoji", () => {
+    expect(QUICK_EMOJIS.length).toBeGreaterThan(0);
+    expect(new Set(QUICK_EMOJIS).size).toBe(QUICK_EMOJIS.length);
+    for (const emoji of QUICK_EMOJIS) {
+      expect(emoji.trim().length).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe("recordRecentEmoji", () => {
+  it("adds a newly-used emoji to the front of an empty list", () => {
+    expect(recordRecentEmoji([], "🔥")).toEqual(["🔥"]);
+  });
+
+  it("moves an already-recorded emoji to the front instead of duplicating it", () => {
+    expect(recordRecentEmoji(["🔥", "👍", "🎉"], "👍")).toEqual(["👍", "🔥", "🎉"]);
+  });
+
+  it("caps the list at 8 entries, dropping the oldest", () => {
+    const eightOldest = ["a", "b", "c", "d", "e", "f", "g", "h"];
+    expect(recordRecentEmoji(eightOldest, "new")).toEqual([
+      "new", "a", "b", "c", "d", "e", "f", "g",
+    ]);
+  });
+});
+
+describe("buildEmojiPickerOrder", () => {
+  it("returns the curated list unchanged when nothing has been used yet", () => {
+    expect(buildEmojiPickerOrder(QUICK_EMOJIS, [])).toBe(QUICK_EMOJIS);
+  });
+
+  it("floats recently-used emoji to the front, most recent first", () => {
+    expect(buildEmojiPickerOrder(["😀", "😂", "👍", "🔥"], ["🔥", "👍"])).toEqual([
+      "🔥", "👍", "😀", "😂",
+    ]);
+  });
+
+  it("ignores recent entries that aren't part of the curated list", () => {
+    expect(buildEmojiPickerOrder(["😀", "😂"], ["🛑", "😂"])).toEqual(["😂", "😀"]);
+  });
+});
+
+describe("loadRecentEmojis / saveRecentEmojis", () => {
+  let store: Record<string, string>;
+
+  beforeEach(() => {
+    store = {};
+    (globalThis as { localStorage?: Storage }).localStorage = {
+      getItem: (key: string) => (key in store ? store[key] : null),
+      setItem: (key: string, value: string) => {
+        store[key] = value;
+      },
+      removeItem: (key: string) => {
+        delete store[key];
+      },
+      clear: () => {
+        store = {};
+      },
+      get length() {
+        return Object.keys(store).length;
+      },
+      key: (index: number) => Object.keys(store)[index] ?? null,
+    } as Storage;
+  });
+
+  afterEach(() => {
+    delete (globalThis as { localStorage?: Storage }).localStorage;
+  });
+
+  it("returns an empty array when nothing has been saved yet", () => {
+    expect(loadRecentEmojis()).toEqual([]);
+  });
+
+  it("round-trips a saved recent-emoji list", () => {
+    saveRecentEmojis(["🔥", "👍"]);
+    expect(loadRecentEmojis()).toEqual(["🔥", "👍"]);
+  });
+
+  it("returns an empty array when localStorage is unavailable", () => {
+    delete (globalThis as { localStorage?: Storage }).localStorage;
+    expect(loadRecentEmojis()).toEqual([]);
+    expect(() => saveRecentEmojis(["🔥"])).not.toThrow();
+  });
+
+  it("returns an empty array on a corrupt/unexpected stored value", () => {
+    store["bloop:recent-emoji"] = JSON.stringify({ not: "an array" });
+    expect(loadRecentEmojis()).toEqual([]);
+  });
+
+  it("filters out non-string entries from a malformed stored array", () => {
+    store["bloop:recent-emoji"] = JSON.stringify(["🔥", 42, null, "👍"]);
+    expect(loadRecentEmojis()).toEqual(["🔥", "👍"]);
   });
 });
 
@@ -703,5 +1076,114 @@ describe("splitMessageTextIntoLinkSegments", () => {
     expect(splitMessageTextIntoLinkSegments("visit www.example.com please")).toEqual([
       { text: "visit www.example.com please", isLink: false },
     ]);
+  });
+});
+
+describe("computeDocumentTitle", () => {
+  it("returns the plain app name when there are no unread messages", () => {
+    expect(computeDocumentTitle("Bloop", 0)).toBe("Bloop");
+  });
+
+  it("returns the plain app name for a negative count (defensive)", () => {
+    expect(computeDocumentTitle("Bloop", -1)).toBe("Bloop");
+  });
+
+  it("prefixes the unread count ahead of the app name", () => {
+    expect(computeDocumentTitle("Bloop", 3)).toBe("(3) Bloop");
+  });
+
+  it("caps the displayed count at 99+ like the sidebar/nav-rail badges", () => {
+    expect(computeDocumentTitle("Bloop", 100)).toBe("(99+) Bloop");
+    expect(computeDocumentTitle("Bloop", 99)).toBe("(99) Bloop");
+  });
+});
+
+describe("formatOfflineDuration", () => {
+  it("formats sub-minute durations as whole seconds", () => {
+    expect(formatOfflineDuration(0)).toBe("0s");
+    expect(formatOfflineDuration(45_000)).toBe("45s");
+  });
+
+  it("rounds to the nearest second", () => {
+    expect(formatOfflineDuration(1_400)).toBe("1s");
+    expect(formatOfflineDuration(1_600)).toBe("2s");
+  });
+
+  it("formats minutes with a trailing seconds remainder", () => {
+    expect(formatOfflineDuration(90_000)).toBe("1m 30s");
+  });
+
+  it("omits a zero seconds remainder", () => {
+    expect(formatOfflineDuration(60_000)).toBe("1m");
+  });
+
+  it("formats hours with a trailing minutes remainder", () => {
+    expect(formatOfflineDuration(3_660_000)).toBe("1h 1m");
+  });
+
+  it("omits a zero minutes remainder", () => {
+    expect(formatOfflineDuration(3_600_000)).toBe("1h");
+  });
+
+  it("clamps negative or non-finite input to zero", () => {
+    expect(formatOfflineDuration(-500)).toBe("0s");
+    expect(formatOfflineDuration(NaN)).toBe("0s");
+  });
+});
+
+describe("shouldOpenShortcutsHelp", () => {
+  it("opens on a bare '?' press outside any editable field", () => {
+    expect(shouldOpenShortcutsHelp("?", null, false)).toBe(true);
+    expect(shouldOpenShortcutsHelp("?", "BUTTON", false)).toBe(true);
+    expect(shouldOpenShortcutsHelp("?", "DIV", false)).toBe(true);
+  });
+
+  it("ignores every other key", () => {
+    expect(shouldOpenShortcutsHelp("Enter", null, false)).toBe(false);
+    expect(shouldOpenShortcutsHelp("/", null, false)).toBe(false);
+    expect(shouldOpenShortcutsHelp("a", null, false)).toBe(false);
+  });
+
+  it("is suppressed while typing in an input, textarea, or select", () => {
+    expect(shouldOpenShortcutsHelp("?", "INPUT", false)).toBe(false);
+    expect(shouldOpenShortcutsHelp("?", "TEXTAREA", false)).toBe(false);
+    expect(shouldOpenShortcutsHelp("?", "SELECT", false)).toBe(false);
+    // Tag name casing from the DOM is always uppercase, but stay forgiving.
+    expect(shouldOpenShortcutsHelp("?", "textarea", false)).toBe(false);
+  });
+
+  it("is suppressed inside a contenteditable element regardless of tag", () => {
+    expect(shouldOpenShortcutsHelp("?", "DIV", true)).toBe(false);
+  });
+});
+
+describe("shouldOpenConversationSearch", () => {
+  it("opens on Ctrl+F", () => {
+    expect(shouldOpenConversationSearch("f", true)).toBe(true);
+  });
+
+  it("matches the key case-insensitively", () => {
+    expect(shouldOpenConversationSearch("F", true)).toBe(true);
+  });
+
+  it("requires the Ctrl/Cmd modifier", () => {
+    expect(shouldOpenConversationSearch("f", false)).toBe(false);
+  });
+
+  it("ignores every other key even with the modifier held", () => {
+    expect(shouldOpenConversationSearch("g", true)).toBe(false);
+    expect(shouldOpenConversationSearch("Enter", true)).toBe(false);
+  });
+});
+
+describe("KEYBOARD_SHORTCUTS", () => {
+  it("has a non-empty, unique list of shortcut entries", () => {
+    expect(KEYBOARD_SHORTCUTS.length).toBeGreaterThan(0);
+    const keys = KEYBOARD_SHORTCUTS.map((entry) => entry.keys);
+    expect(new Set(keys).size).toBe(keys.length);
+    for (const entry of KEYBOARD_SHORTCUTS) {
+      expect(entry.keys.length).toBeGreaterThan(0);
+      expect(entry.description.length).toBeGreaterThan(0);
+    }
   });
 });

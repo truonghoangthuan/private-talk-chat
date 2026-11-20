@@ -1,4 +1,4 @@
-# Specification Quality Checklist: Private Talk Windows Chat Application
+# Specification Quality Checklist: Bloop Windows Chat Application
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning  
 **Created**: 2026-11-19  

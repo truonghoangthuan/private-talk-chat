@@ -30,14 +30,14 @@
 ## 2. End-to-End Validation Scenarios
 
 ### Scenario 1: Automatic Privacy Blur on Window Focus Loss (US1)
-1. Launch Private Talk:
+1. Launch Bloop:
    ```powershell
    npm run tauri dev
    ```
 2. Log in and open an active conversation with messages and media.
-3. Click outside the Private Talk window (or press `Alt+Tab`).
+3. Click outside the Bloop window (or press `Alt+Tab`).
 4. **Expected**: Within `<100ms`, the full viewport blurs behind the privacy shield (`"Window unfocused — content hidden for privacy"`), making all messages, contact names, and media previews illegible.
-5. Click back into the Private Talk window.
+5. Click back into the Bloop window.
 6. **Expected**: The privacy blur clears immediately and normal interaction resumes.
 
 ### Scenario 2: Authenticated Message Replies & Jump-to-Parent (US2)

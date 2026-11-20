@@ -1,4 +1,4 @@
--- Private Talk Windows Chat Application Schema
+-- Bloop Windows Chat Application Schema
 -- Enforces E2EE ciphertext-only persistence, mutual contacts, group key epochs, and strict RLS.
 
 CREATE EXTENSION IF NOT EXISTS citext;

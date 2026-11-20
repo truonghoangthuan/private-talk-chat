@@ -17,11 +17,11 @@ Screenshot (`media_1795141924347_90cbf66f.png`) shows the **Application Update**
 
 ## Symptom
 
-Clicking **Check for update** in Private Talk v0.2.0 always transitions the updater into the `error` phase and displays `Release feed returned an unexpected HTTP status.`, even when a published `v0.2.0` GitHub Release with `latest.json` exists. Expected behavior: the client fetches `latest.json`, verifies its Ed25519 signature, and reports `Up to date` (when running `v0.2.0`) or `Available` (when a newer stable release exists).
+Clicking **Check for update** in Bloop v0.2.0 always transitions the updater into the `error` phase and displays `Release feed returned an unexpected HTTP status.`, even when a published `v0.2.0` GitHub Release with `latest.json` exists. Expected behavior: the client fetches `latest.json`, verifies its Ed25519 signature, and reports `Up to date` (when running `v0.2.0`) or `Available` (when a newer stable release exists).
 
 ## Reproduction
 
-1. Launch Private Talk v0.2.0 (built with the default `DEFAULT_UPDATE_FEED_URL` or CI `PRIVATE_TALK_UPDATE_URL`).
+1. Launch Bloop v0.2.0 (built with the default `DEFAULT_UPDATE_FEED_URL` or CI `PRIVATE_TALK_UPDATE_URL`).
 2. Open **Profile Settings** (or use the left navigation rail / login screen update trigger) and click **Check for update** (invoking `update_check(silent = false)` from `src/App.tsx:72-78`).
 3. Rust `HttpUpdateFeedTransport::fetch_manifest` sends an unauthenticated HTTPS `GET` to `https://github.com/truonghoangthuan/private-talk-chat/releases/latest/download/latest.json`.
 4. Because `truonghoangthuan/private-talk-chat` is a private GitHub repository (`isPrivate: true`), GitHub returns `HTTP 404 Not Found` (reproduced via unauthenticated HTTPS request and GitHub REST API).
