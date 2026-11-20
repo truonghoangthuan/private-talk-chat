@@ -1,4 +1,4 @@
-import type { ConversationDto, MessageDto, PinnedMessageDto } from "./types";
+import type { ContactDto, ConversationDto, MessageDto, PinnedMessageDto } from "./types";
 
 export interface TimelineMessageItem {
   kind: "message";
@@ -1201,6 +1201,25 @@ export function filterPinnedMessages(
     const text = (entry.message.text || "").toLowerCase();
     const sender = entry.message.sender_display_name.toLowerCase();
     return text.includes(needle) || sender.includes(needle);
+  });
+}
+
+/**
+ * Filters a contact list (the group drawer's "Select Contacts"/"Add
+ * Contacts" lists) by a case-insensitive, whitespace-trimmed substring
+ * match against the contact's display name or `@username` — same filter
+ * convention as the sidebar's conversation filter (`filterConversations`)
+ * and the Pinned-messages subtab filter (`filterPinnedMessages`), so a
+ * large contact list can be narrowed without scrolling. An empty/blank
+ * query returns every contact unchanged (including order).
+ */
+export function filterContacts(contacts: ContactDto[], query: string): ContactDto[] {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return contacts;
+  return contacts.filter((c) => {
+    const displayName = c.display_name.toLowerCase();
+    const username = c.username.toLowerCase();
+    return displayName.includes(needle) || username.includes(needle);
   });
 }
 
