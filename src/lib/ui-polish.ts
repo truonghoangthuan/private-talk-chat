@@ -178,3 +178,50 @@ export function filterConversations(
     return title.includes(needle) || preview.includes(needle);
   });
 }
+
+const SCROLL_BOTTOM_THRESHOLD_PX = 120;
+
+/**
+ * Returns true when a scrollable container is close enough to its bottom
+ * edge (within `thresholdPx`, default 120px) that auto-scrolling on new
+ * content wouldn't disrupt the viewer. Used to decide whether an incoming
+ * message should auto-scroll the timeline or just surface a "jump to
+ * latest" affordance instead.
+ */
+export function isScrolledNearBottom(
+  scrollTop: number,
+  scrollHeight: number,
+  clientHeight: number,
+  thresholdPx: number = SCROLL_BOTTOM_THRESHOLD_PX
+): boolean {
+  const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+  return distanceFromBottom <= thresholdPx;
+}
+
+export interface ScrollFollowState {
+  /** Whether the timeline should auto-scroll to the newest message now. */
+  shouldAutoScroll: boolean;
+  /** Running count of messages the viewer hasn't seen yet (while scrolled up). */
+  unseenCount: number;
+}
+
+/**
+ * Decides, on each message-list update, whether the timeline should
+ * auto-scroll to the bottom or instead accumulate an "unseen" counter for a
+ * floating "jump to latest" button. Reading history shouldn't be yanked
+ * back to the bottom by an unrelated incoming message; auto-scroll only
+ * resumes once the viewer was already near the bottom (or no messages were
+ * actually added, e.g. an edit/removal).
+ */
+export function computeScrollFollowState(
+  prevMessageCount: number,
+  nextMessageCount: number,
+  wasNearBottom: boolean,
+  prevUnseenCount: number
+): ScrollFollowState {
+  const added = Math.max(0, nextMessageCount - prevMessageCount);
+  if (wasNearBottom || added === 0) {
+    return { shouldAutoScroll: true, unseenCount: 0 };
+  }
+  return { shouldAutoScroll: false, unseenCount: prevUnseenCount + added };
+}
