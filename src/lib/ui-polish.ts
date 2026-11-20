@@ -1,4 +1,4 @@
-import type { MessageDto, PinnedMessageDto } from "./types";
+import type { ConversationDto, MessageDto, PinnedMessageDto } from "./types";
 
 export interface TimelineMessageItem {
   kind: "message";
@@ -143,4 +143,38 @@ export function syncPinnedMessage(
   return pinned.map((p) =>
     p.message_id === updated.id ? { ...p, message: updated } : p
   );
+}
+
+/**
+ * Resolves the display title for a conversation: the group name for groups
+ * (falling back to "Untitled Group"), or the other member's display name /
+ * username for a direct chat (falling back to "Direct Chat").
+ */
+export function getConversationTitle(
+  conv: ConversationDto,
+  currentUserId: string
+): string {
+  if (conv.is_group) return conv.name || "Untitled Group";
+  const peer = conv.members.find((m) => m.user_id !== currentUserId);
+  return peer?.display_name || peer?.username || "Direct Chat";
+}
+
+/**
+ * Filters the sidebar conversation list by a case-insensitive, whitespace-
+ * trimmed substring match against the conversation's resolved title and its
+ * latest message preview. An empty/blank query returns every conversation
+ * unchanged (including order).
+ */
+export function filterConversations(
+  conversations: ConversationDto[],
+  query: string,
+  currentUserId: string
+): ConversationDto[] {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return conversations;
+  return conversations.filter((conv) => {
+    const title = getConversationTitle(conv, currentUserId).toLowerCase();
+    const preview = (conv.latest_preview || "").toLowerCase();
+    return title.includes(needle) || preview.includes(needle);
+  });
 }
