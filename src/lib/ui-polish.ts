@@ -1057,6 +1057,7 @@ export const KEYBOARD_SHORTCUTS: KeyboardShortcutEntry[] = [
   { keys: "Enter / Shift + Enter", description: "Jump to the next / previous search match" },
   { keys: "↓ / ↑", description: "Jump to the next / previous search match" },
   { keys: "Ctrl/Cmd + F", description: "Open search in the current conversation" },
+  { keys: "Alt + ↓ / ↑", description: "Switch to the next / previous conversation in the sidebar" },
   { keys: "?", description: "Show this keyboard shortcuts list" },
 ];
 
@@ -1231,4 +1232,49 @@ export function insertTextAtCursor(
   const end = Math.max(0, Math.min(length, Math.max(selectionStart, selectionEnd)));
   const nextText = text.slice(0, start) + insertion + text.slice(end);
   return { text: nextText, cursor: start + insertion.length };
+}
+
+/**
+ * Decides whether a global keydown should switch the selected conversation,
+ * and in which direction (issue #70) — `Alt + ArrowDown` steps to the next
+ * conversation in the sidebar's current order, `Alt + ArrowUp` to the
+ * previous one, matching the Slack/Discord "switch channel" convention
+ * instead of the sidebar only being reachable by clicking. Returns `null`
+ * for every other key/modifier combination, including a bare arrow key
+ * without Alt held (so normal text-field cursor movement is untouched).
+ */
+export function getConversationSwitchDirection(
+  key: string,
+  altKey: boolean
+): 1 | -1 | null {
+  if (!altKey) return null;
+  if (key === "ArrowDown") return 1;
+  if (key === "ArrowUp") return -1;
+  return null;
+}
+
+/**
+ * Returns the conversation id to select when stepping `direction` (`1` for
+ * next, `-1` for previous) through `orderedIds` relative to `currentId`
+ * (issue #70), wrapping around at either end so stepping past the last
+ * conversation lands back on the first (and vice versa) rather than
+ * dead-ending. `orderedIds` is expected to already be in the sidebar's
+ * current display order (pinned-first, filtered or not) — this helper is
+ * agnostic to how that order was produced. Falls back to the first entry
+ * (stepping forward) or last entry (stepping backward) when `currentId`
+ * isn't found in `orderedIds` (e.g. nothing was selected yet), and returns
+ * `null` only when `orderedIds` is empty.
+ */
+export function getAdjacentConversationId(
+  orderedIds: string[],
+  currentId: string | null,
+  direction: 1 | -1
+): string | null {
+  if (orderedIds.length === 0) return null;
+  const currentIndex = currentId ? orderedIds.indexOf(currentId) : -1;
+  if (currentIndex === -1) {
+    return direction === 1 ? orderedIds[0] : orderedIds[orderedIds.length - 1];
+  }
+  const nextIndex = (currentIndex + direction + orderedIds.length) % orderedIds.length;
+  return orderedIds[nextIndex];
 }
