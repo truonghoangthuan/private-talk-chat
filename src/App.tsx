@@ -13,7 +13,7 @@ import { AuthScreen } from "./components/modals/AuthScreen";
 import { ProfileModal } from "./components/modals/ProfileModal";
 import { GroupManageDrawer } from "./components/modals/GroupManageDrawer";
 import { tauriClient } from "./lib/tauri-client";
-import { syncPinnedMessage, upsertMessageWithReplySync } from "./lib/ui-polish";
+import { syncPinnedMessage, upsertMessageWithReplySync, getDraft, updateDraft } from "./lib/ui-polish";
 import type {
   ContactDto,
   ConversationDto,
@@ -50,6 +50,7 @@ export function App() {
   const [replyingTo, setReplyingTo] = useState<MessageDto | null>(null);
   const [activeTab, setActiveTab] = useState<"messages" | "pinned">("messages");
   const [pinnedMessages, setPinnedMessages] = useState<PinnedMessageDto[]>([]);
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(
     null
   );
@@ -528,6 +529,13 @@ export function App() {
                     />
                     <TypingIndicator typingUsers={activeTypingUsers} />
                     <MessageComposer
+                      key={activeConversation.id}
+                      initialText={getDraft(drafts, activeConversation.id)}
+                      onDraftChange={(text) =>
+                        setDrafts((prev) =>
+                          updateDraft(prev, activeConversation.id, text)
+                        )
+                      }
                       replyingTo={replyingTo}
                       onCancelReply={() => setReplyingTo(null)}
                       onSend={async (text, attachmentPath) => {
@@ -614,6 +622,7 @@ export function App() {
           onLeaveGroup={async (cid) => {
             await tauriClient.conversationLeaveGroup(cid);
             setSelectedConversationId(null);
+            setDrafts((prev) => updateDraft(prev, cid, ""));
             await refreshContactsAndConversations();
           }}
         />

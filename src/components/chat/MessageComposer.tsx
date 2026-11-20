@@ -7,6 +7,10 @@ interface MessageComposerProps {
   onCancelReply: () => void;
   onSend: (text?: string, attachmentPath?: string) => Promise<void>;
   onTypingChange: (isTyping: boolean) => void;
+  /** Unsent draft text to restore when the composer mounts for a conversation. */
+  initialText?: string;
+  /** Called on every text change (and on clear after sending) so the caller can persist a per-conversation draft. */
+  onDraftChange?: (text: string) => void;
 }
 
 const MAX_MEDIA_BYTES = 50 * 1024 * 1024; // 50 MB (52,428,800 bytes)
@@ -24,8 +28,10 @@ export function MessageComposer({
   onCancelReply,
   onSend,
   onTypingChange,
+  initialText = "",
+  onDraftChange,
 }: MessageComposerProps) {
-  const [text, setText] = useState("");
+  const [text, setText] = useState(initialText);
   const [attachmentPath, setAttachmentPath] = useState<string | null>(null);
   const [attachmentName, setAttachmentName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -42,6 +48,7 @@ export function MessageComposer({
 
   const handleTextChange = (val: string) => {
     setText(val);
+    onDraftChange?.(val);
     resizeTextarea();
     const now = Date.now();
     if (val.trim().length > 0 && now - lastTypingPingRef.current > 2000) {
@@ -89,6 +96,7 @@ export function MessageComposer({
       setAttachmentPath(null);
       setAttachmentName(null);
       onTypingChange(false);
+      onDraftChange?.("");
     } catch (err) {
       const msg =
         typeof err === "object" && err !== null && "message" in err

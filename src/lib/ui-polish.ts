@@ -225,3 +225,41 @@ export function computeScrollFollowState(
   }
   return { shouldAutoScroll: false, unseenCount: prevUnseenCount + added };
 }
+
+/**
+ * Immutably updates the in-memory per-conversation composer draft map, so
+ * switching conversations without sending doesn't leak one conversation's
+ * unsent text into another's composer (the composer previously stayed
+ * mounted across conversation switches, carrying its internal text state
+ * along with it). Blank/whitespace-only text clears the entry entirely
+ * rather than storing an empty string, so a cleared draft doesn't linger.
+ * Returns the same map reference when the update is a no-op, so callers
+ * relying on referential equality (e.g. React state setters) can skip a
+ * re-render.
+ */
+export function updateDraft(
+  drafts: Record<string, string>,
+  conversationId: string,
+  text: string
+): Record<string, string> {
+  if (!text.trim()) {
+    if (!(conversationId in drafts)) return drafts;
+    const next = { ...drafts };
+    delete next[conversationId];
+    return next;
+  }
+  if (drafts[conversationId] === text) return drafts;
+  return { ...drafts, [conversationId]: text };
+}
+
+/**
+ * Reads the saved draft for a conversation, defaulting to an empty string
+ * when there is none (or no conversation is selected).
+ */
+export function getDraft(
+  drafts: Record<string, string>,
+  conversationId: string | null
+): string {
+  if (!conversationId) return "";
+  return drafts[conversationId] ?? "";
+}
