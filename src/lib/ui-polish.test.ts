@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  computeScrollFollowState,
   filterConversations,
   getConversationTitle,
   getMessageCopyText,
+  isScrolledNearBottom,
   syncPinnedMessage,
   upsertMessageWithReplySync,
 } from "./ui-polish";
@@ -215,5 +217,64 @@ describe("filterConversations", () => {
 
   it("returns an empty list when nothing matches", () => {
     expect(filterConversations([direct, group], "nonexistent", "u1")).toEqual([]);
+  });
+});
+
+describe("isScrolledNearBottom", () => {
+  it("is true when flush against the bottom edge", () => {
+    expect(isScrolledNearBottom(880, 1000, 120, 120)).toBe(true);
+  });
+
+  it("is true within the default 120px threshold", () => {
+    expect(isScrolledNearBottom(800, 1000, 120, 120)).toBe(true);
+  });
+
+  it("is false once scrolled past the threshold", () => {
+    expect(isScrolledNearBottom(400, 1000, 120, 120)).toBe(false);
+  });
+
+  it("is true for a short list that doesn't overflow the viewport", () => {
+    expect(isScrolledNearBottom(0, 100, 400, 120)).toBe(true);
+  });
+
+  it("honors a custom threshold", () => {
+    expect(isScrolledNearBottom(700, 1000, 120, 200)).toBe(true);
+    expect(isScrolledNearBottom(700, 1000, 120, 150)).toBe(false);
+  });
+});
+
+describe("computeScrollFollowState", () => {
+  it("auto-scrolls and clears unseen when already near the bottom", () => {
+    expect(computeScrollFollowState(10, 11, true, 0)).toEqual({
+      shouldAutoScroll: true,
+      unseenCount: 0,
+    });
+  });
+
+  it("auto-scrolls when nothing was actually added (edit/removal), even scrolled up", () => {
+    expect(computeScrollFollowState(10, 10, false, 3)).toEqual({
+      shouldAutoScroll: true,
+      unseenCount: 0,
+    });
+  });
+
+  it("accumulates unseen count instead of scrolling when reading history", () => {
+    expect(computeScrollFollowState(10, 11, false, 0)).toEqual({
+      shouldAutoScroll: false,
+      unseenCount: 1,
+    });
+  });
+
+  it("keeps accumulating unseen count across repeated updates while scrolled up", () => {
+    const first = computeScrollFollowState(10, 11, false, 0);
+    const second = computeScrollFollowState(11, 13, false, first.unseenCount);
+    expect(second).toEqual({ shouldAutoScroll: false, unseenCount: 3 });
+  });
+
+  it("resets unseen count back to zero once the viewer scrolls back near the bottom", () => {
+    expect(computeScrollFollowState(13, 14, true, 3)).toEqual({
+      shouldAutoScroll: true,
+      unseenCount: 0,
+    });
   });
 });
