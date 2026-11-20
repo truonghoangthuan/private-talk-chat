@@ -14,6 +14,7 @@ applicable.
 - fix: stop composer draft text from leaking between conversations when switching without sending; unsent drafts are now kept per-conversation and restored on return
 - feat: show date context ("Yesterday", "Nov 18", or "Nov 18, 2025") ahead of the time on message bubbles once a message wasn't sent earlier today, so scrolling into older history no longer shows a bare, date-less `HH:MM` (issue #18)
 - feat: show a soft character counter under the composer once a draft gets long (amber past 80% of a 4,000-char guidance limit, red past it), purely informational — sending is never blocked since no server-side text length cap is enforced (issue #20)
+- test: add a frontend e2e suite (Playwright + `@tauri-apps/api` mocked via a Vite alias, `npm run test:e2e`) covering login/register, conversation switching, message send, and per-conversation draft persistence against the real `App.tsx`/component tree. No Rust toolchain was available to drive the actual compiled Tauri app, so this exercises the frontend only.
 
 ## [0.3.0] - 2026-11-20
 
