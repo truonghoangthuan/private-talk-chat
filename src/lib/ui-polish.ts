@@ -404,3 +404,21 @@ export function resolveMessageBubbleEscapeAction(
 export function shouldOpenMediaLightbox(mimeType: string): boolean {
   return mimeType.startsWith("image/");
 }
+
+/** How a staged (not-yet-sent) composer attachment should be previewed. */
+export type AttachmentPreviewKind = "image" | "video" | "file";
+
+/**
+ * Decides how to preview a staged composer attachment before the user hits
+ * send. Images get a real client-side thumbnail (the caller generates it via
+ * `URL.createObjectURL` on the selected `File` — no Tauri/backend round-trip
+ * needed, since the file is already in the browser process at this point).
+ * Videos and anything else fall back to a generic icon badge: extracting a
+ * representative video frame client-side isn't worth the complexity for a
+ * transient staging preview that's replaced the moment the message sends.
+ */
+export function getAttachmentPreviewKind(mimeType: string): AttachmentPreviewKind {
+  if (mimeType.startsWith("image/")) return "image";
+  if (mimeType.startsWith("video/")) return "video";
+  return "file";
+}

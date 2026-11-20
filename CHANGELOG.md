@@ -10,6 +10,7 @@ applicable.
 
 ## [Unreleased]
 
+- feat: the staged attachment chip in the composer now shows a real thumbnail for images (generated client-side, never touching Tauri IPC) and a generic file/video icon badge otherwise, instead of just a bare filename — makes it easier to confirm the right file is about to be sent before it's encrypted (issue #29)
 - feat: clicking an image attachment now opens a full-screen lightbox (Escape, close button, or backdrop click to dismiss) so the full, uncropped image can be viewed instead of the cropped `max-h-72` inline thumbnail; videos are unchanged since `<video controls>` already has native fullscreen (issue #27)
 - feat: pressing Escape now also cancels an in-progress message edit, or dismisses a pending "Confirm remove" prompt, without needing the mouse — same convention as the composer's reply/attachment Escape handling (issue #25)
 - feat: pressing Escape in the composer now cancels an active reply (or clears a staged attachment if no reply is active) without needing the mouse, matching Slack/Discord/Telegram conventions (issue #22)
