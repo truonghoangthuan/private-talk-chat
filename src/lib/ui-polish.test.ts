@@ -44,6 +44,7 @@ import {
   shouldOpenMediaLightbox,
   shouldOpenShortcutsHelp,
   shouldFocusConversationFilter,
+  shouldShowScrollToBottomButton,
   shouldSubmitMessageEditOnKeyDown,
   sortConversationsForSidebar,
   splitMessageTextIntoLinkSegments,
@@ -639,6 +640,24 @@ describe("computeScrollFollowState", () => {
       shouldAutoScroll: true,
       unseenCount: 0,
     });
+  });
+});
+
+describe("shouldShowScrollToBottomButton", () => {
+  it("hides the button while already near the bottom", () => {
+    expect(shouldShowScrollToBottomButton(true, 0)).toBe(false);
+  });
+
+  it("shows the plain button once scrolled away from the bottom with nothing unseen", () => {
+    expect(shouldShowScrollToBottomButton(false, 0)).toBe(true);
+  });
+
+  it("defers to the 'N new messages' pill instead of double-showing a button", () => {
+    expect(shouldShowScrollToBottomButton(false, 2)).toBe(false);
+  });
+
+  it("stays hidden near the bottom even if a stale unseen count lingers", () => {
+    expect(shouldShowScrollToBottomButton(true, 2)).toBe(false);
   });
 });
 

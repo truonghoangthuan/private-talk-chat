@@ -6,6 +6,7 @@ import {
   computeScrollFollowState,
   getTimelineScrollBehavior,
   isScrolledNearBottom,
+  shouldShowScrollToBottomButton,
 } from "../../lib/ui-polish";
 import { MessageBubble } from "./MessageBubble";
 
@@ -40,6 +41,7 @@ export function MessageTimeline({
   const wasNearBottomRef = useRef(true);
   const prevMessageCountRef = useRef(messages.length);
   const [unseenCount, setUnseenCount] = useState(0);
+  const [isNearBottom, setIsNearBottom] = useState(true);
   const timelineItems = useMemo(
     () => buildTimelineItems(messages, unreadDividerMessageId),
     [messages, unreadDividerMessageId]
@@ -67,19 +69,24 @@ export function MessageTimeline({
   const handleScroll = () => {
     const el = scrollRef.current;
     if (!el) return;
-    wasNearBottomRef.current = isScrolledNearBottom(
+    const nearBottom = isScrolledNearBottom(
       el.scrollTop,
       el.scrollHeight,
       el.clientHeight
     );
-    if (wasNearBottomRef.current) setUnseenCount(0);
+    wasNearBottomRef.current = nearBottom;
+    setIsNearBottom(nearBottom);
+    if (nearBottom) setUnseenCount(0);
   };
 
   const jumpToLatest = () => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
     wasNearBottomRef.current = true;
+    setIsNearBottom(true);
     setUnseenCount(0);
   };
+
+  const showScrollToBottomButton = shouldShowScrollToBottomButton(isNearBottom, unseenCount);
 
   return (
     <div className="relative flex-1 min-h-0">
@@ -144,6 +151,18 @@ export function MessageTimeline({
         >
           <ArrowDown className="w-3.5 h-3.5" />
           {unseenCount === 1 ? "1 new message" : `${unseenCount} new messages`}
+        </button>
+      )}
+
+      {showScrollToBottomButton && (
+        <button
+          type="button"
+          onClick={jumpToLatest}
+          title="Scroll to bottom"
+          aria-label="Scroll to bottom"
+          className="animate-slide-up-fade absolute bottom-4 right-4 flex items-center justify-center w-9 h-9 rounded-full bg-[var(--bg-surface)] border border-[var(--border-hairline)] text-[var(--text-muted)] shadow-lg hover:text-[#6366F1] hover:border-[#6366F1]/40 active:scale-95 transition-all duration-150"
+        >
+          <ArrowDown className="w-4 h-4" />
         </button>
       )}
     </div>
