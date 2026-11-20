@@ -4,6 +4,8 @@ import {
   getPasswordVisibilityToggleLabel,
   resolvePasswordInputType,
   buildConversationPreviewLabel,
+  buildConversationExportText,
+  buildConversationExportFilename,
   buildEmojiPickerOrder,
   buildQuickSwitcherResults,
   buildTimelineItems,
@@ -208,6 +210,105 @@ describe("getMessageCopyText", () => {
 
   it("returns null for blank/whitespace-only text", () => {
     expect(getMessageCopyText(makeMsg({ text: "   " }))).toBeNull();
+  });
+});
+
+describe("buildConversationExportText", () => {
+  const exportedAt = new Date("2026-11-20T12:00:00Z");
+
+  it("includes a header with the conversation title and export time", () => {
+    const text = buildConversationExportText([], "General Team Chat", exportedAt);
+    expect(text).toContain("Bloop conversation export — General Team Chat");
+    expect(text).toContain("Exported");
+    expect(text).toContain("(no messages)");
+  });
+
+  it("formats a verified text message as [timestamp] sender: text", () => {
+    const text = buildConversationExportText(
+      [makeMsg({ sender_display_name: "Alice", text: "hello world" })],
+      "DM",
+      exportedAt
+    );
+    expect(text).toMatch(/\[.+\] Alice: hello world/);
+  });
+
+  it("exports a removed message as a placeholder, never its text", () => {
+    const text = buildConversationExportText(
+      [makeMsg({ is_removed: true, status: "removed", text: null })],
+      "DM",
+      exportedAt
+    );
+    expect(text).toContain("Alice: Message removed");
+    expect(text).not.toContain("hello");
+  });
+
+  it("exports a verification-failed message as a placeholder, never its text", () => {
+    const text = buildConversationExportText(
+      [makeMsg({ status: "verification_failed", text: null })],
+      "DM",
+      exportedAt
+    );
+    expect(text).toContain("Alice: Unverified message");
+  });
+
+  it("notes an attachment by file name only, alongside any caption text", () => {
+    const text = buildConversationExportText(
+      [
+        makeMsg({
+          text: "check this out",
+          attachment: {
+            mime_type: "image/png",
+            file_name: "photo.png",
+            size_bytes: 1024,
+            media_url: "privatetalk-media://localhost/c1/m1",
+          },
+        }),
+      ],
+      "DM",
+      exportedAt
+    );
+    expect(text).toContain("check this out [Attachment: photo.png]");
+    expect(text).not.toContain("privatetalk-media://");
+  });
+
+  it("marks an edited message with an (edited) suffix", () => {
+    const text = buildConversationExportText(
+      [makeMsg({ is_edited: true, text: "fixed typo" })],
+      "DM",
+      exportedAt
+    );
+    expect(text).toContain("fixed typo (edited)");
+  });
+
+  it("preserves message order across multiple lines", () => {
+    const text = buildConversationExportText(
+      [
+        makeMsg({ id: "m1", text: "first" }),
+        makeMsg({ id: "m2", text: "second" }),
+      ],
+      "DM",
+      exportedAt
+    );
+    expect(text.indexOf("first")).toBeLessThan(text.indexOf("second"));
+  });
+});
+
+describe("buildConversationExportFilename", () => {
+  const exportedAt = new Date("2026-11-20T12:00:00Z");
+
+  it("slugifies the conversation title and appends the export date", () => {
+    expect(buildConversationExportFilename("General Team Chat!", exportedAt)).toBe(
+      "bloop-export-general-team-chat-2026-11-20.txt"
+    );
+  });
+
+  it("falls back to a generic name for an empty or punctuation-only title", () => {
+    expect(buildConversationExportFilename("🎉🎉", exportedAt)).toBe(
+      "bloop-export-conversation-2026-11-20.txt"
+    );
+    expect(buildConversationExportFilename("", exportedAt)).toBe(
+      "bloop-export-conversation-2026-11-20.txt"
+    );
   });
 });
 

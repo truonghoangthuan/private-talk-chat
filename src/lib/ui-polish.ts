@@ -198,6 +198,102 @@ export function syncPinnedMessage(
   );
 }
 
+/**
+ * Builds a plain-text export of a conversation's already-loaded message
+ * history (Slack/WhatsApp/Telegram "export chat" convention) — one line
+ * per message as `[<full timestamp>] <sender>: <body>`, so a conversation
+ * can be kept as a personal record outside the app instead of only ever
+ * being viewable while scrolled into view in the timeline. Only formats
+ * already-decrypted, already-loaded `MessageDto` data that's already
+ * rendered on screen; nothing new is fetched, decrypted, or transmitted.
+ *
+ * Mirrors the same fail-closed placeholders the timeline already shows
+ * instead of ever including raw ciphertext: a removed message exports as
+ * "Message removed" and a signature-verification failure exports as
+ * "Unverified message" — neither carries real content. An attachment is
+ * noted by file name only (`[Attachment: <name>]`); the binary itself is
+ * never embedded in the export. `exportedAt` is injectable (defaults to
+ * the real current time) so the header line stays deterministic in tests.
+ */
+export function buildConversationExportText(
+  messages: MessageDto[],
+  conversationTitle: string,
+  exportedAt: Date = new Date()
+): string {
+  const header = `Bloop conversation export — ${conversationTitle}\nExported ${formatFullMessageTimestamp(
+    exportedAt.toISOString()
+  )}\n${"=".repeat(60)}`;
+
+  if (messages.length === 0) {
+    return `${header}\n(no messages)\n`;
+  }
+
+  const lines = messages.map((message) => {
+    const timestamp = formatFullMessageTimestamp(message.created_at);
+    let body: string;
+    if (message.is_removed || message.status === "removed") {
+      body = "Message removed";
+    } else if (message.status === "verification_failed") {
+      body = "Unverified message";
+    } else {
+      const parts: string[] = [];
+      if (message.text) parts.push(message.text);
+      if (message.attachment) parts.push(`[Attachment: ${message.attachment.file_name}]`);
+      body = parts.length > 0 ? parts.join(" ") : "[Empty message]";
+      if (message.is_edited) body += " (edited)";
+    }
+    return `[${timestamp}] ${message.sender_display_name}: ${body}`;
+  });
+
+  return `${header}\n${lines.join("\n")}\n`;
+}
+
+/**
+ * Builds a filesystem-safe `.txt` filename for a conversation export,
+ * e.g. `bloop-export-general-team-chat-2026-11-20.txt` — lowercased,
+ * non-alphanumeric runs collapsed to a single hyphen, trimmed of leading/
+ * trailing hyphens, and falling back to "conversation" if the title is
+ * empty or entirely punctuation (e.g. an emoji-only group name).
+ */
+export function buildConversationExportFilename(
+  conversationTitle: string,
+  exportedAt: Date = new Date()
+): string {
+  const slug = conversationTitle
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  const datePart = exportedAt.toISOString().slice(0, 10);
+  return `bloop-export-${slug || "conversation"}-${datePart}.txt`;
+}
+
+/**
+ * Triggers a browser-native download of plain-text content as a file, via
+ * a short-lived Blob URL — the standard client-side "save as file"
+ * pattern (no Tauri IPC or filesystem access involved; the browser's own
+ * download manager writes the file, same as any web app's export button).
+ * A no-op when `document`/`URL` aren't available (e.g. the Vitest `node`
+ * test environment), since this is a best-effort UI convenience and
+ * should never throw.
+ */
+export function downloadTextFile(filename: string, content: string): void {
+  if (typeof document === "undefined" || typeof URL === "undefined") return;
+  try {
+    const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.rel = "noopener";
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  } catch {
+    // Download unavailable in this environment; nothing to recover from.
+  }
+}
+
 export interface MessageTextSegment {
   text: string;
   isLink: boolean;

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Lock, Pin, Search, Settings2, Users } from "lucide-react";
+import { Download, Lock, Pin, Search, Settings2, Users } from "lucide-react";
 import type { ConversationDto } from "../../lib/types";
 import { formatCryptoFingerprint } from "../../lib/ui-polish";
 
@@ -13,6 +13,8 @@ interface ChatHeaderProps {
   onTabChange: (tab: "messages" | "pinned") => void;
   onToggleSearch: () => void;
   onOpenGroupDrawer: () => void;
+  /** Exports the currently-loaded message history to a local .txt file (issue #106). */
+  onExportConversation?: () => void;
 }
 
 export function ChatHeader({
@@ -25,6 +27,7 @@ export function ChatHeader({
   onTabChange,
   onToggleSearch,
   onOpenGroupDrawer,
+  onExportConversation,
 }: ChatHeaderProps) {
   const peer = !conversation.is_group
     ? conversation.members.find((m) => m.user_id !== currentUserId)
@@ -106,6 +109,17 @@ export function ChatHeader({
       </div>
 
       <div className="flex items-center gap-2">
+        {onExportConversation && (
+          <button
+            type="button"
+            onClick={onExportConversation}
+            title="Export conversation to a .txt file"
+            className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
+          >
+            <Download className="w-3.5 h-3.5" />
+          </button>
+        )}
+
         <button
           type="button"
           onClick={onToggleSearch}
