@@ -74,6 +74,8 @@ import {
   MIN_SIDEBAR_WIDTH,
   MAX_SIDEBAR_WIDTH,
   DEFAULT_SIDEBAR_WIDTH,
+  findLastEditableOwnMessageId,
+  shouldTriggerEditLastMessage,
 } from "./ui-polish";
 import type { ContactDto, ConversationDto, MessageDto, PinnedMessageDto } from "./types";
 import type { MessageNotificationToast } from "./ui-polish";
@@ -1532,6 +1534,72 @@ describe("KEYBOARD_SHORTCUTS", () => {
       expect(entry.keys.length).toBeGreaterThan(0);
       expect(entry.description.length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe("findLastEditableOwnMessageId", () => {
+  it("returns null when there are no messages", () => {
+    expect(findLastEditableOwnMessageId([], "u1")).toBeNull();
+  });
+
+  it("returns null when the user has never sent a message", () => {
+    const messages = [makeMsg({ id: "m1", sender_id: "u2" })];
+    expect(findLastEditableOwnMessageId(messages, "u1")).toBeNull();
+  });
+
+  it("returns the most recent own message, ignoring other senders", () => {
+    const messages = [
+      makeMsg({ id: "m1", sender_id: "u1" }),
+      makeMsg({ id: "m2", sender_id: "u2" }),
+      makeMsg({ id: "m3", sender_id: "u1" }),
+    ];
+    expect(findLastEditableOwnMessageId(messages, "u1")).toBe("m3");
+  });
+
+  it("skips a removed own message, falling back to an earlier eligible one", () => {
+    const messages = [
+      makeMsg({ id: "m1", sender_id: "u1" }),
+      makeMsg({ id: "m2", sender_id: "u1", is_removed: true }),
+    ];
+    expect(findLastEditableOwnMessageId(messages, "u1")).toBe("m1");
+  });
+
+  it("skips an unverified own message", () => {
+    const messages = [
+      makeMsg({ id: "m1", sender_id: "u1" }),
+      makeMsg({ id: "m2", sender_id: "u1", status: "verification_failed" }),
+    ];
+    expect(findLastEditableOwnMessageId(messages, "u1")).toBe("m1");
+  });
+
+  it("skips an attachment-only own message with no text", () => {
+    const messages = [
+      makeMsg({ id: "m1", sender_id: "u1" }),
+      makeMsg({ id: "m2", sender_id: "u1", text: null }),
+    ];
+    expect(findLastEditableOwnMessageId(messages, "u1")).toBe("m1");
+  });
+
+  it("returns null when every own message is ineligible", () => {
+    const messages = [
+      makeMsg({ id: "m1", sender_id: "u1", is_removed: true }),
+      makeMsg({ id: "m2", sender_id: "u1", text: null }),
+    ];
+    expect(findLastEditableOwnMessageId(messages, "u1")).toBeNull();
+  });
+});
+
+describe("shouldTriggerEditLastMessage", () => {
+  it("fires when the composer is empty and no mention dropdown is open", () => {
+    expect(shouldTriggerEditLastMessage("", false)).toBe(true);
+  });
+
+  it("does not fire when the composer has text", () => {
+    expect(shouldTriggerEditLastMessage("hello", false)).toBe(false);
+  });
+
+  it("does not fire while the mention dropdown is open, even with empty text", () => {
+    expect(shouldTriggerEditLastMessage("", true)).toBe(false);
   });
 });
 

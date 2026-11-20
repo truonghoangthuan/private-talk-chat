@@ -15,6 +15,7 @@ import {
   recordRecentEmoji,
   resolveComposerEscapeAction,
   saveRecentEmojis,
+  shouldTriggerEditLastMessage,
   validateAttachmentPath,
 } from "../../lib/ui-polish";
 
@@ -23,6 +24,8 @@ interface MessageComposerProps {
   onCancelReply: () => void;
   onSend: (text?: string, attachmentPath?: string) => Promise<void>;
   onTypingChange: (isTyping: boolean) => void;
+  /** Called when ArrowUp is pressed in an empty composer (issue #98), to jump into editing the sender's own last message. */
+  onEditLastMessage?: () => void;
   /** Unsent draft text to restore when the composer mounts for a conversation. */
   initialText?: string;
   /** Called on every text change (and on clear after sending) so the caller can persist a per-conversation draft. */
@@ -38,6 +41,7 @@ export function MessageComposer({
   onCancelReply,
   onSend,
   onTypingChange,
+  onEditLastMessage,
   initialText = "",
   onDraftChange,
   members = [],
@@ -242,6 +246,15 @@ export function MessageComposer({
       if (!sending && (text.trim().length > 0 || attachmentPath)) {
         void submitMessage();
       }
+      return;
+    }
+    if (
+      e.key === "ArrowUp" &&
+      onEditLastMessage &&
+      shouldTriggerEditLastMessage(text, Boolean(mentionState && mentionCandidates.length > 0))
+    ) {
+      e.preventDefault();
+      onEditLastMessage();
       return;
     }
     if (e.key === "Escape") {

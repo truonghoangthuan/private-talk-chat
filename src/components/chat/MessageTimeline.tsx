@@ -22,6 +22,9 @@ interface MessageTimelineProps {
   onReplyMessage: (message: MessageDto) => void;
   onTogglePinMessage: (message: MessageDto) => Promise<void>;
   onJumpToMessage: (messageId: string) => void;
+  /** Forwarded to bubbles (issue #98) so the composer's "ArrowUp to edit last message" shortcut can open the right one in edit mode. */
+  autoEditMessageId?: string | null;
+  onAutoEditConsumed?: () => void;
 }
 
 export function MessageTimeline({
@@ -35,6 +38,8 @@ export function MessageTimeline({
   onReplyMessage,
   onTogglePinMessage,
   onJumpToMessage,
+  autoEditMessageId = null,
+  onAutoEditConsumed,
 }: MessageTimelineProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
@@ -136,6 +141,8 @@ export function MessageTimeline({
                 onReply={onReplyMessage}
                 onTogglePin={onTogglePinMessage}
                 onJumpToMessage={onJumpToMessage}
+                autoEditMessageId={autoEditMessageId}
+                onAutoEditConsumed={onAutoEditConsumed}
               />
             )
           )

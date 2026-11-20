@@ -48,6 +48,7 @@ import {
   buildMessageNotificationPreview,
   appendMessageToast,
   dismissMessageToast,
+  findLastEditableOwnMessageId,
 } from "./lib/ui-polish";
 import type {
   ContactDto,
@@ -98,6 +99,7 @@ export function App() {
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(
     null
   );
+  const [autoEditMessageId, setAutoEditMessageId] = useState<string | null>(null);
   const [unreadDividerMessageId, setUnreadDividerMessageId] = useState<string | null>(
     null
   );
@@ -508,6 +510,19 @@ export function App() {
     });
   }, []);
 
+  // Composer's "ArrowUp in an empty composer to edit your last message"
+  // shortcut (issue #98) — finds the most recent editable message the
+  // signed-in user sent in the active conversation, scrolls/highlights it
+  // into view (same as jumping to a reply/pinned message), and flags it
+  // for `MessageBubble` to open directly in edit mode.
+  const handleEditLastMessage = useCallback(() => {
+    if (!user) return;
+    const targetId = findLastEditableOwnMessageId(messages, user.id);
+    if (!targetId) return;
+    scrollToMessage(targetId);
+    setAutoEditMessageId(targetId);
+  }, [messages, user, scrollToMessage]);
+
   useEffect(() => {
     if (!user) return;
 
@@ -897,6 +912,8 @@ export function App() {
                         setPinnedMessages(updatedPins);
                       }}
                       onJumpToMessage={scrollToMessage}
+                      autoEditMessageId={autoEditMessageId}
+                      onAutoEditConsumed={() => setAutoEditMessageId(null)}
                     />
                     <TypingIndicator typingUsers={activeTypingUsers} />
                     <MessageComposer
@@ -904,6 +921,7 @@ export function App() {
                       initialText={getDraft(drafts, activeConversation.id)}
                       members={activeConversation.members}
                       isGroup={activeConversation.is_group}
+                      onEditLastMessage={handleEditLastMessage}
                       onDraftChange={(text) =>
                         setDrafts((prev) =>
                           updateDraft(prev, activeConversation.id, text)
