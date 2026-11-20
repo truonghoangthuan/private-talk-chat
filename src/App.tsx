@@ -27,7 +27,10 @@ import {
   formatOfflineDuration,
   getAdjacentConversationId,
   getConversationSwitchDirection,
+  getNextUnreadConversationId,
   getUnreadConversationIds,
+  getUnreadConversationJumpDirection,
+  getUnreadForDisplayConversationIds,
   loadManuallyUnreadConversationIds,
   loadMutedConversationIds,
   loadPinnedConversationIds,
@@ -352,6 +355,30 @@ export function App() {
         document.getElementById("sidebar-conversation-filter")?.focus();
         return;
       }
+      const unreadJumpDirection = getUnreadConversationJumpDirection(
+        e.key,
+        e.altKey,
+        e.shiftKey
+      );
+      if (unreadJumpDirection !== null && conversations.length > 0) {
+        e.preventDefault();
+        const orderedIds = sortConversationsForSidebar(
+          conversations,
+          user ? loadPinnedConversationIds(user.id) : []
+        ).map((c) => c.id);
+        const unreadIds = getUnreadForDisplayConversationIds(
+          conversations,
+          manuallyUnreadConversationIds
+        );
+        const nextUnreadId = getNextUnreadConversationId(
+          orderedIds,
+          selectedConversationId,
+          unreadJumpDirection,
+          unreadIds
+        );
+        if (nextUnreadId) setSelectedConversationId(nextUnreadId);
+        return;
+      }
       const direction = getConversationSwitchDirection(e.key, e.altKey);
       if (direction !== null && conversations.length > 0) {
         e.preventDefault();
@@ -365,7 +392,7 @@ export function App() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [selectedConversationId, conversations, user]);
+  }, [selectedConversationId, conversations, user, manuallyUnreadConversationIds]);
 
   const refreshContactsAndConversations = useCallback(async () => {
     const [cList, convList] = await Promise.all([
