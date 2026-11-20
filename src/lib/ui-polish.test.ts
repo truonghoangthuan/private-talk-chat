@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+  assessPasswordStrength,
   buildEmojiPickerOrder,
   buildTimelineItems,
   computeComposerCharacterState,
@@ -1423,5 +1424,40 @@ describe("filterContacts", () => {
   it("trims surrounding whitespace from the query before matching", () => {
     const contacts = [makeContact({ id: "u1", display_name: "Alice Nguyen" })];
     expect(filterContacts(contacts, "  alice  ")).toHaveLength(1);
+  });
+});
+
+describe("assessPasswordStrength", () => {
+  it("scores anything under 8 characters as Too short / 0, regardless of complexity", () => {
+    expect(assessPasswordStrength("aB3!")).toEqual({ label: "Too short", score: 0 });
+    expect(assessPasswordStrength("")).toEqual({ label: "Too short", score: 0 });
+  });
+
+  it("scores an 8-9 char single-class password as Weak", () => {
+    expect(assessPasswordStrength("aaaaaaaa")).toEqual({ label: "Weak", score: 1 });
+    expect(assessPasswordStrength("password")).toEqual({ label: "Weak", score: 1 });
+  });
+
+  it("scores a 14+ char single-class password as Fair via length milestones alone", () => {
+    expect(assessPasswordStrength("aaaaaaaaaaaaaa")).toEqual({ label: "Fair", score: 2 });
+  });
+
+  it("scores a short password with 3 character classes as Fair", () => {
+    expect(assessPasswordStrength("aaaaaaB3")).toEqual({ label: "Fair", score: 2 });
+  });
+
+  it("scores a 10+ char password with 3 character classes as Good", () => {
+    expect(assessPasswordStrength("aaaaaaaaaaB3")).toEqual({ label: "Good", score: 3 });
+  });
+
+  it("scores a long password with 3+ character classes as Strong", () => {
+    expect(assessPasswordStrength("Correct9Horse!")).toEqual({ label: "Strong", score: 4 });
+  });
+
+  it("never exceeds a score of 4 even with every class and extreme length", () => {
+    expect(assessPasswordStrength("Th1s-Is-A-Very-Long-P@ssw0rd-123!")).toEqual({
+      label: "Strong",
+      score: 4,
+    });
   });
 });

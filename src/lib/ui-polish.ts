@@ -1297,3 +1297,52 @@ export function getAdjacentConversationId(
   const nextIndex = (currentIndex + direction + orderedIds.length) % orderedIds.length;
   return orderedIds[nextIndex];
 }
+
+export type PasswordStrengthLabel = "Too short" | "Weak" | "Fair" | "Good" | "Strong";
+
+export interface PasswordStrengthResult {
+  label: PasswordStrengthLabel;
+  /** 0 when below the 8-char minimum, otherwise 1 (weakest) to 4 (strongest) — number of meter segments to fill. */
+  score: 0 | 1 | 2 | 3 | 4;
+}
+
+/**
+ * Scores a candidate password for the registration form's strength meter
+ * (issue #74) — purely client-side guidance based on length and
+ * character-class variety, never an actual entropy calculation and never
+ * transmitted anywhere. This is independent of (and does not relax) the
+ * existing 8-character minimum validation, and has no bearing on the
+ * split-credential auth derivation that already keeps the raw password off
+ * the wire (see AGENTS.md) — the server never sees it either way.
+ *
+ * Below 8 characters always scores "Too short" (0), matching the form's
+ * existing hard minimum. From there, length milestones (10, 14 chars) and
+ * character-class count (lowercase/uppercase/digit/symbol, out of 4) each
+ * contribute a point; the total (0-4) maps directly to the 1-4 score so a
+ * short single-class password still floors at "Weak" rather than 0.
+ */
+export function assessPasswordStrength(password: string): PasswordStrengthResult {
+  if (password.length < 8) {
+    return { label: "Too short", score: 0 };
+  }
+  const classCount =
+    (/[a-z]/.test(password) ? 1 : 0) +
+    (/[A-Z]/.test(password) ? 1 : 0) +
+    (/[0-9]/.test(password) ? 1 : 0) +
+    (/[^a-zA-Z0-9]/.test(password) ? 1 : 0);
+
+  let points = 0;
+  if (password.length >= 10) points += 1;
+  if (password.length >= 14) points += 1;
+  if (classCount >= 2) points += 1;
+  if (classCount >= 3) points += 1;
+
+  const score = Math.min(4, Math.max(1, points)) as 1 | 2 | 3 | 4;
+  const labelsByScore: Record<1 | 2 | 3 | 4, PasswordStrengthLabel> = {
+    1: "Weak",
+    2: "Fair",
+    3: "Good",
+    4: "Strong",
+  };
+  return { label: labelsByScore[score], score };
+}

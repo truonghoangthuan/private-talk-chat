@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { AlertTriangle, Download, Lock, RefreshCw } from "lucide-react";
 import appIcon from "../../assets/app-icon.png";
 import type { UpdateStatusDto } from "../../lib/types";
+import { assessPasswordStrength } from "../../lib/ui-polish";
 
 interface AuthScreenProps {
   updateStatus: UpdateStatusDto;
@@ -17,6 +18,21 @@ interface AuthScreenProps {
 
 const USERNAME_RE = /^[a-zA-Z0-9_]{3,32}$/;
 
+// Score 0 ("Too short") is never rendered by the meter (see password.length
+// check at the call site), so these maps only need to cover 1-4.
+const PASSWORD_STRENGTH_BAR_COLOR: Record<1 | 2 | 3 | 4, string> = {
+  1: "bg-[#EF4444]",
+  2: "bg-[#F59E0B]",
+  3: "bg-[#6366F1]",
+  4: "bg-[#10B981]",
+};
+const PASSWORD_STRENGTH_TEXT_COLOR: Record<1 | 2 | 3 | 4, string> = {
+  1: "text-[#EF4444]",
+  2: "text-[#F59E0B]",
+  3: "text-[#6366F1]",
+  4: "text-[#10B981]",
+};
+
 export function AuthScreen({
   updateStatus,
   onCheckUpdate,
@@ -30,6 +46,10 @@ export function AuthScreen({
   const [displayName, setDisplayName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const passwordStrength = useMemo(
+    () => assessPasswordStrength(password),
+    [password]
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -158,6 +178,27 @@ export function AuthScreen({
               placeholder="••••••••••••"
               className="w-full px-3 py-2 text-sm rounded-xl bg-[var(--bg-canvas)] border border-[var(--border-hairline)] focus:outline-none focus:border-[#6366F1]"
             />
+            {mode === "register" && password.length > 0 && (
+              <div className="mt-1.5" aria-live="polite">
+                <div className="flex gap-1">
+                  {[1, 2, 3, 4].map((segment) => (
+                    <div
+                      key={segment}
+                      className={`h-1 flex-1 rounded-full transition-colors ${
+                        segment <= passwordStrength.score
+                          ? PASSWORD_STRENGTH_BAR_COLOR[passwordStrength.score as 1 | 2 | 3 | 4]
+                          : "bg-[var(--border-hairline)]"
+                      }`}
+                    />
+                  ))}
+                </div>
+                <p
+                  className={`mt-1 text-[11px] font-medium ${PASSWORD_STRENGTH_TEXT_COLOR[passwordStrength.score as 1 | 2 | 3 | 4]}`}
+                >
+                  {passwordStrength.label}
+                </p>
+              </div>
+            )}
           </div>
 
           {error && (
