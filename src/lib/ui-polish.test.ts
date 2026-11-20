@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  filterConversations,
+  getConversationTitle,
   getMessageCopyText,
   syncPinnedMessage,
   upsertMessageWithReplySync,
 } from "./ui-polish";
-import type { MessageDto, PinnedMessageDto } from "./types";
+import type { ConversationDto, MessageDto, PinnedMessageDto } from "./types";
 
 function makeMsg(overrides: Partial<MessageDto> = {}): MessageDto {
   return {
@@ -127,5 +129,91 @@ describe("getMessageCopyText", () => {
 
   it("returns null for blank/whitespace-only text", () => {
     expect(getMessageCopyText(makeMsg({ text: "   " }))).toBeNull();
+  });
+});
+
+function makeConv(overrides: Partial<ConversationDto> = {}): ConversationDto {
+  return {
+    id: "c1",
+    is_group: false,
+    name: null,
+    host_id: null,
+    current_epoch: 1,
+    members: [
+      {
+        user_id: "u1",
+        username: "me",
+        display_name: "Me",
+        avatar_url: null,
+        is_online: true,
+        is_host: false,
+        joined_at: "2026-11-20T00:00:00Z",
+      },
+      {
+        user_id: "u2",
+        username: "bob_builder",
+        display_name: "Bob Builder",
+        avatar_url: null,
+        is_online: false,
+        is_host: false,
+        joined_at: "2026-11-20T00:00:00Z",
+      },
+    ],
+    latest_preview: "See you tomorrow",
+    latest_timestamp: "2026-11-20T00:00:00Z",
+    unread_count: 0,
+    updated_at: "2026-11-20T00:00:00Z",
+    ...overrides,
+  };
+}
+
+describe("getConversationTitle", () => {
+  it("uses the group name for groups, falling back to Untitled Group", () => {
+    expect(
+      getConversationTitle(makeConv({ is_group: true, name: "Weekend Trip" }), "u1")
+    ).toBe("Weekend Trip");
+    expect(getConversationTitle(makeConv({ is_group: true, name: null }), "u1")).toBe(
+      "Untitled Group"
+    );
+  });
+
+  it("uses the peer's display name for direct chats, falling back to username then Direct Chat", () => {
+    expect(getConversationTitle(makeConv(), "u1")).toBe("Bob Builder");
+
+    const noDisplayName = makeConv();
+    noDisplayName.members[1] = { ...noDisplayName.members[1], display_name: "" };
+    expect(getConversationTitle(noDisplayName, "u1")).toBe("bob_builder");
+
+    expect(getConversationTitle(makeConv({ members: [] }), "u1")).toBe("Direct Chat");
+  });
+});
+
+describe("filterConversations", () => {
+  const direct = makeConv({ id: "c1" });
+  const group = makeConv({
+    id: "c2",
+    is_group: true,
+    name: "Engineering Team",
+    latest_preview: "Deploy is green",
+    members: [],
+  });
+
+  it("returns every conversation unchanged for a blank query", () => {
+    expect(filterConversations([direct, group], "", "u1")).toEqual([direct, group]);
+    expect(filterConversations([direct, group], "   ", "u1")).toEqual([direct, group]);
+  });
+
+  it("matches case-insensitively against the resolved title", () => {
+    expect(filterConversations([direct, group], "bob", "u1")).toEqual([direct]);
+    expect(filterConversations([direct, group], "ENGINEERING", "u1")).toEqual([group]);
+  });
+
+  it("matches against the latest message preview", () => {
+    expect(filterConversations([direct, group], "deploy", "u1")).toEqual([group]);
+    expect(filterConversations([direct, group], "see you", "u1")).toEqual([direct]);
+  });
+
+  it("returns an empty list when nothing matches", () => {
+    expect(filterConversations([direct, group], "nonexistent", "u1")).toEqual([]);
   });
 });
