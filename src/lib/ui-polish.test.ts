@@ -40,6 +40,7 @@ import {
   loadManuallyUnreadConversationIds,
   loadMutedConversationIds,
   loadThemePreference,
+  loadClockFormatPreference,
   QUICK_EMOJIS,
   recordRecentEmoji,
   resolveComposerEscapeAction,
@@ -49,6 +50,7 @@ import {
   saveMutedConversationIds,
   saveRecentEmojis,
   saveThemePreference,
+  saveClockFormatPreference,
   shouldOpenConversationSearch,
   shouldOpenMediaLightbox,
   shouldOpenQuickSwitcher,
@@ -290,6 +292,24 @@ describe("buildConversationExportText", () => {
       exportedAt
     );
     expect(text.indexOf("first")).toBeLessThan(text.indexOf("second"));
+  });
+
+  it("threads the use24Hour preference into exported timestamps (issue #108)", () => {
+    const text24 = buildConversationExportText(
+      [makeMsg({ text: "hello", created_at: "2026-11-20T13:30:00Z" })],
+      "DM",
+      exportedAt,
+      true
+    );
+    expect(text24).not.toMatch(/AM|PM/i);
+
+    const text12 = buildConversationExportText(
+      [makeMsg({ text: "hello", created_at: "2026-11-20T13:30:00Z" })],
+      "DM",
+      exportedAt,
+      false
+    );
+    expect(text12).toMatch(/AM|PM/i);
   });
 });
 
@@ -985,6 +1005,19 @@ describe("formatMessageTimestamp", () => {
     const { timeLabel } = formatMessageTimestamp(sentLongAgo, referenceNow);
     expect(timeLabel.length).toBeGreaterThan(0);
   });
+
+  it("renders a 24-hour time label without AM/PM when use24Hour is true (issue #108)", () => {
+    const sentAfternoon = new Date(2026, 10, 20, 13, 5).toISOString();
+    const { timeLabel } = formatMessageTimestamp(sentAfternoon, referenceNow, true);
+    expect(timeLabel).toContain("13");
+    expect(timeLabel).not.toMatch(/AM|PM/i);
+  });
+
+  it("renders a 12-hour AM/PM time label by default (use24Hour omitted)", () => {
+    const sentAfternoon = new Date(2026, 10, 20, 13, 5).toISOString();
+    const { timeLabel } = formatMessageTimestamp(sentAfternoon, referenceNow);
+    expect(timeLabel).toMatch(/AM|PM/i);
+  });
 });
 
 describe("formatFullMessageTimestamp", () => {
@@ -1014,6 +1047,70 @@ describe("formatFullMessageTimestamp", () => {
     const first = formatFullMessageTimestamp(new Date(2025, 10, 20, 9, 0).toISOString());
     const second = formatFullMessageTimestamp(new Date(2025, 10, 21, 9, 0).toISOString());
     expect(first).not.toBe(second);
+  });
+
+  it("renders a 24-hour time without AM/PM when use24Hour is true (issue #108)", () => {
+    const sent = new Date(2025, 10, 20, 13, 32, 45).toISOString();
+    const full = formatFullMessageTimestamp(sent, true);
+    expect(full).toContain("13:32:45");
+    expect(full).not.toMatch(/AM|PM/i);
+  });
+
+  it("renders a 12-hour AM/PM time by default (use24Hour omitted)", () => {
+    const sent = new Date(2025, 10, 20, 13, 32, 45).toISOString();
+    const full = formatFullMessageTimestamp(sent);
+    expect(full).toMatch(/AM|PM/i);
+  });
+});
+
+describe("loadClockFormatPreference / saveClockFormatPreference", () => {
+  let store: Record<string, string>;
+
+  beforeEach(() => {
+    store = {};
+    (globalThis as { localStorage?: Storage }).localStorage = {
+      getItem: (key: string) => (key in store ? store[key] : null),
+      setItem: (key: string, value: string) => {
+        store[key] = value;
+      },
+      removeItem: (key: string) => {
+        delete store[key];
+      },
+      clear: () => {
+        store = {};
+      },
+      get length() {
+        return Object.keys(store).length;
+      },
+      key: (index: number) => Object.keys(store)[index] ?? null,
+    } as Storage;
+  });
+
+  afterEach(() => {
+    delete (globalThis as { localStorage?: Storage }).localStorage;
+  });
+
+  it('defaults to "12h" when nothing has been saved yet', () => {
+    expect(loadClockFormatPreference()).toBe("12h");
+  });
+
+  it("round-trips an explicitly saved preference", () => {
+    saveClockFormatPreference("24h");
+    expect(loadClockFormatPreference()).toBe("24h");
+
+    saveClockFormatPreference("12h");
+    expect(loadClockFormatPreference()).toBe("12h");
+  });
+
+  it('falls back to "12h" when localStorage is unavailable', () => {
+    delete (globalThis as { localStorage?: Storage }).localStorage;
+    expect(loadClockFormatPreference()).toBe("12h");
+    expect(() => saveClockFormatPreference("24h")).not.toThrow();
+  });
+
+  it('falls back to "12h" on a corrupt/unexpected stored value', () => {
+    store["bloop:clock-format"] = "not-a-valid-format";
+    expect(loadClockFormatPreference()).toBe("12h");
   });
 });
 

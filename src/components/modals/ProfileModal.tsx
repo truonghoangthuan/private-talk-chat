@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { AlertTriangle, Download, RefreshCw, ShieldCheck, Upload, X } from "lucide-react";
+import { AlertTriangle, Clock, Download, RefreshCw, ShieldCheck, Upload, X } from "lucide-react";
 import { extractErrorMessage, tauriClient } from "../../lib/tauri-client";
 import type { UpdateStatusDto, UserProfileDto } from "../../lib/types";
 import {
@@ -11,6 +11,9 @@ import {
 interface ProfileModalProps {
   user: UserProfileDto;
   updateStatus: UpdateStatusDto;
+  /** Whether message timestamps render in 24-hour time (issue #108). */
+  use24Hour: boolean;
+  onToggleClockFormat: () => void;
   onCheckUpdate: () => void;
   onInstallUpdate: () => void;
   onClose: () => void;
@@ -20,6 +23,8 @@ interface ProfileModalProps {
 export function ProfileModal({
   user,
   updateStatus,
+  use24Hour,
+  onToggleClockFormat,
   onCheckUpdate,
   onInstallUpdate,
   onClose,
@@ -161,6 +166,36 @@ export function ProfileModal({
         </form>
 
         <div className="mt-5 pt-4 border-t border-[var(--border-hairline)] space-y-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Clock className="w-3.5 h-3.5 text-[var(--text-muted)]" />
+              <div>
+                <h3 className="text-xs font-semibold">24-Hour Clock</h3>
+                <p className="text-xs text-[var(--text-muted)]">
+                  Show message timestamps in 24-hour time instead of AM/PM
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={use24Hour}
+              onClick={onToggleClockFormat}
+              title={use24Hour ? "Switch to 12-hour clock" : "Switch to 24-hour clock"}
+              className={`relative w-9 h-5 rounded-full transition-colors shrink-0 ${
+                use24Hour ? "bg-[#6366F1]" : "bg-[var(--bg-canvas)] border border-[var(--border-hairline)]"
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                  use24Hour ? "translate-x-4" : "translate-x-0"
+                }`}
+              />
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-4 pt-4 border-t border-[var(--border-hairline)] space-y-2.5">
           <div className="flex items-center justify-between gap-2">
             <div>
               <h3 className="text-xs font-semibold">Application Update</h3>
