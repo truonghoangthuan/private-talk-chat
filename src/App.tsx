@@ -14,7 +14,7 @@ import { AuthScreen } from "./components/modals/AuthScreen";
 import { ProfileModal } from "./components/modals/ProfileModal";
 import { GroupManageDrawer } from "./components/modals/GroupManageDrawer";
 import { tauriClient } from "./lib/tauri-client";
-import { syncPinnedMessage, upsertMessageWithReplySync, getDraft, updateDraft } from "./lib/ui-polish";
+import { syncPinnedMessage, upsertMessageWithReplySync, getDraft, updateDraft, findUnreadDividerMessageId } from "./lib/ui-polish";
 import type {
   ContactDto,
   ConversationDto,
@@ -54,6 +54,9 @@ export function App() {
   const [pinnedMessages, setPinnedMessages] = useState<PinnedMessageDto[]>([]);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(
+    null
+  );
+  const [unreadDividerMessageId, setUnreadDividerMessageId] = useState<string | null>(
     null
   );
   const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(new Set());
@@ -179,13 +182,22 @@ export function App() {
     setActiveTab("messages");
     setSearchOpen(false);
     setHighlightedMessageId(null);
+    setUnreadDividerMessageId(null);
     if (!user || !selectedConversationId) {
       setMessages([]);
       setPinnedMessages([]);
       return;
     }
+    // Snapshot the unread count now, before marking anything seen resets it to 0 —
+    // the divider anchors to where the viewer left off, not a count that's about
+    // to disappear.
+    const unreadSnapshot =
+      conversations.find((c) => c.id === selectedConversationId)?.unread_count ?? 0;
     tauriClient.messageList(selectedConversationId, 50).then((list) => {
       setMessages(list);
+      setUnreadDividerMessageId(
+        findUnreadDividerMessageId(list, unreadSnapshot, user.id)
+      );
       const lastIncoming = [...list]
         .reverse()
         .find((m) => m.sender_id !== user.id && !m.is_removed);
@@ -199,6 +211,10 @@ export function App() {
       .messageListPinned(selectedConversationId)
       .then(setPinnedMessages)
       .catch(() => setPinnedMessages([]));
+    // Deliberately excludes `conversations`: it's only read for the snapshot above,
+    // and adding it as a dep would re-run this effect (and reset the divider) every
+    // time unread_count itself changes right after.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, selectedConversationId, refreshContactsAndConversations]);
 
   const scrollToMessage = useCallback((messageId: string) => {
@@ -487,6 +503,7 @@ export function App() {
                       messages={messages}
                       currentUserId={user.id}
                       highlightedMessageId={highlightedMessageId}
+                      unreadDividerMessageId={unreadDividerMessageId}
                       onEditMessage={async (mid, text) => {
                         const updated = await tauriClient.messageEdit(mid, text);
                         setMessages((prev) =>

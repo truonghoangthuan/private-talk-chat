@@ -13,7 +13,15 @@ export interface TimelineEpochMarkerItem {
   label: string;
 }
 
-export type TimelineRenderItem = TimelineMessageItem | TimelineEpochMarkerItem;
+export interface TimelineUnreadDividerItem {
+  kind: "unread_divider";
+  id: string;
+}
+
+export type TimelineRenderItem =
+  | TimelineMessageItem
+  | TimelineEpochMarkerItem
+  | TimelineUnreadDividerItem;
 
 const GROUP_WINDOW_MS = 120_000;
 
@@ -32,10 +40,51 @@ export function formatCryptoFingerprint(seed: string): string {
 }
 
 /**
- * Transforms ordered messages into timeline render items, inserting inline epoch rotation
- * markers on epoch transitions and flagging consecutive same-sender messages within 2 minutes.
+ * Finds the message ID that should carry a "New messages" divider directly
+ * above it, so re-opening a conversation with unread history shows the
+ * viewer exactly where they left off (Discord/Slack convention) instead of
+ * only a sidebar badge. `unreadCount` is a snapshot taken at the moment the
+ * conversation is opened (before marking anything seen resets it), since
+ * the count otherwise drops to 0 almost immediately and would make the
+ * divider vanish on its own first render.
+ *
+ * The count walks backward counting only messages from other senders (the
+ * unread counter never includes the viewer's own messages), anchoring the
+ * divider at the earliest message in that unread streak. If `unreadCount`
+ * exceeds what's currently loaded (older unread history isn't in memory
+ * yet), it anchors at the oldest loaded message from someone else instead
+ * of over/under-shooting. Returns `null` when there's nothing unread, no
+ * messages at all, or every loaded message is the viewer's own.
  */
-export function buildTimelineItems(messages: MessageDto[]): TimelineRenderItem[] {
+export function findUnreadDividerMessageId(
+  messages: MessageDto[],
+  unreadCount: number,
+  currentUserId: string
+): string | null {
+  if (unreadCount <= 0 || messages.length === 0) return null;
+
+  let remaining = unreadCount;
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const candidate = messages[i];
+    if (candidate.sender_id === currentUserId) continue;
+    remaining -= 1;
+    if (remaining === 0) return candidate.id;
+  }
+
+  const oldestFromOther = messages.find((m) => m.sender_id !== currentUserId);
+  return oldestFromOther ? oldestFromOther.id : null;
+}
+
+/**
+ * Transforms ordered messages into timeline render items, inserting inline epoch rotation
+ * markers on epoch transitions, an optional "New messages" unread divider above
+ * `unreadDividerMessageId` (see `findUnreadDividerMessageId`), and flagging consecutive
+ * same-sender messages within 2 minutes.
+ */
+export function buildTimelineItems(
+  messages: MessageDto[],
+  unreadDividerMessageId: string | null = null
+): TimelineRenderItem[] {
   const items: TimelineRenderItem[] = [];
 
   for (let i = 0; i < messages.length; i += 1) {
@@ -49,6 +98,10 @@ export function buildTimelineItems(messages: MessageDto[]): TimelineRenderItem[]
         epoch: current.epoch,
         label: `Epoch ${current.epoch} • Key rotated`,
       });
+    }
+
+    if (current.id === unreadDividerMessageId) {
+      items.push({ kind: "unread_divider", id: `unread-${current.id}` });
     }
 
     const withinGroupWindow =

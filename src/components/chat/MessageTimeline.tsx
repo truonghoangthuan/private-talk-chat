@@ -12,6 +12,7 @@ interface MessageTimelineProps {
   messages: MessageDto[];
   currentUserId: string;
   highlightedMessageId: string | null;
+  unreadDividerMessageId?: string | null;
   onEditMessage: (messageId: string, newText: string) => Promise<void>;
   onRemoveMessage: (messageId: string) => Promise<void>;
   onReplyMessage: (message: MessageDto) => void;
@@ -23,6 +24,7 @@ export function MessageTimeline({
   messages,
   currentUserId,
   highlightedMessageId,
+  unreadDividerMessageId = null,
   onEditMessage,
   onRemoveMessage,
   onReplyMessage,
@@ -34,7 +36,10 @@ export function MessageTimeline({
   const wasNearBottomRef = useRef(true);
   const prevMessageCountRef = useRef(messages.length);
   const [unseenCount, setUnseenCount] = useState(0);
-  const timelineItems = useMemo(() => buildTimelineItems(messages), [messages]);
+  const timelineItems = useMemo(
+    () => buildTimelineItems(messages, unreadDividerMessageId),
+    [messages, unreadDividerMessageId]
+  );
 
   useEffect(() => {
     const { shouldAutoScroll, unseenCount: nextUnseenCount } = computeScrollFollowState(
@@ -92,6 +97,17 @@ export function MessageTimeline({
                   {item.label}
                 </span>
                 <div className="flex-1 h-px bg-[var(--border-hairline)]" />
+              </div>
+            ) : item.kind === "unread_divider" ? (
+              <div
+                key={item.id}
+                className="my-4 first:mt-0 flex items-center gap-3 text-xs font-semibold text-[#6366F1]"
+              >
+                <div className="flex-1 h-px bg-[#6366F1]/40" />
+                <span className="px-2.5 py-0.5 rounded-full bg-[#6366F1]/10 border border-[#6366F1]/40">
+                  New messages
+                </span>
+                <div className="flex-1 h-px bg-[#6366F1]/40" />
               </div>
             ) : (
               <MessageBubble
