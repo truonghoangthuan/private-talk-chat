@@ -28,6 +28,12 @@ All tables in `public` MUST have `ENABLE ROW LEVEL SECURITY` active. Plaintext m
    - Verifies `messages.sender_id = auth.uid()`.
    - Deletes any matching `public.pinned_messages` row (`DELETE FROM public.pinned_messages WHERE message_id = msg_id`).
    - Captures old `media_object_path`, sets `ciphertext = NULL, nonce = NULL, signature = NULL, media_object_path = NULL, is_removed = true, removed_at = now()`, and returns the old `media_object_path` so the caller can delete the encrypted object from the `chat-media` Storage bucket.
+5. **`public.can_bootstrap_conversation_member(conv_id uuid, uid uuid) RETURNS boolean`** (`SECURITY DEFINER`):
+   - Returns `true` when `conv_id` exists with `host_id = uid` or is a direct conversation containing `uid` in `direct_pair_key`, and `conversation_members` has no rows yet for `conv_id`.
+6. **`public.create_conversation_with_keys(conv_id uuid, p_is_group boolean, p_name text, p_direct_pair_key text, p_member_ids uuid[], p_wrapped_keys jsonb) RETURNS public.conversations`** (`SECURITY DEFINER`):
+   - Verifies `auth.uid()` is in `p_member_ids` and every other member is a mutual contact of `auth.uid()`.
+   - For direct chats (`NOT p_is_group`), enforces 2 members and atomically returns any existing conversation matching `p_direct_pair_key`.
+   - Atomically inserts `public.conversations`, `public.conversation_members`, and `public.conversation_member_keys` (epoch 1, verifying each `recipient_id` is in `p_member_ids`).
 
 ### 1.2 RLS Policies Summary
 
@@ -36,7 +42,7 @@ All tables in `public` MUST have `ENABLE ROW LEVEL SECURITY` active. Plaintext m
 | `profiles` | `SELECT` | `auth.role() = 'authenticated'` (needed for exact username search & public keys) |
 | `profiles` | `INSERT` / `UPDATE` | `auth.uid() = id` |
 | `contacts` | `SELECT` | `auth.uid() = user_id` |
-| `conversations` | `SELECT` | `public.is_conversation_member(id, auth.uid())` |
+| `conversations` | `SELECT` | `public.is_conversation_member(id, auth.uid())`, creator (`host_id = auth.uid()`), or direct-pair participant |
 | `conversations` | `INSERT` | `auth.uid() = COALESCE(host_id, auth.uid())` |
 | `conversations` | `UPDATE` | `public.is_conversation_member(id, auth.uid())` (group name updates) |
 | `conversation_members` | `SELECT` | `public.is_conversation_member(conversation_id, auth.uid())` |

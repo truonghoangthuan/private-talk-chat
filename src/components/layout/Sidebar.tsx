@@ -29,6 +29,8 @@ export function Sidebar({
 }: SidebarProps) {
   const [usernameInput, setUsernameInput] = useState("");
   const [searchError, setSearchError] = useState<string | null>(null);
+  const [contactError, setContactError] = useState<string | null>(null);
+  const [startingContactId, setStartingContactId] = useState<string | null>(null);
   const [searching, setSearching] = useState(false);
   const [failedAvatars, setFailedAvatars] = useState<Set<string>>(new Set());
 
@@ -58,6 +60,23 @@ export function Sidebar({
       setSearchError(msg);
     } finally {
       setSearching(false);
+    }
+  };
+
+  const handleStartDirectChat = async (contactId: string) => {
+    if (startingContactId) return;
+    setContactError(null);
+    setStartingContactId(contactId);
+    try {
+      await onStartDirectChat(contactId);
+    } catch (err) {
+      const msg =
+        typeof err === "object" && err !== null && "message" in err
+          ? String((err as { message: unknown }).message)
+          : String(err);
+      setContactError(msg);
+    } finally {
+      setStartingContactId(null);
     }
   };
 
@@ -133,8 +152,9 @@ export function Sidebar({
               return (
                 <button
                   key={c.id}
-                  onClick={() => onStartDirectChat(c.id)}
-                  className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-full bg-[var(--bg-canvas)] border border-[var(--border-hairline)] hover:border-[#6366F1]/50 hover:bg-[var(--bg-hover)] transition-colors text-xs"
+                  disabled={startingContactId !== null}
+                  onClick={() => handleStartDirectChat(c.id)}
+                  className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-full bg-[var(--bg-canvas)] border border-[var(--border-hairline)] hover:border-[#6366F1]/50 hover:bg-[var(--bg-hover)] disabled:opacity-50 transition-colors text-xs"
                   title={`Chat with ${c.display_name} (@${c.username})`}
                 >
                   <span className="relative shrink-0">
@@ -161,6 +181,9 @@ export function Sidebar({
               );
             })}
           </div>
+        )}
+        {contactError && (
+          <p className="mt-1.5 text-xs text-[#EF4444]">{contactError}</p>
         )}
       </div>
 

@@ -468,3 +468,11 @@ async fn http_transport_surfaces_status_without_leaking_credentials_and_respects
         manual_res.error_message
     );
 }
+
+#[test]
+fn windows_installer_launcher_uses_in_place_update_flags() {
+    assert_eq!(
+        private_talk_lib::updater::windows_installer_args(),
+        ["/P", "/UPDATE", "/R"]
+    );
+}

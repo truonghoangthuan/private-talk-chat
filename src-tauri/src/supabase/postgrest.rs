@@ -402,6 +402,55 @@ impl SupabaseClient {
         keys: &[ConversationMemberKeyRow],
     ) -> Result<ConversationRow, SupabaseError> {
         if let Some(cfg) = &self.config {
+            let member_ids: Vec<Uuid> = members.iter().map(|m| m.user_id).collect();
+            let wrapped_keys: Vec<WrappedKeyRpcItem> = keys
+                .iter()
+                .map(|k| WrappedKeyRpcItem {
+                    recipient_id: k.recipient_id,
+                    ephemeral_pub_key_b64: B64.encode(&k.ephemeral_pub_key),
+                    nonce_b64: B64.encode(&k.nonce),
+                    wrapped_key_b64: B64.encode(&k.wrapped_key),
+                    signature_b64: B64.encode(&k.signature),
+                })
+                .collect();
+
+            let rpc_resp = self
+                .http
+                .post(format!("{}/rest/v1/rpc/create_conversation_with_keys", cfg.url))
+                .header("apikey", &cfg.anon_key)
+                .bearer_auth(access_token)
+                .json(&serde_json::json!({
+                    "conv_id": conv.id,
+                    "p_is_group": conv.is_group,
+                    "p_name": conv.name,
+                    "p_direct_pair_key": conv.direct_pair_key,
+                    "p_member_ids": member_ids,
+                    "p_wrapped_keys": wrapped_keys,
+                }))
+                .send()
+                .await
+                .map_err(|_| SupabaseError::NetworkError)?;
+
+            if rpc_resp.status().as_u16() != 404 {
+                if !rpc_resp.status().is_success() {
+                    let status = rpc_resp.status().as_u16();
+                    let text = rpc_resp.text().await.unwrap_or_default();
+                    if is_auth_error(status, &text) {
+                        return Err(SupabaseError::AuthRejected(
+                            "session expired, please log in again",
+                        ));
+                    }
+                    if status == 403 || text.contains("CONTACT_REQUIRED") || text.contains("42501") {
+                        return Err(SupabaseError::Forbidden("cannot create conversation"));
+                    }
+                    return Err(SupabaseError::Conflict("conversation creation failed"));
+                }
+                return rpc_resp
+                    .json::<ConversationRow>()
+                    .await
+                    .map_err(|_| SupabaseError::InvalidResponse);
+            }
+
             let conv_body = serde_json::json!({
                 "id": conv.id,
                 "is_group": conv.is_group,
