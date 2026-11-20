@@ -1991,3 +1991,80 @@ export function messageMentionsUser(
   const pattern = new RegExp(`(^|\\s)@${escaped}(?!\\w)`, "i");
   return pattern.test(text);
 }
+
+const COMPOSER_SEND_SHORTCUT_STORAGE_KEY = "bloop:composer-send-shortcut";
+
+/**
+ * Which keypress sends a message from the composer (issue #104). `"enter"`
+ * (the app's long-standing default) sends on a bare Enter and inserts a
+ * newline on Shift+Enter; `"ctrl_enter"` flips that — a bare Enter (or
+ * Shift+Enter) always inserts a newline, and only Ctrl+Enter (Cmd+Enter on
+ * macOS) sends — matching Slack's "Send messages with ⌘+Return instead"
+ * preference, for anyone who writes multi-line drafts and keeps hitting
+ * send by accident.
+ */
+export type ComposerSendShortcut = "enter" | "ctrl_enter";
+
+/**
+ * Loads the persisted composer send-shortcut preference from
+ * `localStorage` (issue #104). Stored globally (same convention as the
+ * dark/light theme preference) rather than per-user, since it's a bare
+ * input-habit setting rather than anything tied to an account. Falls back
+ * to `"enter"` — the app's original, unconfigurable behavior — when
+ * nothing has been explicitly saved yet, `localStorage` is unavailable
+ * (e.g. the Vitest `node` test environment), or the stored value is
+ * anything other than the two values this module ever writes, since this
+ * is a best-effort UI preference that should never throw.
+ */
+export function loadComposerSendShortcutPreference(): ComposerSendShortcut {
+  if (typeof localStorage === "undefined") return "enter";
+  try {
+    const raw = localStorage.getItem(COMPOSER_SEND_SHORTCUT_STORAGE_KEY);
+    return raw === "ctrl_enter" ? "ctrl_enter" : "enter";
+  } catch {
+    return "enter";
+  }
+}
+
+/**
+ * Persists the composer send-shortcut preference to `localStorage` so it
+ * survives an app restart (issue #104). A no-op (rather than a thrown
+ * error) when `localStorage` is unavailable or writing fails (e.g. storage
+ * quota) — losing this preference for the session is an acceptable
+ * degradation, never worth surfacing as a user-facing error.
+ */
+export function saveComposerSendShortcutPreference(
+  preference: ComposerSendShortcut
+): void {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(COMPOSER_SEND_SHORTCUT_STORAGE_KEY, preference);
+  } catch {
+    // Storage unavailable or full; preference just won't persist this session.
+  }
+}
+
+/**
+ * Decides whether an Enter keypress in the composer textarea should send
+ * the message, given the current send-shortcut preference (issue #104).
+ *
+ * - `"enter"`: sends on a bare Enter; Shift+Enter always inserts a newline
+ *   instead (the app's original, unconfigurable behavior).
+ * - `"ctrl_enter"`: only Ctrl+Enter or Cmd+Enter sends; a bare Enter (with
+ *   or without Shift) always inserts a newline, since the textarea's
+ *   native behavior already does that once the caller skips calling
+ *   `preventDefault()`.
+ *
+ * Callers should `preventDefault()` and submit only when this returns
+ * `true`; otherwise let the keypress fall through to the textarea's
+ * default newline-insertion behavior.
+ */
+export function shouldSubmitComposerOnEnterKeyPress(
+  preference: ComposerSendShortcut,
+  shiftKey: boolean,
+  ctrlKey: boolean,
+  metaKey: boolean
+): boolean {
+  if (preference === "ctrl_enter") return ctrlKey || metaKey;
+  return !shiftKey;
+}
