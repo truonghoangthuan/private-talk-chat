@@ -15,6 +15,7 @@ import {
   syncPinnedMessage,
   updateDraft,
   upsertMessageWithReplySync,
+  validateAttachmentFile,
 } from "./ui-polish";
 import type { ConversationDto, MessageDto, PinnedMessageDto } from "./types";
 
@@ -490,5 +491,47 @@ describe("getAttachmentPreviewKind", () => {
   it("falls back to a generic file badge for an unrecognized or empty mime type", () => {
     expect(getAttachmentPreviewKind("application/octet-stream")).toBe("file");
     expect(getAttachmentPreviewKind("")).toBe("file");
+  });
+});
+
+describe("validateAttachmentFile", () => {
+  it("accepts every allowed mime type under the size limit", () => {
+    for (const mime of [
+      "image/png",
+      "image/jpeg",
+      "image/webp",
+      "image/gif",
+      "video/mp4",
+      "video/webm",
+    ]) {
+      expect(validateAttachmentFile(mime, 1024)).toEqual({ ok: true });
+    }
+  });
+
+  it("rejects a disallowed mime type regardless of size", () => {
+    expect(validateAttachmentFile("application/pdf", 1024)).toEqual({
+      ok: false,
+      error: "Allowed formats: PNG, JPG, WEBP, GIF, MP4, WEBM.",
+    });
+    expect(validateAttachmentFile("", 1024)).toEqual({
+      ok: false,
+      error: "Allowed formats: PNG, JPG, WEBP, GIF, MP4, WEBM.",
+    });
+  });
+
+  it("rejects an allowed mime type once it exceeds the 50 MB cap", () => {
+    const fiftyMb = 50 * 1024 * 1024;
+    expect(validateAttachmentFile("image/png", fiftyMb)).toEqual({ ok: true });
+    expect(validateAttachmentFile("image/png", fiftyMb + 1)).toEqual({
+      ok: false,
+      error: "Attachment exceeds the 50 MB limit.",
+    });
+  });
+
+  it("checks mime type before size, so an over-size disallowed file reports the format error", () => {
+    expect(validateAttachmentFile("application/pdf", 100 * 1024 * 1024)).toEqual({
+      ok: false,
+      error: "Allowed formats: PNG, JPG, WEBP, GIF, MP4, WEBM.",
+    });
   });
 });
