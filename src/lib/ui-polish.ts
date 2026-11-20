@@ -328,6 +328,18 @@ export interface ScrollFollowState {
 }
 
 /**
+ * Decides the scroll behavior for `MessageTimeline`: initial load jumps
+ * instantaneously (`"auto"`) to avoid sweeping across 50 messages, while
+ * incremental updates scroll smoothly (`"smooth"`).
+ */
+export function getTimelineScrollBehavior(
+  prevMessageCount: number,
+  nextMessageCount: number
+): ScrollBehavior {
+  return prevMessageCount === 0 && nextMessageCount > 0 ? "auto" : "smooth";
+}
+
+/**
  * Decides, on each message-list update, whether the timeline should
  * auto-scroll to the bottom or instead accumulate an "unseen" counter for a
  * floating "jump to latest" button. Reading history shouldn't be yanked
@@ -543,6 +555,62 @@ export function getAttachmentPreviewKind(mimeType: string): AttachmentPreviewKin
   if (mimeType.startsWith("image/")) return "image";
   if (mimeType.startsWith("video/")) return "video";
   return "file";
+}
+
+/** File extensions accepted as message attachments. */
+export const ALLOWED_ATTACHMENT_EXTENSIONS = [
+  "png",
+  "jpg",
+  "jpeg",
+  "webp",
+  "gif",
+  "mp4",
+  "webm",
+] as const;
+
+/** File extensions accepted for user avatars. */
+export const ALLOWED_AVATAR_EXTENSIONS = ["png", "jpg", "jpeg", "webp"] as const;
+
+export type AttachmentPathValidationResult =
+  | { ok: true; fileName: string; previewKind: AttachmentPreviewKind }
+  | { ok: false; error: string };
+
+/** Extracts the base filename from a Windows or POSIX path. */
+export function extractFileName(filePath: string): string {
+  const parts = filePath.split(/[\\/]/);
+  return parts[parts.length - 1] || filePath;
+}
+
+/**
+ * Validates a native file path selected via Tauri dialog or drag-and-drop
+ * against allowed attachment extensions. Authoritative size (<= 50 MB) and
+ * MIME checks run in Rust (`message_send_core`).
+ */
+export function validateAttachmentPath(
+  filePath: string
+): AttachmentPathValidationResult {
+  const fileName = extractFileName(filePath.trim());
+  const dotIdx = fileName.lastIndexOf(".");
+  const ext = dotIdx >= 0 ? fileName.slice(dotIdx + 1).toLowerCase() : "";
+  if (
+    !(ALLOWED_ATTACHMENT_EXTENSIONS as readonly string[]).includes(ext)
+  ) {
+    return { ok: false, error: "Allowed formats: PNG, JPG, WEBP, GIF, MP4, WEBM." };
+  }
+  const previewKind: AttachmentPreviewKind =
+    ext === "mp4" || ext === "webm" ? "video" : "image";
+  return { ok: true, fileName, previewKind };
+}
+
+/** Validates a native file path selected for a user avatar. */
+export function validateAvatarPath(filePath: string): AttachmentValidationResult {
+  const fileName = extractFileName(filePath.trim());
+  const dotIdx = fileName.lastIndexOf(".");
+  const ext = dotIdx >= 0 ? fileName.slice(dotIdx + 1).toLowerCase() : "";
+  if (!(ALLOWED_AVATAR_EXTENSIONS as readonly string[]).includes(ext)) {
+    return { ok: false, error: "Avatar must be PNG, JPEG, or WEBP." };
+  }
+  return { ok: true };
 }
 
 /** MIME types the composer accepts as a message attachment. */

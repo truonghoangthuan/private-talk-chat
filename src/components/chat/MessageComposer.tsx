@@ -1,11 +1,12 @@
-import { useEffect, useRef, useState } from "react";
-import { Film, Paperclip, Reply, Send, X } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Film, Image as ImageIcon, Paperclip, Reply, Send, X } from "lucide-react";
+import { extractErrorMessage, tauriClient } from "../../lib/tauri-client";
 import type { MessageDto } from "../../lib/types";
 import {
+  type AttachmentPreviewKind,
   computeComposerCharacterState,
-  getAttachmentPreviewKind,
   resolveComposerEscapeAction,
-  validateAttachmentFile,
+  validateAttachmentPath,
 } from "../../lib/ui-polish";
 
 interface MessageComposerProps {
@@ -30,31 +31,51 @@ export function MessageComposer({
   const [text, setText] = useState(initialText);
   const [attachmentPath, setAttachmentPath] = useState<string | null>(null);
   const [attachmentName, setAttachmentName] = useState<string | null>(null);
-  const [attachmentPreviewUrl, setAttachmentPreviewUrl] = useState<string | null>(null);
-  const [attachmentMimeType, setAttachmentMimeType] = useState<string | null>(null);
+  const [attachmentPreviewKind, setAttachmentPreviewKind] =
+    useState<AttachmentPreviewKind>("file");
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
-  const dragDepthRef = useRef(0);
   const lastTypingPingRef = useRef<number>(0);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-
-  // Revoke the staged attachment's blob: URL whenever it's replaced/cleared
-  // (cleanup runs with the *previous* value before the next effect) and on
-  // unmount, so a switched-away conversation or a swapped-in new attachment
-  // never leaks a blob: URL.
-  useEffect(() => {
-    return () => {
-      if (attachmentPreviewUrl) URL.revokeObjectURL(attachmentPreviewUrl);
-    };
-  }, [attachmentPreviewUrl]);
 
   const clearAttachment = () => {
     setAttachmentPath(null);
     setAttachmentName(null);
-    setAttachmentMimeType(null);
-    setAttachmentPreviewUrl(null);
+    setAttachmentPreviewKind("file");
   };
+
+  const stageFilePath = useCallback((nativePath: string) => {
+    setError(null);
+    const validation = validateAttachmentPath(nativePath);
+    if (!validation.ok) {
+      setError(validation.error);
+      return;
+    }
+    setAttachmentPath(nativePath);
+    setAttachmentName(validation.fileName);
+    setAttachmentPreviewKind(validation.previewKind);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const unlistenPromise = tauriClient.onFileDragDrop((event) => {
+      if (cancelled) return;
+      if (event.type === "enter" || event.type === "over") {
+        setIsDragOver(true);
+      } else if (event.type === "leave") {
+        setIsDragOver(false);
+      } else if (event.type === "drop") {
+        setIsDragOver(false);
+        const firstPath = event.paths[0];
+        if (firstPath) stageFilePath(firstPath);
+      }
+    });
+    return () => {
+      cancelled = true;
+      unlistenPromise.then((unlisten) => unlisten()).catch(() => {});
+    };
+  }, [stageFilePath]);
 
   const resizeTextarea = () => {
     const el = textareaRef.current;
@@ -76,60 +97,14 @@ export function MessageComposer({
     }
   };
 
-  const stageFile = (file: File) => {
+  const handlePickAttachment = async () => {
     setError(null);
-    const validation = validateAttachmentFile(file.type, file.size);
-    if (!validation.ok) {
-      setError(validation.error);
-      return;
+    try {
+      const selectedPath = await tauriClient.pickAttachmentFile();
+      if (selectedPath) stageFilePath(selectedPath);
+    } catch (err) {
+      setError(extractErrorMessage(err));
     }
-    const nativePath = (file as File & { path?: string }).path;
-    if (!nativePath) {
-      setError("File path unavailable outside Tauri desktop window.");
-      return;
-    }
-    setAttachmentPath(nativePath);
-    setAttachmentName(file.name);
-    setAttachmentMimeType(file.type);
-    // Client-side-only preview of the local file before it's encrypted and
-    // sent; never touches the network or Tauri IPC.
-    setAttachmentPreviewUrl(URL.createObjectURL(file));
-  };
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    stageFile(file);
-    // Allow re-selecting the same file path again after clearing it.
-    e.target.value = "";
-  };
-
-  const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
-    if (!e.dataTransfer.types.includes("Files")) return;
-    e.preventDefault();
-    dragDepthRef.current += 1;
-    setIsDragOver(true);
-  };
-
-  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-    if (!e.dataTransfer.types.includes("Files")) return;
-    e.preventDefault();
-  };
-
-  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
-    if (!e.dataTransfer.types.includes("Files")) return;
-    e.preventDefault();
-    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
-    if (dragDepthRef.current === 0) setIsDragOver(false);
-  };
-
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    if (!e.dataTransfer.types.includes("Files")) return;
-    e.preventDefault();
-    dragDepthRef.current = 0;
-    setIsDragOver(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) stageFile(file);
   };
 
   const submitMessage = async () => {
@@ -187,26 +162,21 @@ export function MessageComposer({
   };
 
   const charState = computeComposerCharacterState(text.length);
-  const attachmentPreviewKind = attachmentMimeType
-    ? getAttachmentPreviewKind(attachmentMimeType)
-    : "file";
 
   return (
     <div
-      onDragEnter={handleDragEnter}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={(e) => e.preventDefault()}
       className="relative px-5 py-3 border-t border-[var(--border-hairline)] bg-[var(--bg-surface)]/50"
     >
       {isDragOver && (
-        <div className="absolute inset-1 z-10 flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-[#6366F1] bg-[var(--bg-surface)]/95 text-xs font-medium text-[#6366F1] pointer-events-none">
+        <div className="animate-fade-in absolute inset-1 z-10 flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-[#6366F1] bg-[var(--bg-surface)]/95 text-xs font-medium text-[#6366F1] pointer-events-none">
           <Paperclip className="w-3.5 h-3.5" />
           Drop to attach an image, GIF, or video
         </div>
       )}
       {replyingTo && (
-        <div className="mb-2 flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg bg-[#6366F1]/10 border-l-2 border-[#6366F1] text-xs">
+        <div className="animate-slide-up-fade mb-2 flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg bg-[#6366F1]/10 border-l-2 border-[#6366F1] text-xs">
           <div className="flex items-center gap-2 min-w-0">
             <Reply className="w-3.5 h-3.5 text-[#6366F1] shrink-0" />
             <div className="min-w-0">
@@ -233,33 +203,27 @@ export function MessageComposer({
       )}
 
       {error && (
-        <div className="mb-2 px-3 py-1.5 rounded-lg bg-[#EF4444]/10 border border-[#EF4444]/30 text-xs text-[#EF4444]">
+        <div className="animate-slide-up-fade mb-2 px-3 py-1.5 rounded-lg bg-[#EF4444]/10 border border-[#EF4444]/30 text-xs text-[#EF4444]">
           {error}
         </div>
       )}
 
       {attachmentName && (
-        <div className="mb-2 inline-flex items-center gap-2 pl-1.5 pr-2.5 py-1.5 rounded-lg bg-[#6366F1]/15 text-xs text-[#6366F1]">
-          {attachmentPreviewKind === "image" && attachmentPreviewUrl ? (
-            <img
-              src={attachmentPreviewUrl}
-              alt=""
-              className="w-8 h-8 rounded-md object-cover shrink-0"
-            />
-          ) : (
-            <span className="w-8 h-8 rounded-md bg-[#6366F1]/20 flex items-center justify-center shrink-0">
-              {attachmentPreviewKind === "video" ? (
-                <Film className="w-4 h-4" />
-              ) : (
-                <Paperclip className="w-4 h-4" />
-              )}
-            </span>
-          )}
+        <div className="animate-slide-up-fade mb-2 inline-flex items-center gap-2 pl-1.5 pr-2.5 py-1.5 rounded-lg bg-[#6366F1]/15 text-xs text-[#6366F1]">
+          <span className="w-8 h-8 rounded-md bg-[#6366F1]/20 flex items-center justify-center shrink-0">
+            {attachmentPreviewKind === "video" ? (
+              <Film className="w-4 h-4" />
+            ) : attachmentPreviewKind === "image" ? (
+              <ImageIcon className="w-4 h-4" />
+            ) : (
+              <Paperclip className="w-4 h-4" />
+            )}
+          </span>
           <span className="truncate max-w-xs">{attachmentName}</span>
           <button
             type="button"
             onClick={clearAttachment}
-            className="hover:text-[var(--text-primary)]"
+            className="hover:text-[var(--text-primary)] transition-colors"
             title="Remove attachment"
           >
             <X className="w-3.5 h-3.5" />
@@ -268,18 +232,14 @@ export function MessageComposer({
       )}
 
       <form onSubmit={handleSubmit} className="flex items-end gap-2">
-        <label
-          className="p-2.5 rounded-xl hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[#6366F1] cursor-pointer transition-colors"
+        <button
+          type="button"
+          onClick={() => void handlePickAttachment()}
+          className="p-2.5 rounded-xl hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[#6366F1] active:scale-95 transition-all duration-150"
           title="Attach image, GIF, or video (up to 50 MB)"
         >
           <Paperclip className="w-4 h-4" />
-          <input
-            type="file"
-            accept="image/png,image/jpeg,image/webp,image/gif,video/mp4,video/webm"
-            onChange={handleFileSelect}
-            className="hidden"
-          />
-        </label>
+        </button>
 
         <textarea
           ref={textareaRef}
@@ -294,7 +254,7 @@ export function MessageComposer({
         <button
           type="submit"
           disabled={sending || (!text.trim() && !attachmentPath)}
-          className="p-2.5 rounded-xl bg-[#6366F1] text-white hover:bg-[#6366F1]/90 disabled:opacity-40 transition-colors"
+          className="p-2.5 rounded-xl bg-[#6366F1] text-white hover:bg-[#6366F1]/90 active:scale-95 disabled:opacity-40 transition-all duration-150"
           title="Send encrypted message"
         >
           <Send className="w-4 h-4" />

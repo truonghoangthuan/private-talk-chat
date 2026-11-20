@@ -61,13 +61,13 @@ export function MediaViewer({ attachment, isOwn = false }: MediaViewerProps) {
 
       {lightboxOpen && (
         <div
-          className="fixed inset-0 z-50 bg-black/85 backdrop-blur-xs flex items-center justify-center p-6"
+          className="animate-fade-in fixed inset-0 z-50 bg-black/85 backdrop-blur-xs flex items-center justify-center p-6"
           onClick={() => setLightboxOpen(false)}
         >
           <button
             type="button"
             onClick={() => setLightboxOpen(false)}
-            className="absolute top-4 right-4 p-2 rounded-lg bg-black/40 text-white hover:bg-black/60"
+            className="absolute top-4 right-4 p-2 rounded-lg bg-black/40 text-white hover:bg-black/60 transition-colors"
             title="Close (Esc)"
           >
             <X className="w-5 h-5" />
@@ -76,7 +76,7 @@ export function MediaViewer({ attachment, isOwn = false }: MediaViewerProps) {
             src={attachment.media_url}
             alt={attachment.file_name}
             onClick={(e) => e.stopPropagation()}
-            className="max-w-full max-h-full object-contain rounded-lg"
+            className="animate-scale-in max-w-full max-h-full object-contain rounded-lg"
           />
         </div>
       )}

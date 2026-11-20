@@ -72,7 +72,7 @@ export function MessageSearchBar({
   };
 
   return (
-    <div className="px-5 py-2 border-b border-[var(--border-hairline)] bg-[var(--bg-surface)]/70 flex items-center gap-2">
+    <div className="animate-slide-up-fade px-5 py-2 border-b border-[var(--border-hairline)] bg-[var(--bg-surface)]/70 flex items-center gap-2">
       <Search className="w-3.5 h-3.5 text-[var(--text-muted)] shrink-0" />
       <input
         autoFocus

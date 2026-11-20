@@ -81,8 +81,8 @@ export function GroupManageDrawer({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/55 backdrop-blur-xs flex justify-end">
-      <div className="w-full max-w-sm h-full bg-[var(--bg-surface)] border-l border-[var(--border-hairline)] p-5 flex flex-col">
+    <div className="animate-fade-in fixed inset-0 z-50 bg-black/55 backdrop-blur-xs flex justify-end">
+      <div className="animate-slide-in-right w-full max-w-sm h-full bg-[var(--bg-surface)] border-l border-[var(--border-hairline)] p-5 flex flex-col">
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-base font-semibold">
             {mode === "create" ? "New Group Chat" : "Group Settings"}
