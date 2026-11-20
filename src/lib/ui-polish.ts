@@ -390,3 +390,17 @@ export function resolveMessageBubbleEscapeAction(
   if (isConfirmingRemove) return "cancel_remove_confirm";
   return "none";
 }
+
+/**
+ * Decides whether clicking a media attachment thumbnail should open a
+ * full-screen lightbox preview. Images are cropped to a small `max-h-72`
+ * thumbnail inline in the chat timeline, so expanding them is the only way
+ * to see the full, uncropped picture — hence `true` for any `image/*` mime
+ * type. Videos already expose their own native fullscreen/zoom controls via
+ * the `<video controls>` element, so wrapping them in a second overlay
+ * would just conflict with those controls; hence `false` for `video/*` and
+ * any other/unknown mime type.
+ */
+export function shouldOpenMediaLightbox(mimeType: string): boolean {
+  return mimeType.startsWith("image/");
+}
