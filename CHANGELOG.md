@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Private Talk are documented here. Format loosely follows
+All notable changes to Bloop are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 Entries below "## [Unreleased]" are added automatically by the recurring
@@ -11,6 +11,7 @@ applicable.
 ## [Unreleased]
 
 - feat: add one-click copy-to-clipboard for message text on hover
+- feat: rename app/installation display name from "Private Talk" to "Bloop" (issue #11) — product name, window/taskbar title, installer name, in-app UI text, README, and package.json updated. Internal Rust/Tauri implementation details (DPAPI session-storage folder, bundle identifier, crate name, crypto domain-separation strings, custom media protocol scheme) intentionally left as "PrivateTalk"/"privatetalk" for a follow-up once Rust changes can be compile-verified in this environment.
 
 ## [0.2.1] - baseline
 Baseline at the time autonomous development tracking began. See git history

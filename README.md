@@ -1,4 +1,4 @@
-# Private Talk
+# Bloop
 
 End-to-end encrypted Windows 10/11 desktop chat application for 1-to-1 and group messaging, built with **Tauri v2 (Rust)**, **React 19 + TypeScript + Tailwind CSS v4**, and **Supabase** (Auth, PostgreSQL with RLS, Realtime, and Storage).
 
@@ -22,7 +22,7 @@ End-to-end encrypted Windows 10/11 desktop chat application for 1-to-1 and group
 
 ```text
 src/                              # React 19 + TypeScript WebView UI
-├── assets/app-icon.png           # Custom Private Talk emblem
+├── assets/app-icon.png           # Custom Bloop emblem
 ├── components/
 │   ├── chat/                     # Timeline, composer, header, PinnedMessagesView, typing, media viewer
 │   ├── layout/                   # AppShell, NavRail, Sidebar

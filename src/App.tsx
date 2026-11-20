@@ -283,7 +283,7 @@ export function App() {
     >
       <img
         src={appIcon}
-        alt="Private Talk"
+        alt="Bloop"
         className="w-14 h-14 rounded-2xl object-cover shadow-lg"
       />
       <p className="text-sm font-medium text-[var(--text-primary)]">
@@ -408,7 +408,7 @@ export function App() {
             {updateStatus.phase === "available" && !updateBannerDismissed && (
               <div className="px-4 py-2 border-b border-[var(--border-hairline)] bg-[#6366F1]/10 flex items-center justify-between gap-3 text-xs">
                 <span>
-                  Private Talk v{updateStatus.latest_version} is available.
+                  Bloop v{updateStatus.latest_version} is available.
                 </span>
                 <div className="flex items-center gap-2">
                   <button
@@ -554,11 +554,11 @@ export function App() {
               <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
                 <img
                   src={appIcon}
-                  alt="Private Talk"
+                  alt="Bloop"
                   className="w-14 h-14 rounded-2xl object-cover shadow-md mb-3"
                 />
                 <h2 className="text-base font-semibold mb-1">
-                  Private Talk E2EE Workspace
+                  Bloop E2EE Workspace
                 </h2>
                 <p className="text-xs text-[var(--text-muted)] max-w-xs">
                   Select a conversation or add a contact by exact username to
