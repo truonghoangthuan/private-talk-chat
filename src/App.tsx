@@ -40,6 +40,8 @@ import {
   saveThemePreference,
   loadClockFormatPreference,
   saveClockFormatPreference,
+  loadMessageDensityPreference,
+  saveMessageDensityPreference,
   shouldOpenConversationSearch,
   shouldOpenQuickSwitcher,
   shouldOpenShortcutsHelp,
@@ -94,6 +96,9 @@ export function App() {
   );
   const [use24Hour, setUse24Hour] = useState<boolean>(
     () => loadClockFormatPreference() === "24h"
+  );
+  const [messageDensity, setMessageDensity] = useState(
+    () => loadMessageDensityPreference()
   );
   const [contacts, setContacts] = useState<ContactDto[]>([]);
   const [conversations, setConversations] = useState<ConversationDto[]>([]);
@@ -173,6 +178,10 @@ export function App() {
   useEffect(() => {
     saveClockFormatPreference(use24Hour ? "24h" : "12h");
   }, [use24Hour]);
+
+  useEffect(() => {
+    saveMessageDensityPreference(messageDensity);
+  }, [messageDensity]);
 
   // Reload the muted-conversation set whenever the signed-in user changes
   // (login, logout, or switching accounts without restarting the app), so
@@ -863,6 +872,10 @@ export function App() {
                   }}
                   onOpenGroupDrawer={() => setGroupDrawerMode("manage")}
                   onExportConversation={handleExportConversation}
+                  density={messageDensity}
+                  onToggleDensity={() =>
+                    setMessageDensity((d) => (d === "compact" ? "comfortable" : "compact"))
+                  }
                 />
                 {searchOpen && activeTab === "messages" && (
                   <MessageSearchBar
@@ -910,6 +923,7 @@ export function App() {
                       searchQuery={searchOpen ? searchQuery : ""}
                       currentUsername={user.username}
                       use24Hour={use24Hour}
+                      density={messageDensity}
                       onEditMessage={async (mid, text) => {
                         const updated = await tauriClient.messageEdit(mid, text);
                         setMessages((prev) =>

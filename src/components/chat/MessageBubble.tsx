@@ -5,6 +5,8 @@ import {
   formatFullMessageTimestamp,
   formatMessageTimestamp,
   getMessageCopyText,
+  getMessageDensityClasses,
+  type MessageDensityPreference,
   messageMentionsUser,
   resolveMessageBubbleEscapeAction,
   shouldSubmitMessageEditOnKeyDown,
@@ -24,6 +26,8 @@ interface MessageBubbleProps {
   currentUsername?: string;
   /** Render timestamps in 24-hour time instead of 12-hour AM/PM (issue #108). */
   use24Hour?: boolean;
+  /** Tighter bubble spacing/padding when the "compact" message density preference is active (issue #111). */
+  density?: MessageDensityPreference;
   onEdit: (messageId: string, newText: string) => Promise<void>;
   onRemove: (messageId: string) => Promise<void>;
   onReply: (message: MessageDto) => void;
@@ -43,6 +47,7 @@ export function MessageBubble({
   searchQuery = "",
   currentUsername = "",
   use24Hour = false,
+  density = "comfortable",
   onEdit,
   onRemove,
   onReply,
@@ -138,7 +143,10 @@ export function MessageBubble({
     }
   };
 
-  const spacingClass = isGroupedWithPrev ? "mt-1" : "mt-4 first:mt-0";
+  const densityClasses = getMessageDensityClasses(density);
+  const spacingClass = isGroupedWithPrev
+    ? densityClasses.groupedSpacing
+    : densityClasses.newGroupSpacing;
 
   const handleBubbleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key !== "Escape") return;
@@ -290,7 +298,7 @@ export function MessageBubble({
         )}
 
         <div
-          className={`rounded-2xl px-3.5 py-2.5 text-[14px] leading-[1.5] border transition-shadow ${
+          className={`rounded-2xl ${densityClasses.bubblePadding} text-[14px] leading-[1.5] border transition-shadow ${
             isOwn
               ? "bg-[#6366F1] text-white border-[var(--border-hairline)]"
               : mentionsMe
