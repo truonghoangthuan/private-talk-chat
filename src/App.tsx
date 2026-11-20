@@ -14,7 +14,7 @@ import { AuthScreen } from "./components/modals/AuthScreen";
 import { ProfileModal } from "./components/modals/ProfileModal";
 import { GroupManageDrawer } from "./components/modals/GroupManageDrawer";
 import { tauriClient } from "./lib/tauri-client";
-import { syncPinnedMessage, upsertMessageWithReplySync, getDraft, updateDraft, findUnreadDividerMessageId } from "./lib/ui-polish";
+import { syncPinnedMessage, upsertMessageWithReplySync, getDraft, updateDraft, findUnreadDividerMessageId, computeDocumentTitle } from "./lib/ui-polish";
 import type {
   ContactDto,
   ConversationDto,
@@ -93,6 +93,20 @@ export function App() {
   useEffect(() => {
     document.documentElement.classList.toggle("dark", darkMode);
   }, [darkMode]);
+
+  // Mirror the total unread message count into the window/document title
+  // (e.g. "(3) Bloop") so there's a way to tell at a glance whether anything
+  // new has arrived while minimized, behind other windows, or just not
+  // focused — matching the Slack/Discord/Gmail convention (issue #42).
+  // Computed directly from `conversations` rather than reusing the
+  // render-scoped `totalUnread` further down, since this effect must run
+  // unconditionally (reverting the title to plain "Bloop" once
+  // conversations are cleared on logout, before the authenticated view's
+  // early return would even compute that render-scoped value).
+  useEffect(() => {
+    const totalUnreadForTitle = conversations.reduce((acc, c) => acc + c.unread_count, 0);
+    document.title = computeDocumentTitle("Bloop", totalUnreadForTitle);
+  }, [conversations]);
 
   useEffect(() => {
     const onFocus = () => setIsWindowFocused(!document.hidden);
