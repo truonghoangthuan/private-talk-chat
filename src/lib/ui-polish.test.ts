@@ -13,6 +13,7 @@ import {
   resolveComposerEscapeAction,
   resolveMessageBubbleEscapeAction,
   shouldOpenMediaLightbox,
+  shouldSubmitMessageEditOnKeyDown,
   syncPinnedMessage,
   updateDraft,
   upsertMessageWithReplySync,
@@ -566,5 +567,20 @@ describe("findMessageSearchMatches", () => {
   it("trims surrounding whitespace from the query before matching", () => {
     const messages = [makeMsg({ id: "m1", text: "Hello there" })];
     expect(findMessageSearchMatches(messages, "  hello  ")).toEqual(["m1"]);
+  });
+});
+
+describe("shouldSubmitMessageEditOnKeyDown", () => {
+  it("submits on a plain Enter", () => {
+    expect(shouldSubmitMessageEditOnKeyDown("Enter", false)).toBe(true);
+  });
+
+  it("does not submit on Shift+Enter, leaving the default newline insert", () => {
+    expect(shouldSubmitMessageEditOnKeyDown("Enter", true)).toBe(false);
+  });
+
+  it("does not submit on any other key", () => {
+    expect(shouldSubmitMessageEditOnKeyDown("a", false)).toBe(false);
+    expect(shouldSubmitMessageEditOnKeyDown("Escape", false)).toBe(false);
   });
 });

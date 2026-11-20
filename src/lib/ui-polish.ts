@@ -481,3 +481,16 @@ export function findMessageSearchMatches(
     .filter((m) => getMessageCopyText(m)?.toLowerCase().includes(needle))
     .map((m) => m.id);
 }
+
+/**
+ * Decides whether a keydown inside the message-edit field should save the
+ * edit, matching the composer's own Enter-to-send / Shift+Enter-for-newline
+ * convention. The edit field is an auto-growing `<textarea>` (not a
+ * single-line `<input>`) so multi-line messages — rendered with
+ * `whitespace-pre-wrap` once sent — can actually be edited without losing
+ * their line breaks: plain Enter saves, Shift+Enter is left alone so the
+ * browser's default textarea behavior inserts a newline instead.
+ */
+export function shouldSubmitMessageEditOnKeyDown(key: string, shiftKey: boolean): boolean {
+  return key === "Enter" && !shiftKey;
+}

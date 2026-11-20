@@ -10,6 +10,7 @@ applicable.
 
 ## [Unreleased]
 
+- fix: message editing now uses an auto-growing textarea (Shift+Enter for a newline, Enter to save) instead of a single-line text input, so multi-line messages can actually be edited without losing their line breaks (issue #35)
 - feat: add in-conversation message search — a search icon in the chat header opens an inline bar that filters the currently-loaded message history by text, shows an `N of M` match counter, and steps through matches with the up/down buttons or Enter/Shift+Enter/Arrow keys, jumping to and highlighting each one the same way "jump to pinned message" already does. Client-side only, matching against already-loaded messages — no new backend search endpoint (issue #33)
 - feat: the composer is now a drag-and-drop target for attachments — dragging a file from the OS file explorer over it shows a dashed-border highlight, and dropping it stages the file exactly like the paperclip picker (same MIME/size validation, now shared via a new `validateAttachmentFile` helper instead of being duplicated) (issue #31)
 - feat: the staged attachment chip in the composer now shows a real thumbnail for images (generated client-side, never touching Tauri IPC) and a generic file/video icon badge otherwise, instead of just a bare filename — makes it easier to confirm the right file is about to be sent before it's encrypted (issue #29)
