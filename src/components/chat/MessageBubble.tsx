@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Check, Copy, Pencil, Pin, PinOff, Reply, ShieldAlert, Trash2, X } from "lucide-react";
 import type { MessageDto } from "../../lib/types";
-import { formatMessageTimestamp, getMessageCopyText } from "../../lib/ui-polish";
+import { formatMessageTimestamp, getMessageCopyText, resolveMessageBubbleEscapeAction } from "../../lib/ui-polish";
 import { MediaViewer } from "./MediaViewer";
 
 interface MessageBubbleProps {
@@ -73,6 +73,21 @@ export function MessageBubble({
 
   const spacingClass = isGroupedWithPrev ? "mt-1" : "mt-4 first:mt-0";
 
+  const handleBubbleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== "Escape") return;
+    const action = resolveMessageBubbleEscapeAction(editing, confirmingRemove);
+    if (action === "cancel_edit") {
+      e.preventDefault();
+      e.stopPropagation();
+      setEditing(false);
+    } else if (action === "cancel_remove_confirm") {
+      e.preventDefault();
+      e.stopPropagation();
+      setConfirmingRemove(false);
+    }
+    // action === "none": let Escape propagate (e.g. to close an unrelated modal).
+  };
+
   // Fail-closed verification banner (Constitution Principle IV & Contract §1.2 / §4)
   if (message.status === "verification_failed") {
     return (
@@ -105,6 +120,7 @@ export function MessageBubble({
   return (
     <div
       id={`msg-${message.id}`}
+      onKeyDown={handleBubbleKeyDown}
       className={`${spacingClass} group flex flex-col ${isOwn ? "items-end" : "items-start"}`}
     >
       {!isOwn && !isGroupedWithPrev && (

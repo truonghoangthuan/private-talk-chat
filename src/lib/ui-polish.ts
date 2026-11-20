@@ -367,3 +367,26 @@ export function resolveComposerEscapeAction(
   if (hasAttachment) return "clear_attachment";
   return "none";
 }
+
+/** What pressing Escape on a message bubble should do, in priority order. */
+export type MessageBubbleEscapeAction = "cancel_edit" | "cancel_remove_confirm" | "none";
+
+/**
+ * Resolves what the Escape key should do on a message bubble, so a user can
+ * back out of an in-progress edit or a pending "Confirm remove" prompt
+ * without reaching for the mouse (matching the composer's Escape
+ * convention). Backing out of an active edit takes priority over dismissing
+ * a remove-confirmation, since the two states are mutually exclusive in
+ * practice but an in-progress edit is the more surprising thing to leave
+ * uncommitted. Returns "none" when there's nothing to back out of, so
+ * callers can skip calling preventDefault() and let Escape propagate
+ * normally (e.g. to close an unrelated modal).
+ */
+export function resolveMessageBubbleEscapeAction(
+  isEditing: boolean,
+  isConfirmingRemove: boolean
+): MessageBubbleEscapeAction {
+  if (isEditing) return "cancel_edit";
+  if (isConfirmingRemove) return "cancel_remove_confirm";
+  return "none";
+}
