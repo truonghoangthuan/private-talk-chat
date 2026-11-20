@@ -1409,3 +1409,102 @@ export function resolvePasswordInputType(visible: boolean): "text" | "password" 
 export function getPasswordVisibilityToggleLabel(visible: boolean): string {
   return visible ? "Hide password" : "Show password";
 }
+
+/** A single in-app "new message arrived elsewhere" toast (issue #82). */
+export interface MessageNotificationToast {
+  /** The triggering message's ID — used as the React key and for de-duplication. */
+  id: string;
+  conversationId: string;
+  conversationTitle: string;
+  senderDisplayName: string;
+  preview: string;
+}
+
+/** Max simultaneous toasts kept on screen; oldest is dropped first once exceeded. */
+export const MAX_MESSAGE_TOASTS = 4;
+
+/** How long a toast stays visible before auto-dismissing, in milliseconds. */
+export const MESSAGE_TOAST_AUTO_DISMISS_MS = 6000;
+
+/** Soft cap on how much message text a toast preview shows before truncating. */
+const TOAST_PREVIEW_MAX_CHARS = 120;
+
+/**
+ * Decides whether an incoming realtime message upsert should surface a
+ * background-conversation toast (issue #82) — Slack/Discord/Telegram's
+ * convention of calling out *which* conversation and *what* (briefly)
+ * just arrived, instead of only the sidebar's unread badge ticking up
+ * silently. A toast only makes sense when all of the following hold:
+ * the message wasn't sent by the viewer themself (own sends/echoes never
+ * toast), it isn't for the conversation already open on screen (already
+ * visible there), it passed envelope verification and wasn't removed
+ * (mirrors the fail-closed `getMessageCopyText` eligibility rule — never
+ * surface a preview of content that failed to verify), and its
+ * conversation isn't in the viewer's locally muted set (same mute
+ * semantics as `sumUnreadExcludingMuted`: a muted chat stays silent
+ * everywhere outside its own timeline).
+ */
+export function shouldShowMessageNotificationToast(
+  message: MessageDto,
+  currentUserId: string,
+  selectedConversationId: string | null,
+  mutedConversationIds: string[]
+): boolean {
+  if (message.sender_id === currentUserId) return false;
+  if (message.is_removed || message.status !== "verified") return false;
+  if (message.conversation_id === selectedConversationId) return false;
+  if (mutedConversationIds.includes(message.conversation_id)) return false;
+  return true;
+}
+
+/**
+ * Builds the short preview line for a message notification toast (issue
+ * #82): the message's own text, truncated past `TOAST_PREVIEW_MAX_CHARS`
+ * with an ellipsis so one long message can't stretch the toast off
+ * screen; for an attachment-only message, a generic "Sent an attachment"
+ * (deliberately not the raw filename, which is viewer-chosen and not
+ * worth surfacing before the conversation is even opened); otherwise a
+ * generic fallback for the (should-be-impossible, since
+ * `shouldShowMessageNotificationToast` already filters to verified
+ * messages) case of neither text nor an attachment.
+ */
+export function buildMessageNotificationPreview(message: MessageDto): string {
+  const trimmed = message.text?.trim();
+  if (trimmed) {
+    return trimmed.length > TOAST_PREVIEW_MAX_CHARS
+      ? `${trimmed.slice(0, TOAST_PREVIEW_MAX_CHARS)}…`
+      : trimmed;
+  }
+  if (message.attachment) return "Sent an attachment";
+  return "Sent a message";
+}
+
+/**
+ * Appends a new message notification toast (issue #82), de-duplicating by
+ * message ID (a realtime upsert replaying the same message shouldn't
+ * stack a second toast for it) and capping the list at
+ * `MAX_MESSAGE_TOASTS` — dropping the *oldest* toast once the cap is
+ * exceeded, so a burst of background activity surfaces the most recent
+ * arrivals rather than piling up unboundedly on screen.
+ */
+export function appendMessageToast(
+  toasts: MessageNotificationToast[],
+  toast: MessageNotificationToast
+): MessageNotificationToast[] {
+  const withoutDuplicate = toasts.filter((t) => t.id !== toast.id);
+  return [...withoutDuplicate, toast].slice(-MAX_MESSAGE_TOASTS);
+}
+
+/**
+ * Removes one toast by message ID — used both by its own auto-dismiss
+ * timer and the toast's manual close button (issue #82). Returns `toasts`
+ * unchanged (same reference) when `id` isn't present, so callers relying
+ * on referential equality can skip a redundant re-render.
+ */
+export function dismissMessageToast(
+  toasts: MessageNotificationToast[],
+  id: string
+): MessageNotificationToast[] {
+  if (!toasts.some((t) => t.id === id)) return toasts;
+  return toasts.filter((t) => t.id !== id);
+}

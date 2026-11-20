@@ -51,8 +51,14 @@ import {
   updateDraft,
   upsertMessageWithReplySync,
   validateAttachmentFile,
+  shouldShowMessageNotificationToast,
+  buildMessageNotificationPreview,
+  appendMessageToast,
+  dismissMessageToast,
+  MAX_MESSAGE_TOASTS,
 } from "./ui-polish";
 import type { ContactDto, ConversationDto, MessageDto, PinnedMessageDto } from "./types";
+import type { MessageNotificationToast } from "./ui-polish";
 
 function makeMsg(overrides: Partial<MessageDto> = {}): MessageDto {
   return {
@@ -1527,5 +1533,132 @@ describe("getPasswordVisibilityToggleLabel", () => {
 
   it("offers to hide the password while it is currently revealed", () => {
     expect(getPasswordVisibilityToggleLabel(true)).toBe("Hide password");
+  });
+});
+
+describe("shouldShowMessageNotificationToast", () => {
+  it("shows a toast for a verified message from someone else in a background, unmuted conversation", () => {
+    const msg = makeMsg({ conversation_id: "c2", sender_id: "u2" });
+    expect(shouldShowMessageNotificationToast(msg, "u1", "c1", [])).toBe(true);
+  });
+
+  it("suppresses a toast for the viewer's own message", () => {
+    const msg = makeMsg({ conversation_id: "c2", sender_id: "u1" });
+    expect(shouldShowMessageNotificationToast(msg, "u1", "c1", [])).toBe(false);
+  });
+
+  it("suppresses a toast for the conversation already open", () => {
+    const msg = makeMsg({ conversation_id: "c1", sender_id: "u2" });
+    expect(shouldShowMessageNotificationToast(msg, "u1", "c1", [])).toBe(false);
+  });
+
+  it("suppresses a toast for a muted conversation", () => {
+    const msg = makeMsg({ conversation_id: "c2", sender_id: "u2" });
+    expect(shouldShowMessageNotificationToast(msg, "u1", "c1", ["c2"])).toBe(false);
+  });
+
+  it("suppresses a toast for a removed message", () => {
+    const msg = makeMsg({
+      conversation_id: "c2",
+      sender_id: "u2",
+      is_removed: true,
+      status: "removed",
+      text: null,
+    });
+    expect(shouldShowMessageNotificationToast(msg, "u1", "c1", [])).toBe(false);
+  });
+
+  it("suppresses a toast for a message that failed verification", () => {
+    const msg = makeMsg({
+      conversation_id: "c2",
+      sender_id: "u2",
+      status: "verification_failed",
+      text: null,
+    });
+    expect(shouldShowMessageNotificationToast(msg, "u1", "c1", [])).toBe(false);
+  });
+
+  it("still shows a toast when nothing is selected yet", () => {
+    const msg = makeMsg({ conversation_id: "c2", sender_id: "u2" });
+    expect(shouldShowMessageNotificationToast(msg, "u1", null, [])).toBe(true);
+  });
+});
+
+describe("buildMessageNotificationPreview", () => {
+  it("returns trimmed message text", () => {
+    expect(buildMessageNotificationPreview(makeMsg({ text: "  hey there  " }))).toBe(
+      "hey there"
+    );
+  });
+
+  it("truncates long text with an ellipsis", () => {
+    const longText = "a".repeat(200);
+    const preview = buildMessageNotificationPreview(makeMsg({ text: longText }));
+    expect(preview.length).toBe(121);
+    expect(preview.endsWith("…")).toBe(true);
+  });
+
+  it("falls back to a generic attachment label when there is no text", () => {
+    const msg = makeMsg({
+      text: null,
+      attachment: {
+        mime_type: "image/png",
+        file_name: "photo.png",
+        size_bytes: 1024,
+        media_url: "privatetalk-media://localhost/c1/m1",
+      },
+    });
+    expect(buildMessageNotificationPreview(msg)).toBe("Sent an attachment");
+  });
+
+  it("falls back to a generic message label with neither text nor attachment", () => {
+    expect(buildMessageNotificationPreview(makeMsg({ text: null }))).toBe("Sent a message");
+  });
+});
+
+describe("appendMessageToast & dismissMessageToast", () => {
+  function makeToast(id: string): MessageNotificationToast {
+    return {
+      id,
+      conversationId: "c2",
+      conversationTitle: "Bob Builder",
+      senderDisplayName: "Bob",
+      preview: "hey",
+    };
+  }
+
+  it("appends a new toast", () => {
+    const result = appendMessageToast([], makeToast("m1"));
+    expect(result).toEqual([makeToast("m1")]);
+  });
+
+  it("de-duplicates by message id instead of stacking a second toast", () => {
+    const result = appendMessageToast([makeToast("m1")], {
+      ...makeToast("m1"),
+      preview: "updated",
+    });
+    expect(result).toHaveLength(1);
+    expect(result[0].preview).toBe("updated");
+  });
+
+  it("caps the list at MAX_MESSAGE_TOASTS, dropping the oldest first", () => {
+    let toasts: MessageNotificationToast[] = [];
+    for (let i = 0; i < MAX_MESSAGE_TOASTS + 2; i += 1) {
+      toasts = appendMessageToast(toasts, makeToast(`m${i}`));
+    }
+    expect(toasts).toHaveLength(MAX_MESSAGE_TOASTS);
+    expect(toasts[0].id).toBe("m2");
+    expect(toasts[toasts.length - 1].id).toBe(`m${MAX_MESSAGE_TOASTS + 1}`);
+  });
+
+  it("dismisses a toast by id", () => {
+    const toasts = [makeToast("m1"), makeToast("m2")];
+    const result = dismissMessageToast(toasts, "m1");
+    expect(result).toEqual([makeToast("m2")]);
+  });
+
+  it("returns the same array reference when the id isn't present", () => {
+    const toasts = [makeToast("m1")];
+    expect(dismissMessageToast(toasts, "missing")).toBe(toasts);
   });
 });

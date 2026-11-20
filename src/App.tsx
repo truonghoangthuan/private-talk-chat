@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Download, Wifi, WifiOff, X } from "lucide-react";
 import appIcon from "./assets/app-icon.png";
 import { AppShell } from "./components/layout/AppShell";
@@ -10,6 +10,7 @@ import { PinnedMessagesView } from "./components/chat/PinnedMessagesView";
 import { TypingIndicator } from "./components/chat/TypingIndicator";
 import { MessageComposer } from "./components/chat/MessageComposer";
 import { MessageSearchBar } from "./components/chat/MessageSearchBar";
+import { MessageToastStack } from "./components/chat/MessageToastStack";
 import { AuthScreen } from "./components/modals/AuthScreen";
 import { ProfileModal } from "./components/modals/ProfileModal";
 import { GroupManageDrawer } from "./components/modals/GroupManageDrawer";
@@ -36,6 +37,11 @@ import {
   sortConversationsForSidebar,
   sumUnreadExcludingMuted,
   toggleMutedConversationId,
+  getConversationTitle,
+  shouldShowMessageNotificationToast,
+  buildMessageNotificationPreview,
+  appendMessageToast,
+  dismissMessageToast,
 } from "./lib/ui-polish";
 import type {
   ContactDto,
@@ -46,6 +52,7 @@ import type {
   UpdateStatusDto,
   UserProfileDto,
 } from "./lib/types";
+import type { MessageNotificationToast } from "./lib/ui-polish";
 
 const INITIAL_UPDATE_STATUS: UpdateStatusDto = {
   phase: "idle",
@@ -109,6 +116,16 @@ export function App() {
   const [reconnectNotice, setReconnectNotice] = useState<string | null>(null);
   const [shortcutsHelpOpen, setShortcutsHelpOpen] = useState(false);
   const [mutedConversationIds, setMutedConversationIds] = useState<string[]>([]);
+  const [messageToasts, setMessageToasts] = useState<MessageNotificationToast[]>([]);
+  // Refs (not state) so the `onMessageUpsert` realtime handler below always
+  // reads the latest value without needing `conversations`/
+  // `mutedConversationIds` in its effect's dependency array — adding them
+  // there would tear down and re-subscribe every realtime listener on
+  // every single incoming message (since `conversations` changes on each
+  // one via `refreshContactsAndConversations`), which is unnecessary churn
+  // for a value this handler only ever reads, never reacts to directly.
+  const conversationsRef = useRef<ConversationDto[]>(conversations);
+  const mutedConversationIdsRef = useRef<string[]>(mutedConversationIds);
 
   const handleCheckUpdate = useCallback(() => {
     setUpdateBannerDismissed(false);
@@ -148,6 +165,14 @@ export function App() {
     },
     [user]
   );
+
+  useEffect(() => {
+    conversationsRef.current = conversations;
+  }, [conversations]);
+
+  useEffect(() => {
+    mutedConversationIdsRef.current = mutedConversationIds;
+  }, [mutedConversationIds]);
 
   // Mirror the total unread message count into the window/document title
   // (e.g. "(3) Bloop") so there's a way to tell at a glance whether anything
@@ -418,6 +443,34 @@ export function App() {
           setPinnedMessages((prev) => syncPinnedMessage(prev, msg));
           if (msg.sender_id !== user.id && !msg.is_removed) {
             tauriClient.messageMarkSeen(msg.conversation_id, msg.id);
+          }
+        } else if (
+          shouldShowMessageNotificationToast(
+            msg,
+            user.id,
+            selectedConversationId,
+            mutedConversationIdsRef.current
+          )
+        ) {
+          // Surface a toast for a message that landed in a conversation
+          // other than the one currently open (issue #82) — the sidebar's
+          // unread badge alone doesn't call out which chat or what briefly
+          // arrived. `conversationsRef` may not yet include a brand-new
+          // conversation's first message (refreshed just below); skip
+          // quietly rather than showing a titleless toast in that case.
+          const conv = conversationsRef.current.find(
+            (c) => c.id === msg.conversation_id
+          );
+          if (conv) {
+            setMessageToasts((prev) =>
+              appendMessageToast(prev, {
+                id: msg.id,
+                conversationId: msg.conversation_id,
+                conversationTitle: getConversationTitle(conv, user.id),
+                senderDisplayName: msg.sender_display_name,
+                preview: buildMessageNotificationPreview(msg),
+              })
+            );
           }
         }
         refreshContactsAndConversations();
@@ -863,6 +916,14 @@ export function App() {
       {shortcutsHelpOpen && (
         <KeyboardShortcutsModal onClose={() => setShortcutsHelpOpen(false)} />
       )}
+
+      <MessageToastStack
+        toasts={messageToasts}
+        onOpenConversation={setSelectedConversationId}
+        onDismiss={(toastId) =>
+          setMessageToasts((prev) => dismissMessageToast(prev, toastId))
+        }
+      />
       </div>
       {privacyShieldOverlay}
     </div>
