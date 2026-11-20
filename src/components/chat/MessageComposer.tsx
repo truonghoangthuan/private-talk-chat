@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { Film, Paperclip, Reply, Send, X } from "lucide-react";
+import { Film, Paperclip, Reply, Send, Smile, X } from "lucide-react";
 import type { MessageDto } from "../../lib/types";
 import {
   computeComposerCharacterState,
   getAttachmentPreviewKind,
+  insertTextAtCursor,
+  QUICK_EMOJIS,
   resolveComposerEscapeAction,
   validateAttachmentFile,
 } from "../../lib/ui-polish";
@@ -35,9 +37,27 @@ export function MessageComposer({
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const dragDepthRef = useRef(0);
   const lastTypingPingRef = useRef<number>(0);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const emojiPickerRef = useRef<HTMLDivElement | null>(null);
+  const emojiButtonRef = useRef<HTMLButtonElement | null>(null);
+
+  // Close the emoji picker on an outside click, matching other popovers in
+  // the app (e.g. the attachment/reply affordances dismiss without needing
+  // Escape too).
+  useEffect(() => {
+    if (!showEmojiPicker) return;
+    const handlePointerDown = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (emojiPickerRef.current?.contains(target)) return;
+      if (emojiButtonRef.current?.contains(target)) return;
+      setShowEmojiPicker(false);
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, [showEmojiPicker]);
 
   // Revoke the staged attachment's blob: URL whenever it's replaced/cleared
   // (cleanup runs with the *previous* value before the next effect) and on
@@ -172,8 +192,16 @@ export function MessageComposer({
       return;
     }
     if (e.key === "Escape") {
-      const action = resolveComposerEscapeAction(Boolean(replyingTo), Boolean(attachmentPath));
-      if (action === "cancel_reply") {
+      const action = resolveComposerEscapeAction(
+        Boolean(replyingTo),
+        Boolean(attachmentPath),
+        showEmojiPicker
+      );
+      if (action === "close_emoji_picker") {
+        e.preventDefault();
+        e.stopPropagation();
+        setShowEmojiPicker(false);
+      } else if (action === "cancel_reply") {
         e.preventDefault();
         e.stopPropagation();
         onCancelReply();
@@ -184,6 +212,21 @@ export function MessageComposer({
       }
       // action === "none": let Escape propagate (e.g. to close an unrelated modal).
     }
+  };
+
+  const handleEmojiPick = (emoji: string) => {
+    const el = textareaRef.current;
+    const selectionStart = el?.selectionStart ?? text.length;
+    const selectionEnd = el?.selectionEnd ?? text.length;
+    const result = insertTextAtCursor(text, selectionStart, selectionEnd, emoji);
+    handleTextChange(result.text);
+    setShowEmojiPicker(false);
+    // Restore focus and caret position so picking an emoji feels like typing
+    // it rather than knocking focus out of the composer.
+    requestAnimationFrame(() => {
+      el?.focus();
+      el?.setSelectionRange(result.cursor, result.cursor);
+    });
   };
 
   const charState = computeComposerCharacterState(text.length);
@@ -268,6 +311,40 @@ export function MessageComposer({
       )}
 
       <form onSubmit={handleSubmit} className="flex items-end gap-2">
+        <div className="relative">
+          <button
+            ref={emojiButtonRef}
+            type="button"
+            onClick={() => setShowEmojiPicker((v) => !v)}
+            className={`p-2.5 rounded-xl hover:bg-[var(--bg-hover)] transition-colors ${
+              showEmojiPicker
+                ? "text-[#6366F1] bg-[#6366F1]/10"
+                : "text-[var(--text-muted)] hover:text-[#6366F1]"
+            }`}
+            title="Insert emoji"
+          >
+            <Smile className="w-4 h-4" />
+          </button>
+          {showEmojiPicker && (
+            <div
+              ref={emojiPickerRef}
+              className="absolute bottom-full left-0 mb-2 z-20 grid grid-cols-8 gap-0.5 p-2 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-hairline)] shadow-lg"
+            >
+              {QUICK_EMOJIS.map((emoji) => (
+                <button
+                  key={emoji}
+                  type="button"
+                  onClick={() => handleEmojiPick(emoji)}
+                  className="w-8 h-8 flex items-center justify-center text-lg rounded-lg hover:bg-[var(--bg-hover)] transition-colors"
+                  title={emoji}
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
         <label
           className="p-2.5 rounded-xl hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[#6366F1] cursor-pointer transition-colors"
           title="Attach image, GIF, or video (up to 50 MB)"

@@ -14,8 +14,10 @@ import {
   getConversationTitle,
   getDraft,
   getMessageCopyText,
+  insertTextAtCursor,
   isScrolledNearBottom,
   KEYBOARD_SHORTCUTS,
+  QUICK_EMOJIS,
   resolveComposerEscapeAction,
   resolveMessageBubbleEscapeAction,
   shouldOpenMediaLightbox,
@@ -478,6 +480,59 @@ describe("resolveComposerEscapeAction", () => {
 
   it("does nothing when there's neither a reply nor an attachment", () => {
     expect(resolveComposerEscapeAction(false, false)).toBe("none");
+  });
+
+  it("closes an open emoji picker before anything else", () => {
+    expect(resolveComposerEscapeAction(true, true, true)).toBe("close_emoji_picker");
+    expect(resolveComposerEscapeAction(false, false, true)).toBe("close_emoji_picker");
+  });
+
+  it("defaults the emoji picker flag to closed when omitted", () => {
+    expect(resolveComposerEscapeAction(false, true)).toBe("clear_attachment");
+  });
+});
+
+describe("insertTextAtCursor", () => {
+  it("inserts at the caret when there's no selection", () => {
+    expect(insertTextAtCursor("hi !", 3, 3, "👍")).toEqual({ text: "hi 👍!", cursor: 5 });
+  });
+
+  it("replaces a selected range like typing over it", () => {
+    expect(insertTextAtCursor("hello world", 6, 11, "there")).toEqual({
+      text: "hello there",
+      cursor: 11,
+    });
+  });
+
+  it("appends when the cursor is at the end of the text", () => {
+    // Emoji outside the Basic Multilingual Plane are UTF-16 surrogate pairs,
+    // so the cursor advances by the emoji's UTF-16 length, not 1.
+    expect(insertTextAtCursor("gg", 2, 2, "🎉")).toEqual({ text: "gg🎉", cursor: 4 });
+  });
+
+  it("inserts into empty text", () => {
+    expect(insertTextAtCursor("", 0, 0, "🔥")).toEqual({ text: "🔥", cursor: 2 });
+  });
+
+  it("clamps out-of-bounds selection to the text length", () => {
+    expect(insertTextAtCursor("abc", 10, 20, "!")).toEqual({ text: "abc!", cursor: 4 });
+  });
+
+  it("handles a reversed selection (end before start) the same as a forward one", () => {
+    expect(insertTextAtCursor("hello world", 11, 6, "there")).toEqual({
+      text: "hello there",
+      cursor: 11,
+    });
+  });
+});
+
+describe("QUICK_EMOJIS", () => {
+  it("is a non-empty list of unique, non-blank emoji", () => {
+    expect(QUICK_EMOJIS.length).toBeGreaterThan(0);
+    expect(new Set(QUICK_EMOJIS).size).toBe(QUICK_EMOJIS.length);
+    for (const emoji of QUICK_EMOJIS) {
+      expect(emoji.trim().length).toBeGreaterThan(0);
+    }
   });
 });
 

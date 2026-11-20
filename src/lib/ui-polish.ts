@@ -495,23 +495,30 @@ export function computeComposerCharacterState(
 }
 
 /** What pressing Escape in the composer should do, in priority order. */
-export type ComposerEscapeAction = "cancel_reply" | "clear_attachment" | "none";
+export type ComposerEscapeAction =
+  | "close_emoji_picker"
+  | "cancel_reply"
+  | "clear_attachment"
+  | "none";
 
 /**
  * Resolves what the composer's Escape key should do, so a user can back out
- * of a reply context or drop a staged attachment without reaching for the
- * mouse (matching Slack/Discord/Telegram conventions). An active reply
- * takes priority over a staged attachment when both are present, since
- * canceling the reply is the more surprising/stateful thing to leave
- * lingering; a second Escape press then clears any remaining attachment.
- * Returns "none" when there's nothing to back out of, so callers can skip
- * calling preventDefault() and let Escape propagate normally (e.g. to close
- * an unrelated modal).
+ * of an open emoji picker, a reply context, or a staged attachment without
+ * reaching for the mouse (matching Slack/Discord/Telegram conventions). An
+ * open emoji picker (issue #50) takes priority over everything else since
+ * it's a transient popover floating above the rest of the composer; an
+ * active reply then takes priority over a staged attachment when both are
+ * present, since canceling the reply is the more surprising/stateful thing
+ * to leave lingering. Returns "none" when there's nothing to back out of,
+ * so callers can skip calling preventDefault() and let Escape propagate
+ * normally (e.g. to close an unrelated modal).
  */
 export function resolveComposerEscapeAction(
   hasReply: boolean,
-  hasAttachment: boolean
+  hasAttachment: boolean,
+  hasEmojiPickerOpen: boolean = false
 ): ComposerEscapeAction {
+  if (hasEmojiPickerOpen) return "close_emoji_picker";
   if (hasReply) return "cancel_reply";
   if (hasAttachment) return "clear_attachment";
   return "none";
@@ -731,4 +738,47 @@ export function shouldOpenShortcutsHelp(
   if (isContentEditable) return false;
   const tag = activeElementTagName?.toUpperCase() ?? "";
   return tag !== "INPUT" && tag !== "TEXTAREA" && tag !== "SELECT";
+}
+
+/**
+ * A small, curated set of common reaction/sentiment emoji for the
+ * composer's quick emoji picker (issue #50). Deliberately a fixed list
+ * rather than a full emoji library/picker dependency — covers the most
+ * common chat reactions (thumbs up, heart, laugh, celebrate, etc.)
+ * without adding a new runtime dependency or a searchable-but-overkill
+ * picker UI for a desktop chat app this size.
+ */
+export const QUICK_EMOJIS: string[] = [
+  "😀", "😂", "😍", "😮", "😢", "😡", "👍", "👎",
+  "🙏", "🎉", "🔥", "❤️", "👀", "✅", "❌", "🚀",
+];
+
+export interface TextInsertionResult {
+  /** The full text after inserting `insertion` in place of the selected range. */
+  text: string;
+  /** Where the caret should land after the insertion (end of the inserted text). */
+  cursor: number;
+}
+
+/**
+ * Inserts `insertion` (e.g. an emoji) into `text` in place of the current
+ * selection (`selectionStart`..`selectionEnd`, both clamped to the text's
+ * bounds and swapped if given out of order), replacing any selected text
+ * exactly like typing would. Used by the composer's quick emoji picker
+ * (issue #50) so clicking an emoji inserts it at the caret — not just
+ * appended to the end — matching ordinary keyboard typing behavior, and
+ * returns the caret position so the composer can restore focus there
+ * instead of leaving it stranded at the start of the textarea.
+ */
+export function insertTextAtCursor(
+  text: string,
+  selectionStart: number,
+  selectionEnd: number,
+  insertion: string
+): TextInsertionResult {
+  const length = text.length;
+  const start = Math.max(0, Math.min(length, selectionStart, selectionEnd));
+  const end = Math.max(0, Math.min(length, Math.max(selectionStart, selectionEnd)));
+  const nextText = text.slice(0, start) + insertion + text.slice(end);
+  return { text: nextText, cursor: start + insertion.length };
 }
