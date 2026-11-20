@@ -431,6 +431,33 @@ export function formatMessageTimestamp(
 }
 
 /**
+ * Formats the full, unambiguous date and time for a message timestamp
+ * (e.g. "Thursday, November 20, 2025 at 2:32:45 PM"), for use as a hover
+ * tooltip on the bubble's short `formatMessageTimestamp` label — matching
+ * the Slack/Discord/Gmail convention where the compact in-timeline time
+ * (and the "Yesterday"/"Nov 18" date context once it's shown) hides the
+ * exact second and weekday until the viewer hovers over it. Always
+ * includes the weekday, full month name, day, year, and seconds
+ * regardless of how recent the message is, since a tooltip is opt-in
+ * (hover) rather than always-visible chrome competing for timeline space.
+ */
+export function formatFullMessageTimestamp(isoString: string): string {
+  const sent = new Date(isoString);
+  const datePart = sent.toLocaleDateString([], {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+  const timePart = sent.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+  return `${datePart} at ${timePart}`;
+}
+
+/**
  * Soft, purely client-side guidance limit for composer text length. There is
  * no confirmed server-side cap on message text to match, so this never
  * blocks sending — it only drives when/how the composer surfaces a

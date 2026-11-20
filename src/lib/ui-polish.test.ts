@@ -7,6 +7,7 @@ import {
   filterConversations,
   findMessageSearchMatches,
   findUnreadDividerMessageId,
+  formatFullMessageTimestamp,
   formatMessageTimestamp,
   getAttachmentPreviewKind,
   getConversationTitle,
@@ -369,6 +370,36 @@ describe("formatMessageTimestamp", () => {
     const sentLongAgo = new Date(2024, 0, 1, 7, 45).toISOString();
     const { timeLabel } = formatMessageTimestamp(sentLongAgo, referenceNow);
     expect(timeLabel.length).toBeGreaterThan(0);
+  });
+});
+
+describe("formatFullMessageTimestamp", () => {
+  it("includes the full weekday, month, day, and year", () => {
+    const sent = new Date(2025, 10, 20, 14, 32, 45).toISOString();
+    const full = formatFullMessageTimestamp(sent);
+    expect(full).toContain("Thursday");
+    expect(full).toContain("November");
+    expect(full).toContain("20");
+    expect(full).toContain("2025");
+  });
+
+  it("includes seconds, unlike the compact formatMessageTimestamp time label", () => {
+    const sent = new Date(2025, 10, 20, 14, 32, 45).toISOString();
+    const full = formatFullMessageTimestamp(sent);
+    const { timeLabel } = formatMessageTimestamp(sent);
+    expect(full.length).toBeGreaterThan(timeLabel.length);
+    expect(full).not.toBe(timeLabel);
+  });
+
+  it("joins the date and time with a connecting word", () => {
+    const sent = new Date(2025, 0, 1, 0, 0, 0).toISOString();
+    expect(formatFullMessageTimestamp(sent)).toContain(" at ");
+  });
+
+  it("produces a different full timestamp for messages on different days", () => {
+    const first = formatFullMessageTimestamp(new Date(2025, 10, 20, 9, 0).toISOString());
+    const second = formatFullMessageTimestamp(new Date(2025, 10, 21, 9, 0).toISOString());
+    expect(first).not.toBe(second);
   });
 });
 
