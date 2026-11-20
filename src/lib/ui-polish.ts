@@ -459,3 +459,25 @@ export function validateAttachmentFile(
   }
   return { ok: true };
 }
+
+/**
+ * Finds the IDs of currently-loaded messages whose text matches `query`
+ * (case-insensitive substring, surrounding whitespace trimmed), in the same
+ * order as `messages`, for the chat header's in-conversation search bar.
+ * Only verified, non-removed messages with text are eligible — a
+ * removed/unverified/attachment-only message has nothing meaningful to
+ * match against (mirrors the eligibility rule `getMessageCopyText` already
+ * uses for copy-to-clipboard). A blank query matches nothing rather than
+ * everything, so the search bar starts empty instead of flooding the
+ * match counter before the user has typed anything.
+ */
+export function findMessageSearchMatches(
+  messages: MessageDto[],
+  query: string
+): string[] {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return [];
+  return messages
+    .filter((m) => getMessageCopyText(m)?.toLowerCase().includes(needle))
+    .map((m) => m.id);
+}

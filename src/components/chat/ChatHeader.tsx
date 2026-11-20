@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Lock, Pin, Settings2, Users } from "lucide-react";
+import { Lock, Pin, Search, Settings2, Users } from "lucide-react";
 import type { ConversationDto } from "../../lib/types";
 import { formatCryptoFingerprint } from "../../lib/ui-polish";
 
@@ -9,7 +9,9 @@ interface ChatHeaderProps {
   onlineUserIds: Set<string>;
   activeTab: "messages" | "pinned";
   pinnedCount: number;
+  searchOpen: boolean;
   onTabChange: (tab: "messages" | "pinned") => void;
+  onToggleSearch: () => void;
   onOpenGroupDrawer: () => void;
 }
 
@@ -19,7 +21,9 @@ export function ChatHeader({
   onlineUserIds,
   activeTab,
   pinnedCount,
+  searchOpen,
   onTabChange,
+  onToggleSearch,
   onOpenGroupDrawer,
 }: ChatHeaderProps) {
   const peer = !conversation.is_group
@@ -102,6 +106,20 @@ export function ChatHeader({
       </div>
 
       <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onToggleSearch}
+          aria-pressed={searchOpen}
+          title="Search in conversation"
+          className={`p-1.5 rounded-lg transition-colors ${
+            searchOpen
+              ? "bg-[#6366F1] text-white"
+              : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
+          }`}
+        >
+          <Search className="w-3.5 h-3.5" />
+        </button>
+
         <div
           role="tablist"
           aria-label="Conversation view"

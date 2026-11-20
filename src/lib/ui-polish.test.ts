@@ -3,6 +3,7 @@ import {
   computeComposerCharacterState,
   computeScrollFollowState,
   filterConversations,
+  findMessageSearchMatches,
   formatMessageTimestamp,
   getAttachmentPreviewKind,
   getConversationTitle,
@@ -533,5 +534,37 @@ describe("validateAttachmentFile", () => {
       ok: false,
       error: "Allowed formats: PNG, JPG, WEBP, GIF, MP4, WEBM.",
     });
+  });
+});
+
+describe("findMessageSearchMatches", () => {
+  it("returns message IDs matching a case-insensitive substring, in original order", () => {
+    const messages = [
+      makeMsg({ id: "m1", text: "Hello there" }),
+      makeMsg({ id: "m2", text: "unrelated message" }),
+      makeMsg({ id: "m3", text: "say HELLO world" }),
+    ];
+    expect(findMessageSearchMatches(messages, "hello")).toEqual(["m1", "m3"]);
+  });
+
+  it("returns an empty array for a blank or whitespace-only query", () => {
+    const messages = [makeMsg({ id: "m1", text: "Hello there" })];
+    expect(findMessageSearchMatches(messages, "")).toEqual([]);
+    expect(findMessageSearchMatches(messages, "   ")).toEqual([]);
+  });
+
+  it("excludes removed, unverified, and attachment-only (textless) messages", () => {
+    const messages = [
+      makeMsg({ id: "m1", text: "secret plan", is_removed: true }),
+      makeMsg({ id: "m2", text: "secret plan", status: "verification_failed" }),
+      makeMsg({ id: "m3", text: null }),
+      makeMsg({ id: "m4", text: "the secret plan" }),
+    ];
+    expect(findMessageSearchMatches(messages, "secret")).toEqual(["m4"]);
+  });
+
+  it("trims surrounding whitespace from the query before matching", () => {
+    const messages = [makeMsg({ id: "m1", text: "Hello there" })];
+    expect(findMessageSearchMatches(messages, "  hello  ")).toEqual(["m1"]);
   });
 });

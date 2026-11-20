@@ -9,6 +9,7 @@ import { MessageTimeline } from "./components/chat/MessageTimeline";
 import { PinnedMessagesView } from "./components/chat/PinnedMessagesView";
 import { TypingIndicator } from "./components/chat/TypingIndicator";
 import { MessageComposer } from "./components/chat/MessageComposer";
+import { MessageSearchBar } from "./components/chat/MessageSearchBar";
 import { AuthScreen } from "./components/modals/AuthScreen";
 import { ProfileModal } from "./components/modals/ProfileModal";
 import { GroupManageDrawer } from "./components/modals/GroupManageDrawer";
@@ -49,6 +50,7 @@ export function App() {
   const [messages, setMessages] = useState<MessageDto[]>([]);
   const [replyingTo, setReplyingTo] = useState<MessageDto | null>(null);
   const [activeTab, setActiveTab] = useState<"messages" | "pinned">("messages");
+  const [searchOpen, setSearchOpen] = useState(false);
   const [pinnedMessages, setPinnedMessages] = useState<PinnedMessageDto[]>([]);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(
@@ -175,6 +177,7 @@ export function App() {
   useEffect(() => {
     setReplyingTo(null);
     setActiveTab("messages");
+    setSearchOpen(false);
     setHighlightedMessageId(null);
     if (!user || !selectedConversationId) {
       setMessages([]);
@@ -438,9 +441,21 @@ export function App() {
                   onlineUserIds={onlineUserIds}
                   activeTab={activeTab}
                   pinnedCount={pinnedMessages.length}
+                  searchOpen={searchOpen}
                   onTabChange={setActiveTab}
+                  onToggleSearch={() => {
+                    setSearchOpen((v) => !v);
+                    setActiveTab("messages");
+                  }}
                   onOpenGroupDrawer={() => setGroupDrawerMode("manage")}
                 />
+                {searchOpen && activeTab === "messages" && (
+                  <MessageSearchBar
+                    messages={messages}
+                    onJumpToMessage={scrollToMessage}
+                    onClose={() => setSearchOpen(false)}
+                  />
+                )}
                 {activeTab === "pinned" ? (
                   <PinnedMessagesView
                     pinnedMessages={pinnedMessages}
