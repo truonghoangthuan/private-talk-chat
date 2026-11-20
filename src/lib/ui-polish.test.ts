@@ -26,6 +26,7 @@ import {
   resolveMessageBubbleEscapeAction,
   saveRecentEmojis,
   saveThemePreference,
+  shouldOpenConversationSearch,
   shouldOpenMediaLightbox,
   shouldOpenShortcutsHelp,
   shouldSubmitMessageEditOnKeyDown,
@@ -1056,6 +1057,25 @@ describe("shouldOpenShortcutsHelp", () => {
 
   it("is suppressed inside a contenteditable element regardless of tag", () => {
     expect(shouldOpenShortcutsHelp("?", "DIV", true)).toBe(false);
+  });
+});
+
+describe("shouldOpenConversationSearch", () => {
+  it("opens on Ctrl+F", () => {
+    expect(shouldOpenConversationSearch("f", true)).toBe(true);
+  });
+
+  it("matches the key case-insensitively", () => {
+    expect(shouldOpenConversationSearch("F", true)).toBe(true);
+  });
+
+  it("requires the Ctrl/Cmd modifier", () => {
+    expect(shouldOpenConversationSearch("f", false)).toBe(false);
+  });
+
+  it("ignores every other key even with the modifier held", () => {
+    expect(shouldOpenConversationSearch("g", true)).toBe(false);
+    expect(shouldOpenConversationSearch("Enter", true)).toBe(false);
   });
 });
 
