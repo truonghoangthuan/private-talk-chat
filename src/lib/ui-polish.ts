@@ -567,6 +567,19 @@ export function isConversationUnreadForDisplay(
 }
 
 /**
+ * Returns the IDs of every conversation with a real, server-tracked unread
+ * count (issue #96's "Mark all as read" sidebar action) — deliberately
+ * excludes conversations that are unread only via the purely client-side
+ * manually-marked-unread flag (issue #86), since those don't need a
+ * `message_mark_seen` IPC round trip at all; the caller clears that flag
+ * separately (the same way opening a single conversation already does).
+ * Preserves `conversations`' input order.
+ */
+export function getUnreadConversationIds(conversations: ConversationDto[]): string[] {
+  return conversations.filter((conv) => conv.unread_count > 0).map((conv) => conv.id);
+}
+
+/**
  * Sums `unread_count` across `conversations`, excluding any conversation
  * whose ID is in `mutedIds` — so a muted chat can keep its own in-chat
  * unread count (still visible once opened) without inflating the global

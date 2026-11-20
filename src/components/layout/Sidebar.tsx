@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   Bell,
   BellOff,
+  CheckCheck,
   Circle,
   MailCheck,
   MessageSquarePlus,
@@ -38,6 +39,8 @@ interface SidebarProps {
   drafts: Record<string, string>;
   onToggleMuted: (conversationId: string) => void;
   onToggleManuallyUnread: (conversationId: string) => void;
+  /** Bulk "mark all as read" action (issue #96) — clears every real and manually-flagged unread conversation. */
+  onMarkAllRead: () => Promise<void>;
   onAddContactByUsername: (username: string) => Promise<void>;
   onStartDirectChat: (contactUserId: string) => Promise<void>;
   onSelectConversation: (conversationId: string) => void;
@@ -56,6 +59,7 @@ export function Sidebar({
   drafts,
   onToggleMuted,
   onToggleManuallyUnread,
+  onMarkAllRead,
   onAddContactByUsername,
   onStartDirectChat,
   onSelectConversation,
@@ -69,6 +73,7 @@ export function Sidebar({
   const [failedAvatars, setFailedAvatars] = useState<Set<string>>(new Set());
   const [conversationQuery, setConversationQuery] = useState("");
   const [unreadOnly, setUnreadOnly] = useState(false);
+  const [markingAllRead, setMarkingAllRead] = useState(false);
   const [pinnedIds, setPinnedIds] = useState<string[]>(() =>
     loadPinnedConversationIds(currentUserId)
   );
@@ -100,6 +105,16 @@ export function Sidebar({
     e.preventDefault();
     e.stopPropagation();
     onToggleManuallyUnread(conversationId);
+  };
+
+  const handleMarkAllRead = async () => {
+    if (markingAllRead) return;
+    setMarkingAllRead(true);
+    try {
+      await onMarkAllRead();
+    } finally {
+      setMarkingAllRead(false);
+    }
   };
 
   const markAvatarFailed = (url: string) => {
@@ -300,6 +315,15 @@ export function Sidebar({
                 {unreadConversationCount > 99 ? "99+" : unreadConversationCount}
               </span>
             )}
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleMarkAllRead()}
+            disabled={unreadConversationCount === 0 || markingAllRead}
+            title="Mark all conversations as read"
+            className="shrink-0 p-1.5 rounded-lg text-[var(--text-muted)] hover:text-[#6366F1] hover:bg-[var(--bg-hover)] disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-[var(--text-muted)] transition-colors"
+          >
+            <CheckCheck className="w-3.5 h-3.5" />
           </button>
         </div>
         <div className="px-2 py-1 text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">

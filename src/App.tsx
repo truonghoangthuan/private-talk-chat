@@ -27,6 +27,7 @@ import {
   formatOfflineDuration,
   getAdjacentConversationId,
   getConversationSwitchDirection,
+  getUnreadConversationIds,
   loadManuallyUnreadConversationIds,
   loadMutedConversationIds,
   loadPinnedConversationIds,
@@ -373,6 +374,38 @@ export function App() {
     setConversations(convList);
   }, []);
 
+  // Bulk "mark all as read" (issue #96) — mirrors the per-conversation flow
+  // the selection effect already runs (fetch recent messages, mark the last
+  // incoming one seen), applied to every conversation with a real unread
+  // count, plus clearing the purely client-side manually-marked-unread flag
+  // (issue #86) on every conversation that has it. One conversation failing
+  // (e.g. a transient network error) shouldn't block marking the rest.
+  const handleMarkAllConversationsRead = useCallback(async () => {
+    if (!user) return;
+    const unreadIds = getUnreadConversationIds(conversations);
+    await Promise.all(
+      unreadIds.map(async (conversationId) => {
+        try {
+          const list = await tauriClient.messageList(conversationId, 50);
+          const lastIncoming = [...list]
+            .reverse()
+            .find((m) => m.sender_id !== user.id && !m.is_removed);
+          if (lastIncoming) {
+            await tauriClient.messageMarkSeen(conversationId, lastIncoming.id);
+          }
+        } catch {
+          // Best effort — leave this one conversation's unread state as-is.
+        }
+      })
+    );
+    setManuallyUnreadConversationIds((prev) => {
+      if (prev.length === 0) return prev;
+      saveManuallyUnreadConversationIds(user.id, []);
+      return [];
+    });
+    await refreshContactsAndConversations();
+  }, [user, conversations, refreshContactsAndConversations]);
+
   useEffect(() => {
     tauriClient
       .authRestoreSession()
@@ -686,6 +719,7 @@ export function App() {
             drafts={drafts}
             onToggleMuted={handleToggleMutedConversation}
             onToggleManuallyUnread={handleToggleManuallyUnreadConversation}
+            onMarkAllRead={handleMarkAllConversationsRead}
             onAddContactByUsername={async (uname) => {
               await tauriClient.contactAddByUsername(uname);
               await refreshContactsAndConversations();
