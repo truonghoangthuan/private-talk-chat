@@ -1,5 +1,7 @@
-import { ArrowUpRight, Pin, PinOff } from "lucide-react";
+import { useState } from "react";
+import { ArrowUpRight, Pin, PinOff, Search } from "lucide-react";
 import type { PinnedMessageDto } from "../../lib/types";
+import { filterPinnedMessages } from "../../lib/ui-polish";
 import { MediaViewer } from "./MediaViewer";
 
 interface PinnedMessagesViewProps {
@@ -15,6 +17,8 @@ export function PinnedMessagesView({
   onJumpToMessage,
   onUnpinMessage,
 }: PinnedMessagesViewProps) {
+  const [query, setQuery] = useState("");
+
   if (pinnedMessages.length === 0) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
@@ -31,9 +35,29 @@ export function PinnedMessagesView({
     );
   }
 
+  const filteredMessages = filterPinnedMessages(pinnedMessages, query);
+
   return (
     <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
-      {pinnedMessages.map((entry) => {
+      {pinnedMessages.length > 1 && (
+        <div className="relative pb-1">
+          <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Filter pinned messages..."
+            aria-label="Filter pinned messages"
+            className="w-full pl-8 pr-2.5 py-1.5 text-xs rounded-lg bg-[var(--bg-canvas)] border border-[var(--border-hairline)] focus:outline-none focus:border-[#6366F1]"
+          />
+        </div>
+      )}
+      {filteredMessages.length === 0 && (
+        <div className="px-3 py-6 text-xs text-center text-[var(--text-muted)]">
+          No pinned messages match "{query.trim()}".
+        </div>
+      )}
+      {filteredMessages.map((entry) => {
         const { message } = entry;
         const sentAt = new Date(message.created_at).toLocaleString([], {
           month: "short",

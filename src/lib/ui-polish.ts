@@ -1179,6 +1179,30 @@ export function saveRecentEmojis(recent: string[]): void {
   }
 }
 
+/**
+ * Filters the Pinned subtab's list by a case-insensitive, whitespace-
+ * trimmed substring match against the pinned message's text and its
+ * sender's display name (issue #68) -- mirroring the sidebar's
+ * `filterConversations` convention for the per-conversation pinned-message
+ * list instead of leaving it unfilterable once a conversation accumulates
+ * more than a handful of pins. An empty/blank query returns `pinned`
+ * unchanged (including order), matching `filterConversations`'s no-op
+ * behavior for a blank filter. Attachment-only pins (no `text`) still
+ * match on sender name alone.
+ */
+export function filterPinnedMessages(
+  pinned: PinnedMessageDto[],
+  query: string
+): PinnedMessageDto[] {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return pinned;
+  return pinned.filter((entry) => {
+    const text = (entry.message.text || "").toLowerCase();
+    const sender = entry.message.sender_display_name.toLowerCase();
+    return text.includes(needle) || sender.includes(needle);
+  });
+}
+
 export interface TextInsertionResult {
   /** The full text after inserting `insertion` in place of the selected range. */
   text: string;
