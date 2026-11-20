@@ -25,15 +25,18 @@ import {
   getDraft,
   getMessageCopyText,
   insertTextAtCursor,
+  isConversationUnreadForDisplay,
   isScrolledNearBottom,
   KEYBOARD_SHORTCUTS,
   loadRecentEmojis,
+  loadManuallyUnreadConversationIds,
   loadMutedConversationIds,
   loadThemePreference,
   QUICK_EMOJIS,
   recordRecentEmoji,
   resolveComposerEscapeAction,
   resolveMessageBubbleEscapeAction,
+  saveManuallyUnreadConversationIds,
   saveMutedConversationIds,
   saveRecentEmojis,
   saveThemePreference,
@@ -47,6 +50,7 @@ import {
   splitTextForSearchHighlight,
   sumUnreadExcludingMuted,
   syncPinnedMessage,
+  toggleManuallyUnreadConversationId,
   toggleMutedConversationId,
   togglePinnedConversationId,
   updateDraft,
@@ -287,6 +291,17 @@ describe("filterUnreadOnlyConversations", () => {
   it("returns an empty list when nothing is unread", () => {
     expect(filterUnreadOnlyConversations([read], true)).toEqual([]);
   });
+
+  it("also keeps conversations manually marked unread (issue #86)", () => {
+    const manuallyUnread = makeConv({ id: "c3", unread_count: 0 });
+    expect(
+      filterUnreadOnlyConversations([read, manuallyUnread], true, ["c3"])
+    ).toEqual([manuallyUnread]);
+  });
+
+  it("defaults manuallyUnreadIds to empty when omitted", () => {
+    expect(filterUnreadOnlyConversations([read], true)).toEqual([]);
+  });
 });
 
 describe("togglePinnedConversationId", () => {
@@ -399,6 +414,98 @@ describe("loadMutedConversationIds / saveMutedConversationIds", () => {
     delete (globalThis as { localStorage?: Storage }).localStorage;
     expect(loadMutedConversationIds("u1")).toEqual([]);
     expect(() => saveMutedConversationIds("u1", ["c1"])).not.toThrow();
+  });
+});
+
+describe("toggleManuallyUnreadConversationId", () => {
+  it("flags an unflagged conversation by appending its ID", () => {
+    expect(toggleManuallyUnreadConversationId([], "c1")).toEqual(["c1"]);
+    expect(toggleManuallyUnreadConversationId(["c1"], "c2")).toEqual(["c1", "c2"]);
+  });
+
+  it("unflags an already-flagged conversation by removing its ID", () => {
+    expect(toggleManuallyUnreadConversationId(["c1", "c2"], "c1")).toEqual(["c2"]);
+    expect(toggleManuallyUnreadConversationId(["c1"], "c1")).toEqual([]);
+  });
+
+  it("always returns a new array (never mutates the input)", () => {
+    const original = ["c1"];
+    const result = toggleManuallyUnreadConversationId(original, "c2");
+    expect(result).not.toBe(original);
+    expect(original).toEqual(["c1"]);
+  });
+});
+
+describe("loadManuallyUnreadConversationIds / saveManuallyUnreadConversationIds", () => {
+  let store: Record<string, string>;
+
+  beforeEach(() => {
+    store = {};
+    (globalThis as { localStorage?: Storage }).localStorage = {
+      getItem: (key: string) => (key in store ? store[key] : null),
+      setItem: (key: string, value: string) => {
+        store[key] = value;
+      },
+      removeItem: (key: string) => {
+        delete store[key];
+      },
+      clear: () => {
+        store = {};
+      },
+      get length() {
+        return Object.keys(store).length;
+      },
+      key: (index: number) => Object.keys(store)[index] ?? null,
+    } as Storage;
+  });
+
+  afterEach(() => {
+    delete (globalThis as { localStorage?: Storage }).localStorage;
+  });
+
+  it("returns an empty array when nothing is stored", () => {
+    expect(loadManuallyUnreadConversationIds("u1")).toEqual([]);
+  });
+
+  it("round-trips a saved manually-unread set", () => {
+    saveManuallyUnreadConversationIds("u1", ["c1", "c2"]);
+    expect(loadManuallyUnreadConversationIds("u1")).toEqual(["c1", "c2"]);
+  });
+
+  it("scopes the manually-unread set per user", () => {
+    saveManuallyUnreadConversationIds("u1", ["c1"]);
+    saveManuallyUnreadConversationIds("u2", ["c2"]);
+    expect(loadManuallyUnreadConversationIds("u1")).toEqual(["c1"]);
+    expect(loadManuallyUnreadConversationIds("u2")).toEqual(["c2"]);
+  });
+
+  it("returns an empty array for a corrupt/unexpected stored value", () => {
+    store["bloop:manually-unread-conversations:u1"] = "not-an-array";
+    expect(loadManuallyUnreadConversationIds("u1")).toEqual([]);
+  });
+
+  it("returns an empty array when localStorage is unavailable", () => {
+    delete (globalThis as { localStorage?: Storage }).localStorage;
+    expect(loadManuallyUnreadConversationIds("u1")).toEqual([]);
+    expect(() => saveManuallyUnreadConversationIds("u1", ["c1"])).not.toThrow();
+  });
+});
+
+describe("isConversationUnreadForDisplay", () => {
+  it("is true when the conversation has a real unread count", () => {
+    expect(isConversationUnreadForDisplay(makeConv({ unread_count: 2 }), [])).toBe(true);
+  });
+
+  it("is true when manually flagged despite zero real unread count", () => {
+    expect(
+      isConversationUnreadForDisplay(makeConv({ id: "c1", unread_count: 0 }), ["c1"])
+    ).toBe(true);
+  });
+
+  it("is false when neither condition holds", () => {
+    expect(
+      isConversationUnreadForDisplay(makeConv({ id: "c1", unread_count: 0 }), ["c2"])
+    ).toBe(false);
   });
 });
 

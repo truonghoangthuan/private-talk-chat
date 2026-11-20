@@ -26,8 +26,10 @@ import {
   formatOfflineDuration,
   getAdjacentConversationId,
   getConversationSwitchDirection,
+  loadManuallyUnreadConversationIds,
   loadMutedConversationIds,
   loadPinnedConversationIds,
+  saveManuallyUnreadConversationIds,
   saveMutedConversationIds,
   loadThemePreference,
   saveThemePreference,
@@ -36,6 +38,7 @@ import {
   shouldFocusConversationFilter,
   sortConversationsForSidebar,
   sumUnreadExcludingMuted,
+  toggleManuallyUnreadConversationId,
   toggleMutedConversationId,
   getConversationTitle,
   shouldShowMessageNotificationToast,
@@ -116,6 +119,9 @@ export function App() {
   const [reconnectNotice, setReconnectNotice] = useState<string | null>(null);
   const [shortcutsHelpOpen, setShortcutsHelpOpen] = useState(false);
   const [mutedConversationIds, setMutedConversationIds] = useState<string[]>([]);
+  const [manuallyUnreadConversationIds, setManuallyUnreadConversationIds] = useState<string[]>(
+    []
+  );
   const [messageToasts, setMessageToasts] = useState<MessageNotificationToast[]>([]);
   // Refs (not state) so the `onMessageUpsert` realtime handler below always
   // reads the latest value without needing `conversations`/
@@ -154,12 +160,49 @@ export function App() {
     setMutedConversationIds(user ? loadMutedConversationIds(user.id) : []);
   }, [user?.id]);
 
+  // Same per-user reload for the manually-marked-unread set (issue #86) —
+  // a purely client-side "come back to this later" flag, separate from
+  // muting/pinning, that otherwise shouldn't survive a switch to a
+  // different signed-in account on this machine.
+  useEffect(() => {
+    setManuallyUnreadConversationIds(user ? loadManuallyUnreadConversationIds(user.id) : []);
+  }, [user?.id]);
+
   const handleToggleMutedConversation = useCallback(
     (conversationId: string) => {
       if (!user) return;
       setMutedConversationIds((prev) => {
         const next = toggleMutedConversationId(prev, conversationId);
         saveMutedConversationIds(user.id, next);
+        return next;
+      });
+    },
+    [user]
+  );
+
+  const handleToggleManuallyUnreadConversation = useCallback(
+    (conversationId: string) => {
+      if (!user) return;
+      setManuallyUnreadConversationIds((prev) => {
+        const next = toggleManuallyUnreadConversationId(prev, conversationId);
+        saveManuallyUnreadConversationIds(user.id, next);
+        return next;
+      });
+    },
+    [user]
+  );
+
+  // Opening a conversation clears any manual "mark as unread" flag on it
+  // (issue #86) — mirrors Gmail/Outlook, where actually reading a thread
+  // again undoes a manual unread mark the same way it would a real one.
+  const handleSelectConversation = useCallback(
+    (conversationId: string) => {
+      setSelectedConversationId(conversationId);
+      if (!user) return;
+      setManuallyUnreadConversationIds((prev) => {
+        if (!prev.includes(conversationId)) return prev;
+        const next = prev.filter((id) => id !== conversationId);
+        saveManuallyUnreadConversationIds(user.id, next);
         return next;
       });
     },
@@ -631,8 +674,10 @@ export function App() {
             onlineUserIds={onlineUserIds}
             typingByConversation={typingByConv}
             mutedConversationIds={mutedConversationIds}
+            manuallyUnreadConversationIds={manuallyUnreadConversationIds}
             drafts={drafts}
             onToggleMuted={handleToggleMutedConversation}
+            onToggleManuallyUnread={handleToggleManuallyUnreadConversation}
             onAddContactByUsername={async (uname) => {
               await tauriClient.contactAddByUsername(uname);
               await refreshContactsAndConversations();
@@ -642,7 +687,7 @@ export function App() {
               await refreshContactsAndConversations();
               setSelectedConversationId(conv.id);
             }}
-            onSelectConversation={setSelectedConversationId}
+            onSelectConversation={handleSelectConversation}
             onOpenCreateGroup={() => setGroupDrawerMode("create")}
           />
         }
