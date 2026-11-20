@@ -10,6 +10,7 @@ applicable.
 
 ## [Unreleased]
 
+- feat: pressing Escape in the composer now cancels an active reply (or clears a staged attachment if no reply is active) without needing the mouse, matching Slack/Discord/Telegram conventions (issue #22)
 - chore: add a dev-only Playwright screenshot harness (`harness.html`, `scripts/harness-main.tsx`, `scripts/screenshot-component.mjs` — `npm run screenshot`) for capturing before/after PNGs of a single component in isolation, to attach visual diffs to PRs. Not part of the shipped app build.
 - fix: stop composer draft text from leaking between conversations when switching without sending; unsent drafts are now kept per-conversation and restored on return
 - feat: show date context ("Yesterday", "Nov 18", or "Nov 18, 2025") ahead of the time on message bubbles once a message wasn't sent earlier today, so scrolling into older history no longer shows a bare, date-less `HH:MM` (issue #18)
