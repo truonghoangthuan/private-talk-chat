@@ -1,4 +1,4 @@
-# Full-Stack Release Gate Checklist: Private Talk Windows Chat Application
+# Full-Stack Release Gate Checklist: Bloop Windows Chat Application
 
 **Purpose**: Reviewer-owned requirements-quality validation ("Unit Tests for English") covering Cryptography & Key Lifecycle, Windows Native & Local Isolation, Realtime Messaging & Supabase Contracts, and Minimal UI/UX & Media Handling across `spec.md`, `data-model.md`, and `contracts/`.
 **Created**: 2026-11-19

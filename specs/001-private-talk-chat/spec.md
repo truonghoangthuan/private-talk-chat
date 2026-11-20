@@ -1,9 +1,9 @@
-# Feature Specification: Private Talk Windows Chat Application
+# Feature Specification: Bloop Windows Chat Application
 
 **Feature Branch**: `001-private-talk-chat`  
 **Created**: 2026-11-19  
 **Status**: Draft  
-**Input**: User description: "Build `Private Talk`, a Windows chat app where the users can chat 1-to-1 or group chat like Microsoft Teams, or Facebook Messenger. - User can login or create new account by username and password. - User have to find other user account by their username to add their contact and able to chat or add them to a group chat. - User can upload their avatar, change display name. - User can send image, gif, video also. - User can create a group chat, edit group chat name, leave group chat, the host of the group chat can remove other members from the group. - User can edit or remove their sent message. - The application must support fully Windows notification, show number of new message on the taskbar icon. - The messages of the chats must be encrypted."
+**Input**: User description: "Build `Bloop`, a Windows chat app where the users can chat 1-to-1 or group chat like Microsoft Teams, or Facebook Messenger. - User can login or create new account by username and password. - User have to find other user account by their username to add their contact and able to chat or add them to a group chat. - User can upload their avatar, change display name. - User can send image, gif, video also. - User can create a group chat, edit group chat name, leave group chat, the host of the group chat can remove other members from the group. - User can edit or remove their sent message. - The application must support fully Windows notification, show number of new message on the taskbar icon. - The messages of the chats must be encrypted."
 
 ## Clarifications
 
@@ -19,7 +19,7 @@
 
 ### User Story 1 - Account Registration, Login, and Profile Setup (Priority: P1)
 
-A new or returning user opens Private Talk on Windows, creates an account with a unique username and password (or logs into an existing account), sets or updates their display name, and uploads an avatar image so contacts can recognize them.
+A new or returning user opens Bloop on Windows, creates an account with a unique username and password (or logs into an existing account), sets or updates their display name, and uploads an avatar image so contacts can recognize them.
 
 **Why this priority**: Authentication, cryptographic identity initialization, and basic user identity are prerequisites for all contact discovery and messaging capabilities.
 
@@ -38,7 +38,7 @@ A new or returning user opens Private Talk on Windows, creates an account with a
 
 An authenticated user searches for another user by username, adds them to their contact list, opens a 1-to-1 conversation, and exchanges end-to-end encrypted text messages, static images, animated GIFs, and videos.
 
-**Why this priority**: Core value proposition of Private Talk—private, encrypted 1-to-1 communication with rich media after explicit contact discovery.
+**Why this priority**: Core value proposition of Bloop—private, encrypted 1-to-1 communication with rich media after explicit contact discovery.
 
 **Independent Test**: Can be tested with two accounts by having User A find User B by username, add User B as a contact, and send text, an image, a GIF, and a video to User B, verifying User B receives and views each item and that stored/transmitted payloads remain encrypted.
 
@@ -87,7 +87,7 @@ An authenticated user who sent a message in a 1-to-1 or group chat edits the tex
 
 ### User Story 5 - Windows Notifications and Taskbar Unread Badge (Priority: P3)
 
-When a user receives new messages while Private Talk is minimized, in the background, or focused on a different conversation, Windows displays native desktop notifications and updates the numeric unread message badge on the Windows taskbar icon.
+When a user receives new messages while Bloop is minimized, in the background, or focused on a different conversation, Windows displays native desktop notifications and updates the numeric unread message badge on the Windows taskbar icon.
 
 **Why this priority**: Essential desktop user experience feature explicitly requested for Windows integration.
 
@@ -95,8 +95,8 @@ When a user receives new messages while Private Talk is minimized, in the backgr
 
 **Acceptance Scenarios**:
 
-1. **Given** Private Talk is running on Windows and minimized or unfocused, **When** a new message arrives in a 1-to-1 or group chat, **Then** the system triggers a native Windows notification without writing plaintext secrets to persistent logs.
-2. **Given** a Windows notification for an incoming message, **When** the user clicks the notification, **Then** Private Talk brings its main window to the foreground and opens the corresponding chat conversation.
+1. **Given** Bloop is running on Windows and minimized or unfocused, **When** a new message arrives in a 1-to-1 or group chat, **Then** the system triggers a native Windows notification without writing plaintext secrets to persistent logs.
+2. **Given** a Windows notification for an incoming message, **When** the user clicks the notification, **Then** Bloop brings its main window to the foreground and opens the corresponding chat conversation.
 3. **Given** one or more unread messages across chats, **When** new messages arrive or are read, **Then** the Windows taskbar application icon displays an accurate badge with the total number of unread messages (and clears the badge when unread count reaches zero).
 
 ---

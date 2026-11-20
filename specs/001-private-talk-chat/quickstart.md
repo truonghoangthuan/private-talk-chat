@@ -1,4 +1,4 @@
-# Quickstart & End-to-End Validation Guide: Private Talk
+# Quickstart & End-to-End Validation Guide: Bloop
 
 **Feature**: `001-private-talk-chat`  
 **Date**: 2026-11-19  

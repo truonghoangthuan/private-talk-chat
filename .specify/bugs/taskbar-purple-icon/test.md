@@ -14,7 +14,7 @@ All automated unit/integration tests, TypeScript/Vite build, and `.ico` decoding
 
 | Check | Command / Action | Result | Notes |
 |-------|------------------|--------|-------|
-| Reproduction (post-fix) | Install `v0.1.0` -> upgrade in place with NSIS installer -> inspect Windows 11 taskbar & `SetOverlayIcon` | skipped | Expensive full `tauri build` + UAC install into `C:\Program Files\Private Talk` + interactive GUI check not run |
+| Reproduction (post-fix) | Install `v0.1.0` -> upgrade in place with NSIS installer -> inspect Windows 11 taskbar & `SetOverlayIcon` | skipped | Expensive full `tauri build` + UAC install into `C:\Program Files\Bloop` + interactive GUI check not run |
 | New / updated tests | `cargo test --manifest-path src-tauri/Cargo.toml` (`ico_format_tests`) | pass | `icon_ico_has_standard_planes_dimensions_and_payload_formats` passed |
 | `.ico` decoder check | PowerShell `System.Drawing.Icon("src-tauri\icons\icon.ico", 32, 32)` | pass | `Size=32x32 TL=(0,0,0,0) Mid=(27,115,231,65)` |
 | Regression suite | `cargo test --manifest-path src-tauri/Cargo.toml` | pass | 1 unit test + 17 integration tests across 6 binaries passed |

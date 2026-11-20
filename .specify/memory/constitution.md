@@ -1,10 +1,10 @@
-# Private Talk Constitution
+# Bloop Constitution
 
 ## Core Principles
 
 ### I. Security-First Architecture (NON-NEGOTIABLE)
 
-Every feature, protocol, storage mechanism, and UI workflow in Private Talk MUST prioritize confidentiality, integrity, and least privilege over convenience or delivery speed. Threat modeling and security impact analysis MUST precede implementation for any new capability. Insecure defaults, plaintext fallbacks, and security-bypass flags are strictly prohibited.
+Every feature, protocol, storage mechanism, and UI workflow in Bloop MUST prioritize confidentiality, integrity, and least privilege over convenience or delivery speed. Threat modeling and security impact analysis MUST precede implementation for any new capability. Insecure defaults, plaintext fallbacks, and security-bypass flags are strictly prohibited.
 
 ### II. Mandatory End-to-End Message Encryption (NON-NEGOTIABLE)
 
@@ -12,7 +12,7 @@ All chat messages, attachments, and sensitive payloads MUST be encrypted on the 
 
 ### III. Windows-Native Data Protection & Isolation
 
-Private Talk targets the Windows operating system and MUST store cryptographic keys, credentials, and local session state using Windows-native security boundaries (such as Windows DPAPI, Credential Locker, or hardware-backed key storage where available) under least-privilege user permissions. Decrypted message content and key material MUST NOT be written to unencrypted temporary files or world-readable application directories.
+Bloop targets the Windows operating system and MUST store cryptographic keys, credentials, and local session state using Windows-native security boundaries (such as Windows DPAPI, Credential Locker, or hardware-backed key storage where available) under least-privilege user permissions. Decrypted message content and key material MUST NOT be written to unencrypted temporary files or world-readable application directories.
 
 ### IV. Zero-Leakage Observability & Fail-Closed Behavior
 
@@ -24,7 +24,7 @@ All cryptographic workflows, key lifecycle operations, fail-closed error paths, 
 
 ## Windows Platform & Cryptographic Constraints
 
-- **Target Platform**: Private Talk MUST be built and tested specifically for supported Windows desktop environments, respecting Windows filesystem ACLs, process isolation, and user-session boundaries.
+- **Target Platform**: Bloop MUST be built and tested specifically for supported Windows desktop environments, respecting Windows filesystem ACLs, process isolation, and user-session boundaries.
 - **Key & Secret Management**: Encryption keys MUST be rotated, scoped, and zeroized from memory when no longer needed to the extent permitted by the runtime. Hardcoded secrets, static encryption keys, and shared global keys are prohibited.
 - **Dependency Hygiene**: Third-party cryptographic, networking, and UI dependencies MUST be minimal, actively maintained, and audited for known vulnerabilities before adoption or upgrade.
 
@@ -36,7 +36,7 @@ All cryptographic workflows, key lifecycle operations, fail-closed error paths, 
 
 ## Governance
 
-This Constitution supersedes all other engineering practices and convenience conventions for Private Talk. Amendments require documented rationale, explicit approval, and an updated migration or verification plan for existing components.
+This Constitution supersedes all other engineering practices and convenience conventions for Bloop. Amendments require documented rationale, explicit approval, and an updated migration or verification plan for existing components.
 
 Versioning follows Semantic Versioning (`MAJOR.MINOR.PATCH`):
 - **MAJOR**: Backward-incompatible governance changes, principle removals, or security posture relaxations.

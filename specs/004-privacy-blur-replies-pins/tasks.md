@@ -48,9 +48,9 @@ description: "Task list for feature 004-privacy-blur-replies-pins"
 
 ## Phase 3: User Story 1 - Automatic Privacy Blur on Focus Loss (Priority: P1) 🎯 MVP
 
-**Goal**: Immediately obscure the entire application viewport (`<100ms`) behind a full-window privacy blur shield whenever the Private Talk window loses OS focus, and immediately restore clarity when focus returns.
+**Goal**: Immediately obscure the entire application viewport (`<100ms`) behind a full-window privacy blur shield whenever the Bloop window loses OS focus, and immediately restore clarity when focus returns.
 
-**Independent Test**: Open Private Talk (authenticated or unauthenticated), click outside the window or press `Alt+Tab`, verify the entire viewport immediately blurs behind the privacy shield making all text/contacts/media illegible, and click back into the window to verify instant restoration.
+**Independent Test**: Open Bloop (authenticated or unauthenticated), click outside the window or press `Alt+Tab`, verify the entire viewport immediately blurs behind the privacy shield making all text/contacts/media illegible, and click back into the window to verify instant restoration.
 
 ### Implementation for User Story 1
 
@@ -112,7 +112,7 @@ description: "Task list for feature 004-privacy-blur-replies-pins"
 
 **Goal**: Package and display the user-supplied blue emblem artwork (`specs/004-privacy-blur-replies-pins/assets/app-icon-source.png`) across Windows application icon resources (`16x16`..`256x256` `.ico` and Tauri PNGs) and in-app brand surfaces while preserving `ITaskbarList3` unread badge overlay legibility.
 
-**Independent Test**: Build/launch Private Talk on Windows and verify that `src-tauri/icons/icon.ico`, window chrome, taskbar button (with unread badge overlay), `AuthScreen`, `NavRail`, workspace empty state, and privacy blur shield display the custom emblem icon sharply without distortion.
+**Independent Test**: Build/launch Bloop on Windows and verify that `src-tauri/icons/icon.ico`, window chrome, taskbar button (with unread badge overlay), `AuthScreen`, `NavRail`, workspace empty state, and privacy blur shield display the custom emblem icon sharply without distortion.
 
 ### Implementation for User Story 4
 

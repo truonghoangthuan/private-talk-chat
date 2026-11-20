@@ -10,25 +10,25 @@
 
 User reported three issues with three attached screenshots:
 
-1. **Bug 1 (Installer upgrade failure)**: "Bug when update the app, the installer cannot uninstall the old version" — Screenshot 1 shows the NSIS `Private Talk Setup` window on the **Already Installed** page with *"Uninstall before installing"* selected and a modal alert: `"Unable to uninstall!"`.
+1. **Bug 1 (Installer upgrade failure)**: "Bug when update the app, the installer cannot uninstall the old version" — Screenshot 1 shows the NSIS `Bloop Setup` window on the **Already Installed** page with *"Uninstall before installing"* selected and a modal alert: `"Unable to uninstall!"`.
 2. **Bug 2 (Clicking a contact does not open a chat)**: "Click on a contact, it does not open a chat?" — Screenshot 2 shows two contacts (`Cam 10 Tú` and `Cubu69`) in the sidebar `CONTACTS (2)` row while `CONVERSATIONS` remains empty (`"No conversations yet. Select a contact or create a group."`) and the main stage remains on the empty workspace view.
 3. **Bug 3 (Creating a group chat fails with conflict error)**: "Create a group chat it show the error message like the attached image." — Screenshot 3 shows the **New Group Chat** drawer with group name `"Dead"`, two contacts checked (`Cam 10 Tú (@lhtu)`, `Cubu69 (@cubu69)`), and a red error banner: `"conflict: conversation creation failed"`.
 
 ## Symptom
 
-1. **Bug 1 (NSIS Updater / Installer)**: When upgrading Private Talk (either via the in-app updater or by running a new NSIS setup executable over an existing installation), the installer presents the interactive **Already Installed** page instead of performing an in-place update. Selecting the default *"Uninstall before installing"* option fails with `"Unable to uninstall!"`, and subsequent clicks on **Next** continue to fail because the uninstaller already deleted the `UninstallString` registry key before failing the executable removal check.
+1. **Bug 1 (NSIS Updater / Installer)**: When upgrading Bloop (either via the in-app updater or by running a new NSIS setup executable over an existing installation), the installer presents the interactive **Already Installed** page instead of performing an in-place update. Selecting the default *"Uninstall before installing"* option fails with `"Unable to uninstall!"`, and subsequent clicks on **Next** continue to fail because the uninstaller already deleted the `UninstallString` registry key before failing the executable removal check.
 2. **Bug 2 & Bug 3 (Direct & Group Conversation Creation)**: Creating a new 1-to-1 direct chat (by clicking a contact pill in the sidebar) or creating a new group chat fails in Supabase PostgreSQL with an RLS policy rejection on `public.conversations` / `public.conversation_members`, which `SupabaseClient::create_conversation` maps to `conflict: conversation creation failed`. In `GroupManageDrawer`, this error is caught and displayed in a red banner; in `Sidebar`, `onStartDirectChat` has no `try/catch` or error display, so clicking a contact silently fails with an unhandled promise rejection.
 
 ## Reproduction
 
 ### Bug 1: NSIS Upgrade "Unable to uninstall!"
-1. Install an older version of Private Talk (e.g., `v0.2.1`) via the Windows NSIS installer.
+1. Install an older version of Bloop (e.g., `v0.2.1`) via the Windows NSIS installer.
 2. Trigger an update to `v0.2.2` in-app (or launch `PrivateTalk_0.2.2_x64-setup.exe` while the older version is installed/closing).
 3. On the **Already Installed** page, leave *"Uninstall before installing"* selected and click **Next >**.
 4. Observe the `"Unable to uninstall!"` error dialog.
 
 ### Bug 2: Clicking a Contact Does Not Open a Chat
-1. Log in to Private Talk connected to Supabase and add a mutual contact so the contact chip appears under `CONTACTS`.
+1. Log in to Bloop connected to Supabase and add a mutual contact so the contact chip appears under `CONTACTS`.
 2. Click the contact chip in the sidebar (`Sidebar.tsx`).
 3. Observe that no conversation opens, `CONVERSATIONS` remains empty, and no error feedback is shown in the UI.
 
@@ -53,7 +53,7 @@ User reported three issues with three attached screenshots:
 ### 1. NSIS Installer Upgrade Failure (Bug 1)
 There are two compounding defects:
 - **Missing `/UPDATE` flag when launching from the in-app updater**: Tauri v2's NSIS template (`installer.nsi`) checks `/UPDATE` (`$UpdateMode = 1`) in `PageLeaveReinstall` (`${If} $UpdateMode = 1 Goto reinst_done ${EndIf}`) specifically to bypass running `uninstall.exe` during updates and overwrite files in-place. Because `default_windows_installer_launcher` in `src-tauri/src/updater/mod.rs:508` spawns the installer with no arguments, `$UpdateMode` is `0`, forcing the user onto the interactive **Already Installed** page with *"Uninstall before installing"* selected.
-- **Process lock race in `reinst_uninstall` / `Section Uninstall`**: `update_install` (`src-tauri/src/commands/updater.rs:41-47`) launches the installer 250ms before calling `exit_app.exit(0)`. When `reinst_uninstall` runs `uninstall.exe _?=$4`, `Section Uninstall` runs `Delete "$INSTDIR\${MAINBINARYNAME}.exe"`. In NSIS, `Delete` is non-fatal when a file is still locked by a terminating process or WebView2 child process: it silently fails to delete `private-talk.exe`, continues executing `Section Uninstall`, and deletes the `HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\Private Talk` registry key (`DeleteRegKey SHCTX "${UNINSTKEY}"`). When `uninstall.exe` exits, `PageLeaveReinstall` checks `${If} $0 <> 0 ${OrIf} ${FileExists} "$INSTDIR\${MAINBINARYNAME}.exe"`, sees `private-talk.exe` still exists on disk, shows `"Unable to uninstall!"`, and calls `Abort`. Any subsequent click on **Next** then reads an empty `UninstallString` from the deleted registry key and fails immediately with `"Unable to uninstall!"`.
+- **Process lock race in `reinst_uninstall` / `Section Uninstall`**: `update_install` (`src-tauri/src/commands/updater.rs:41-47`) launches the installer 250ms before calling `exit_app.exit(0)`. When `reinst_uninstall` runs `uninstall.exe _?=$4`, `Section Uninstall` runs `Delete "$INSTDIR\${MAINBINARYNAME}.exe"`. In NSIS, `Delete` is non-fatal when a file is still locked by a terminating process or WebView2 child process: it silently fails to delete `private-talk.exe`, continues executing `Section Uninstall`, and deletes the `HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\Bloop` registry key (`DeleteRegKey SHCTX "${UNINSTKEY}"`). When `uninstall.exe` exits, `PageLeaveReinstall` checks `${If} $0 <> 0 ${OrIf} ${FileExists} "$INSTDIR\${MAINBINARYNAME}.exe"`, sees `private-talk.exe` still exists on disk, shows `"Unable to uninstall!"`, and calls `Abort`. Any subsequent click on **Next** then reads an empty `UninstallString` from the deleted registry key and fails immediately with `"Unable to uninstall!"`.
 
 ### 2. Direct & Group Conversation Creation Failure (Bug 2 & Bug 3)
 Both direct chat creation (`conversation_start_direct_core`) and group chat creation (`conversation_create_group_core`) call `SupabaseClient::create_conversation` (`src-tauri/src/supabase/postgrest.rs:397`), which hits a circular Row-Level Security (RLS) deadlock in `supabase/migrations/0001_private_talk_schema.sql`:
