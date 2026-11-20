@@ -10,6 +10,7 @@ import {
   isScrolledNearBottom,
   resolveComposerEscapeAction,
   resolveMessageBubbleEscapeAction,
+  shouldOpenMediaLightbox,
   syncPinnedMessage,
   updateDraft,
   upsertMessageWithReplySync,
@@ -450,5 +451,24 @@ describe("resolveMessageBubbleEscapeAction", () => {
 
   it("does nothing when neither editing nor confirming a remove", () => {
     expect(resolveMessageBubbleEscapeAction(false, false)).toBe("none");
+  });
+});
+
+describe("shouldOpenMediaLightbox", () => {
+  it("opens the lightbox for any image mime type", () => {
+    expect(shouldOpenMediaLightbox("image/png")).toBe(true);
+    expect(shouldOpenMediaLightbox("image/jpeg")).toBe(true);
+    expect(shouldOpenMediaLightbox("image/webp")).toBe(true);
+    expect(shouldOpenMediaLightbox("image/gif")).toBe(true);
+  });
+
+  it("does not open the lightbox for video, since <video controls> already has its own fullscreen", () => {
+    expect(shouldOpenMediaLightbox("video/mp4")).toBe(false);
+    expect(shouldOpenMediaLightbox("video/webm")).toBe(false);
+  });
+
+  it("does not open the lightbox for an unrecognized or empty mime type", () => {
+    expect(shouldOpenMediaLightbox("application/octet-stream")).toBe(false);
+    expect(shouldOpenMediaLightbox("")).toBe(false);
   });
 });
