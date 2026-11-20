@@ -1,7 +1,14 @@
-import { useState } from "react";
-import { MessageSquarePlus, Search, UserPlus, Users } from "lucide-react";
+import { useEffect, useState } from "react";
+import { MessageSquarePlus, Pin, Search, UserPlus, Users } from "lucide-react";
 import type { ContactDto, ConversationDto, TypingUserDto } from "../../lib/types";
-import { filterConversations, getConversationTitle } from "../../lib/ui-polish";
+import {
+  filterConversations,
+  getConversationTitle,
+  loadPinnedConversationIds,
+  savePinnedConversationIds,
+  sortConversationsForSidebar,
+  togglePinnedConversationId,
+} from "../../lib/ui-polish";
 
 interface SidebarProps {
   currentUserId: string;
@@ -35,6 +42,26 @@ export function Sidebar({
   const [searching, setSearching] = useState(false);
   const [failedAvatars, setFailedAvatars] = useState<Set<string>>(new Set());
   const [conversationQuery, setConversationQuery] = useState("");
+  const [pinnedIds, setPinnedIds] = useState<string[]>(() =>
+    loadPinnedConversationIds(currentUserId)
+  );
+
+  // Reload the pinned set if the signed-in user changes (e.g. switching
+  // accounts without restarting the app), so one user's pinned chats never
+  // bleed into another's sidebar.
+  useEffect(() => {
+    setPinnedIds(loadPinnedConversationIds(currentUserId));
+  }, [currentUserId]);
+
+  const handleTogglePinned = (e: React.MouseEvent, conversationId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setPinnedIds((prev) => {
+      const next = togglePinnedConversationId(prev, conversationId);
+      savePinnedConversationIds(currentUserId, next);
+      return next;
+    });
+  };
 
   const markAvatarFailed = (url: string) => {
     setFailedAvatars((prev) => {
@@ -97,6 +124,7 @@ export function Sidebar({
     conversationQuery,
     currentUserId
   );
+  const orderedConversations = sortConversationsForSidebar(filteredConversations, pinnedIds);
 
   return (
     <div className="flex flex-col h-full">
@@ -216,7 +244,7 @@ export function Sidebar({
             No conversations match "{conversationQuery.trim()}".
           </div>
         ) : (
-          filteredConversations.map((conv) => {
+          orderedConversations.map((conv) => {
             const active = conv.id === selectedConversationId;
             const online = isConversationOnline(conv);
             const typing = (typingByConversation[conv.id] || []).filter(
@@ -228,17 +256,22 @@ export function Sidebar({
               : undefined;
             const peerAvatarUrl = peer?.avatar_url;
             const showPeerAvatar = Boolean(peerAvatarUrl && !failedAvatars.has(peerAvatarUrl));
+            const isPinned = pinnedIds.includes(conv.id);
 
             return (
-              <button
+              <div
                 key={conv.id}
-                onClick={() => onSelectConversation(conv.id)}
-                className={`w-full flex items-center gap-3 px-2.5 py-2.5 rounded-xl text-left transition-colors ${
+                className={`group relative w-full flex items-center gap-1 px-1 py-1 rounded-xl transition-colors ${
                   active
                     ? "bg-[#6366F1]/15 text-[var(--text-primary)]"
                     : "hover:bg-[var(--bg-hover)] text-[var(--text-primary)]"
                 }`}
               >
+                <button
+                  type="button"
+                  onClick={() => onSelectConversation(conv.id)}
+                  className="flex-1 flex items-center gap-3 min-w-0 px-1.5 py-1.5 text-left"
+                >
                 <div className="relative shrink-0">
                   {showPeerAvatar && peerAvatarUrl ? (
                     <img
@@ -283,7 +316,21 @@ export function Sidebar({
                     </p>
                   )}
                 </div>
-              </button>
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => handleTogglePinned(e, conv.id)}
+                  title={isPinned ? "Unpin conversation" : "Pin conversation to top"}
+                  aria-pressed={isPinned}
+                  className={`shrink-0 p-1.5 rounded-lg transition-opacity ${
+                    isPinned
+                      ? "opacity-100 text-[#6366F1]"
+                      : "opacity-0 group-hover:opacity-100 text-[var(--text-muted)] hover:text-[#6366F1] hover:bg-[var(--bg-hover)]"
+                  }`}
+                >
+                  <Pin className={`w-3.5 h-3.5 ${isPinned ? "fill-current" : ""}`} />
+                </button>
+              </div>
             );
           })
         )}

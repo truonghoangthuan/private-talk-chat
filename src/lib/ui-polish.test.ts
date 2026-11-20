@@ -23,8 +23,10 @@ import {
   shouldOpenMediaLightbox,
   shouldOpenShortcutsHelp,
   shouldSubmitMessageEditOnKeyDown,
+  sortConversationsForSidebar,
   splitMessageTextIntoLinkSegments,
   syncPinnedMessage,
+  togglePinnedConversationId,
   updateDraft,
   upsertMessageWithReplySync,
   validateAttachmentFile,
@@ -238,6 +240,45 @@ describe("filterConversations", () => {
 
   it("returns an empty list when nothing matches", () => {
     expect(filterConversations([direct, group], "nonexistent", "u1")).toEqual([]);
+  });
+});
+
+describe("togglePinnedConversationId", () => {
+  it("pins an unpinned conversation by appending its ID", () => {
+    expect(togglePinnedConversationId([], "c1")).toEqual(["c1"]);
+    expect(togglePinnedConversationId(["c1"], "c2")).toEqual(["c1", "c2"]);
+  });
+
+  it("unpins an already-pinned conversation by removing its ID", () => {
+    expect(togglePinnedConversationId(["c1", "c2"], "c1")).toEqual(["c2"]);
+    expect(togglePinnedConversationId(["c1"], "c1")).toEqual([]);
+  });
+
+  it("always returns a new array (never mutates the input)", () => {
+    const original = ["c1"];
+    const result = togglePinnedConversationId(original, "c2");
+    expect(result).not.toBe(original);
+    expect(original).toEqual(["c1"]);
+  });
+});
+
+describe("sortConversationsForSidebar", () => {
+  const c1 = makeConv({ id: "c1" });
+  const c2 = makeConv({ id: "c2" });
+  const c3 = makeConv({ id: "c3" });
+
+  it("returns the list unchanged when nothing is pinned", () => {
+    const list = [c1, c2, c3];
+    expect(sortConversationsForSidebar(list, [])).toBe(list);
+  });
+
+  it("moves pinned conversations to the top, preserving relative order within each group", () => {
+    expect(sortConversationsForSidebar([c1, c2, c3], ["c3"])).toEqual([c3, c1, c2]);
+    expect(sortConversationsForSidebar([c1, c2, c3], ["c3", "c1"])).toEqual([c1, c3, c2]);
+  });
+
+  it("ignores pinned IDs that no longer match any conversation in the list", () => {
+    expect(sortConversationsForSidebar([c1, c2], ["gone"])).toEqual([c1, c2]);
   });
 });
 
