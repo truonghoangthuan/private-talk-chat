@@ -10,6 +10,7 @@ applicable.
 
 ## [Unreleased]
 
+- feat: show the full weekday/date/time (e.g. `Thursday, November 20, 2025 at 2:32:45 PM`) as a native hover tooltip on message bubble timestamps — including the verification-failed and removed-message timestamp lines — so the exact second and full date are available on demand without adding always-visible chrome to the compact `HH:MM`/"Yesterday" label. Client-side only, pure `formatFullMessageTimestamp` helper (issue #44)
 - feat: reflect the total unread message count in the window/document title (e.g. `(3) Bloop`, reverting to plain `Bloop` once everything is read) via a new pure `computeDocumentTitle` helper, so there's a way to tell at a glance whether anything new has arrived while the app is minimized, behind other windows, or just unfocused — matching the Slack/Discord/Gmail tab-title convention. Client-side only (issue #42)
 
 - feat: auto-link `http(s)://` URLs inside message text as real, clickable anchors (underlined, opens in a new tab, `rel="noopener noreferrer"`) instead of rendering them as inert plain text — trailing sentence punctuation and wrapping parens are kept out of the link. Client-side only, pure-function text segmentation (`splitMessageTextIntoLinkSegments`), no `dangerouslySetInnerHTML` (issue #39)
