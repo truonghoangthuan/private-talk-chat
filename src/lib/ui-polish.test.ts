@@ -4,6 +4,7 @@ import {
   computeScrollFollowState,
   filterConversations,
   formatMessageTimestamp,
+  getAttachmentPreviewKind,
   getConversationTitle,
   getDraft,
   getMessageCopyText,
@@ -470,5 +471,24 @@ describe("shouldOpenMediaLightbox", () => {
   it("does not open the lightbox for an unrecognized or empty mime type", () => {
     expect(shouldOpenMediaLightbox("application/octet-stream")).toBe(false);
     expect(shouldOpenMediaLightbox("")).toBe(false);
+  });
+});
+
+describe("getAttachmentPreviewKind", () => {
+  it("previews any image mime type as a real thumbnail", () => {
+    expect(getAttachmentPreviewKind("image/png")).toBe("image");
+    expect(getAttachmentPreviewKind("image/jpeg")).toBe("image");
+    expect(getAttachmentPreviewKind("image/webp")).toBe("image");
+    expect(getAttachmentPreviewKind("image/gif")).toBe("image");
+  });
+
+  it("previews any video mime type as a generic video badge", () => {
+    expect(getAttachmentPreviewKind("video/mp4")).toBe("video");
+    expect(getAttachmentPreviewKind("video/webm")).toBe("video");
+  });
+
+  it("falls back to a generic file badge for an unrecognized or empty mime type", () => {
+    expect(getAttachmentPreviewKind("application/octet-stream")).toBe("file");
+    expect(getAttachmentPreviewKind("")).toBe("file");
   });
 });

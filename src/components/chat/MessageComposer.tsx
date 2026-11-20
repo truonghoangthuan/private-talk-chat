@@ -1,8 +1,9 @@
-import { useRef, useState } from "react";
-import { Paperclip, Reply, Send, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Film, Paperclip, Reply, Send, X } from "lucide-react";
 import type { MessageDto } from "../../lib/types";
 import {
   computeComposerCharacterState,
+  getAttachmentPreviewKind,
   resolveComposerEscapeAction,
 } from "../../lib/ui-polish";
 
@@ -38,10 +39,29 @@ export function MessageComposer({
   const [text, setText] = useState(initialText);
   const [attachmentPath, setAttachmentPath] = useState<string | null>(null);
   const [attachmentName, setAttachmentName] = useState<string | null>(null);
+  const [attachmentPreviewUrl, setAttachmentPreviewUrl] = useState<string | null>(null);
+  const [attachmentMimeType, setAttachmentMimeType] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const lastTypingPingRef = useRef<number>(0);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  // Revoke the staged attachment's blob: URL whenever it's replaced/cleared
+  // (cleanup runs with the *previous* value before the next effect) and on
+  // unmount, so a switched-away conversation or a swapped-in new attachment
+  // never leaks a blob: URL.
+  useEffect(() => {
+    return () => {
+      if (attachmentPreviewUrl) URL.revokeObjectURL(attachmentPreviewUrl);
+    };
+  }, [attachmentPreviewUrl]);
+
+  const clearAttachment = () => {
+    setAttachmentPath(null);
+    setAttachmentName(null);
+    setAttachmentMimeType(null);
+    setAttachmentPreviewUrl(null);
+  };
 
   const resizeTextarea = () => {
     const el = textareaRef.current;
@@ -83,6 +103,10 @@ export function MessageComposer({
     }
     setAttachmentPath(nativePath);
     setAttachmentName(file.name);
+    setAttachmentMimeType(file.type);
+    // Client-side-only preview of the local file before it's encrypted and
+    // sent; never touches the network or Tauri IPC.
+    setAttachmentPreviewUrl(URL.createObjectURL(file));
   };
 
   const submitMessage = async () => {
@@ -97,8 +121,7 @@ export function MessageComposer({
       if (textareaRef.current) {
         textareaRef.current.style.height = "auto";
       }
-      setAttachmentPath(null);
-      setAttachmentName(null);
+      clearAttachment();
       onTypingChange(false);
       onDraftChange?.("");
     } catch (err) {
@@ -134,14 +157,16 @@ export function MessageComposer({
       } else if (action === "clear_attachment") {
         e.preventDefault();
         e.stopPropagation();
-        setAttachmentPath(null);
-        setAttachmentName(null);
+        clearAttachment();
       }
       // action === "none": let Escape propagate (e.g. to close an unrelated modal).
     }
   };
 
   const charState = computeComposerCharacterState(text.length);
+  const attachmentPreviewKind = attachmentMimeType
+    ? getAttachmentPreviewKind(attachmentMimeType)
+    : "file";
 
   return (
     <div className="px-5 py-3 border-t border-[var(--border-hairline)] bg-[var(--bg-surface)]/50">
@@ -179,15 +204,28 @@ export function MessageComposer({
       )}
 
       {attachmentName && (
-        <div className="mb-2 inline-flex items-center gap-2 px-2.5 py-1 rounded-lg bg-[#6366F1]/15 text-xs text-[#6366F1]">
+        <div className="mb-2 inline-flex items-center gap-2 pl-1.5 pr-2.5 py-1.5 rounded-lg bg-[#6366F1]/15 text-xs text-[#6366F1]">
+          {attachmentPreviewKind === "image" && attachmentPreviewUrl ? (
+            <img
+              src={attachmentPreviewUrl}
+              alt=""
+              className="w-8 h-8 rounded-md object-cover shrink-0"
+            />
+          ) : (
+            <span className="w-8 h-8 rounded-md bg-[#6366F1]/20 flex items-center justify-center shrink-0">
+              {attachmentPreviewKind === "video" ? (
+                <Film className="w-4 h-4" />
+              ) : (
+                <Paperclip className="w-4 h-4" />
+              )}
+            </span>
+          )}
           <span className="truncate max-w-xs">{attachmentName}</span>
           <button
             type="button"
-            onClick={() => {
-              setAttachmentPath(null);
-              setAttachmentName(null);
-            }}
+            onClick={clearAttachment}
             className="hover:text-[var(--text-primary)]"
+            title="Remove attachment"
           >
             <X className="w-3.5 h-3.5" />
           </button>
