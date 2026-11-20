@@ -41,6 +41,9 @@ import {
   loadMutedConversationIds,
   loadThemePreference,
   loadClockFormatPreference,
+  loadMessageDensityPreference,
+  saveMessageDensityPreference,
+  getMessageDensityClasses,
   QUICK_EMOJIS,
   recordRecentEmoji,
   resolveComposerEscapeAction,
@@ -1111,6 +1114,75 @@ describe("loadClockFormatPreference / saveClockFormatPreference", () => {
   it('falls back to "12h" on a corrupt/unexpected stored value', () => {
     store["bloop:clock-format"] = "not-a-valid-format";
     expect(loadClockFormatPreference()).toBe("12h");
+  });
+});
+
+describe("loadMessageDensityPreference / saveMessageDensityPreference", () => {
+  let store: Record<string, string>;
+
+  beforeEach(() => {
+    store = {};
+    (globalThis as { localStorage?: Storage }).localStorage = {
+      getItem: (key: string) => (key in store ? store[key] : null),
+      setItem: (key: string, value: string) => {
+        store[key] = value;
+      },
+      removeItem: (key: string) => {
+        delete store[key];
+      },
+      clear: () => {
+        store = {};
+      },
+      get length() {
+        return Object.keys(store).length;
+      },
+      key: (index: number) => Object.keys(store)[index] ?? null,
+    } as Storage;
+  });
+
+  afterEach(() => {
+    delete (globalThis as { localStorage?: Storage }).localStorage;
+  });
+
+  it('defaults to "comfortable" when nothing has been saved yet', () => {
+    expect(loadMessageDensityPreference()).toBe("comfortable");
+  });
+
+  it("round-trips an explicitly saved preference", () => {
+    saveMessageDensityPreference("compact");
+    expect(loadMessageDensityPreference()).toBe("compact");
+
+    saveMessageDensityPreference("comfortable");
+    expect(loadMessageDensityPreference()).toBe("comfortable");
+  });
+
+  it('falls back to "comfortable" when localStorage is unavailable', () => {
+    delete (globalThis as { localStorage?: Storage }).localStorage;
+    expect(loadMessageDensityPreference()).toBe("comfortable");
+    expect(() => saveMessageDensityPreference("compact")).not.toThrow();
+  });
+
+  it('falls back to "comfortable" on a corrupt/unexpected stored value', () => {
+    store["bloop:message-density"] = "not-a-valid-density";
+    expect(loadMessageDensityPreference()).toBe("comfortable");
+  });
+});
+
+describe("getMessageDensityClasses", () => {
+  it('"comfortable" reproduces the app\'s original, unconfigurable spacing', () => {
+    expect(getMessageDensityClasses("comfortable")).toEqual({
+      groupedSpacing: "mt-1",
+      newGroupSpacing: "mt-4 first:mt-0",
+      bubblePadding: "px-3.5 py-2.5",
+    });
+  });
+
+  it('"compact" tightens both inter-bubble spacing and internal padding', () => {
+    expect(getMessageDensityClasses("compact")).toEqual({
+      groupedSpacing: "mt-0.5",
+      newGroupSpacing: "mt-2 first:mt-0",
+      bubblePadding: "px-3 py-1.5",
+    });
   });
 });
 

@@ -1021,6 +1021,90 @@ export function saveClockFormatPreference(preference: ClockFormatPreference): vo
   }
 }
 
+const MESSAGE_DENSITY_STORAGE_KEY = "bloop:message-density";
+
+/**
+ * Whether the message timeline renders with its original spacing/padding
+ * ("comfortable") or a tighter layout that fits more history on screen at
+ * once ("compact") — the Slack/Discord "compact mode" convention. Purely a
+ * display preference over already-loaded, already-decrypted message data;
+ * introduces no new backend/IPC surface.
+ */
+export type MessageDensityPreference = "comfortable" | "compact";
+
+/**
+ * Loads the persisted message-density preference from `localStorage`.
+ * Stored globally (same convention as the dark/light theme and clock-format
+ * preferences) rather than per-user, since it's a display-habit setting
+ * rather than anything tied to an account. Falls back to `"comfortable"` —
+ * the app's original, unconfigurable spacing — when nothing has been
+ * explicitly saved yet, `localStorage` is unavailable (e.g. the Vitest
+ * `node` test environment), or the stored value is anything other than the
+ * two values this module ever writes, since this is a best-effort UI
+ * preference that should never throw.
+ */
+export function loadMessageDensityPreference(): MessageDensityPreference {
+  if (typeof localStorage === "undefined") return "comfortable";
+  try {
+    const raw = localStorage.getItem(MESSAGE_DENSITY_STORAGE_KEY);
+    return raw === "compact" ? "compact" : "comfortable";
+  } catch {
+    return "comfortable";
+  }
+}
+
+/**
+ * Persists the message-density preference to `localStorage` so it survives
+ * an app restart. A no-op (rather than a thrown error) when `localStorage`
+ * is unavailable or writing fails (e.g. storage quota) — losing this
+ * preference for the session is an acceptable degradation, never worth
+ * surfacing as a user-facing error.
+ */
+export function saveMessageDensityPreference(preference: MessageDensityPreference): void {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(MESSAGE_DENSITY_STORAGE_KEY, preference);
+  } catch {
+    // Storage unavailable or full; preference just won't persist this session.
+  }
+}
+
+/** Tailwind class fragments the timeline/bubble swap in for each density level. */
+export interface MessageDensityClasses {
+  /** Replaces the bubble wrapper's vertical margin when grouped with the previous message. */
+  groupedSpacing: string;
+  /** Replaces the bubble wrapper's vertical margin when starting a new sender/group. */
+  newGroupSpacing: string;
+  /** Replaces the message bubble's own internal padding. */
+  bubblePadding: string;
+}
+
+/**
+ * Resolves the Tailwind class fragments `MessageBubble`/`MessageTimeline`
+ * swap in for the current message-density preference. `"compact"` shrinks
+ * both the gap between bubbles and each bubble's own internal padding so
+ * more history fits on screen at once, without changing the 2-minute
+ * same-sender grouping logic (`buildTimelineItems`) itself — only how far
+ * apart grouped/ungrouped bubbles render. `"comfortable"` reproduces the
+ * app's original, unconfigurable spacing exactly.
+ */
+export function getMessageDensityClasses(
+  density: MessageDensityPreference
+): MessageDensityClasses {
+  if (density === "compact") {
+    return {
+      groupedSpacing: "mt-0.5",
+      newGroupSpacing: "mt-2 first:mt-0",
+      bubblePadding: "px-3 py-1.5",
+    };
+  }
+  return {
+    groupedSpacing: "mt-1",
+    newGroupSpacing: "mt-4 first:mt-0",
+    bubblePadding: "px-3.5 py-2.5",
+  };
+}
+
 /**
  * Soft, purely client-side guidance limit for composer text length. There is
  * no confirmed server-side cap on message text to match, so this never

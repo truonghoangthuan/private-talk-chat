@@ -10,6 +10,8 @@ applicable.
 
 ## [Unreleased]
 
+- feat: add a compact/comfortable message density toggle to the chat header — a new icon button (next to the existing search icon) switches the message timeline between the app's original "comfortable" bubble padding/spacing and a tighter "compact" layout, Slack/Discord-style, so more conversation history fits on screen at once without resizing the window. Doesn't change the existing 2-minute same-sender grouping logic, only how far apart grouped/ungrouped bubbles render. Persists across restarts via the same global `localStorage` convention as the dark/light theme and 24-hour clock preferences. New pure `loadMessageDensityPreference`/`saveMessageDensityPreference`/`getMessageDensityClasses` helpers. Client-side only, no new backend/IPC surface (issue #111)
+
 ## [0.4.0] - 2026-11-20
 
 - feat: add a "Use 24-hour clock" toggle to Profile Settings — a Preferences switch persisted across restarts via the same global `localStorage` convention as the dark/light theme preference (issue #56) — so message bubble timestamps (short `HH:MM` label and the full hover tooltip) and the plain-text conversation export (issue #106) can render in 24-hour time instead of always deferring to the browser locale's 12-hour AM/PM default, with no way to switch without changing OS-wide locale settings. New pure `loadClockFormatPreference`/`saveClockFormatPreference` helpers; `formatMessageTimestamp`/`formatFullMessageTimestamp`/`buildConversationExportText` gained an optional `use24Hour` parameter (default `false`, preserving prior behavior). Client-side only — a formatting preference over already-rendered/already-loaded timestamp data, no new backend/IPC surface (issue #108)

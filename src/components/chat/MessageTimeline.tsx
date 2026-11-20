@@ -6,6 +6,7 @@ import {
   computeScrollFollowState,
   getTimelineScrollBehavior,
   isScrolledNearBottom,
+  type MessageDensityPreference,
   shouldShowScrollToBottomButton,
 } from "../../lib/ui-polish";
 import { MessageBubble } from "./MessageBubble";
@@ -21,6 +22,8 @@ interface MessageTimelineProps {
   currentUsername?: string;
   /** Render message timestamps in 24-hour time instead of 12-hour AM/PM (issue #108), forwarded to bubbles. */
   use24Hour?: boolean;
+  /** Tighter bubble spacing/padding when the "compact" message density preference is active (issue #111), forwarded to bubbles. */
+  density?: MessageDensityPreference;
   onEditMessage: (messageId: string, newText: string) => Promise<void>;
   onRemoveMessage: (messageId: string) => Promise<void>;
   onReplyMessage: (message: MessageDto) => void;
@@ -39,6 +42,7 @@ export function MessageTimeline({
   searchQuery = "",
   currentUsername = "",
   use24Hour = false,
+  density = "comfortable",
   onEditMessage,
   onRemoveMessage,
   onReplyMessage,
@@ -144,6 +148,7 @@ export function MessageTimeline({
                 searchQuery={searchQuery}
                 currentUsername={currentUsername}
                 use24Hour={use24Hour}
+                density={density}
                 onEdit={onEditMessage}
                 onRemove={onRemoveMessage}
                 onReply={onReplyMessage}

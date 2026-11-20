@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { Download, Lock, Pin, Search, Settings2, Users } from "lucide-react";
+import { Download, Lock, Pin, Rows3, Search, Settings2, Users } from "lucide-react";
 import type { ConversationDto } from "../../lib/types";
-import { formatCryptoFingerprint } from "../../lib/ui-polish";
+import { formatCryptoFingerprint, type MessageDensityPreference } from "../../lib/ui-polish";
 
 interface ChatHeaderProps {
   conversation: ConversationDto;
@@ -15,6 +15,10 @@ interface ChatHeaderProps {
   onOpenGroupDrawer: () => void;
   /** Exports the currently-loaded message history to a local .txt file (issue #106). */
   onExportConversation?: () => void;
+  /** Current message-density preference (issue #111); defaults to the original "comfortable" spacing. */
+  density?: MessageDensityPreference;
+  /** Toggles between "comfortable" and "compact" message density (issue #111). */
+  onToggleDensity?: () => void;
 }
 
 export function ChatHeader({
@@ -28,6 +32,8 @@ export function ChatHeader({
   onToggleSearch,
   onOpenGroupDrawer,
   onExportConversation,
+  density = "comfortable",
+  onToggleDensity,
 }: ChatHeaderProps) {
   const peer = !conversation.is_group
     ? conversation.members.find((m) => m.user_id !== currentUserId)
@@ -109,6 +115,26 @@ export function ChatHeader({
       </div>
 
       <div className="flex items-center gap-2">
+        {onToggleDensity && (
+          <button
+            type="button"
+            onClick={onToggleDensity}
+            aria-pressed={density === "compact"}
+            title={
+              density === "compact"
+                ? "Switch to comfortable message spacing"
+                : "Switch to compact message spacing"
+            }
+            className={`p-1.5 rounded-lg transition-colors ${
+              density === "compact"
+                ? "bg-[#6366F1] text-white"
+                : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
+            }`}
+          >
+            <Rows3 className="w-3.5 h-3.5" />
+          </button>
+        )}
+
         {onExportConversation && (
           <button
             type="button"
