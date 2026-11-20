@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Film, Image as ImageIcon, Paperclip, Reply, Send, Smile, X } from "lucide-react";
 import { extractErrorMessage, tauriClient } from "../../lib/tauri-client";
-import type { MessageDto } from "../../lib/types";
+import type { ConversationMemberDto, MessageDto } from "../../lib/types";
 import {
   type AttachmentPreviewKind,
+  applyMentionSelection,
   buildEmojiPickerOrder,
   computeComposerCharacterState,
+  detectMentionQuery,
+  filterMentionCandidates,
   insertTextAtCursor,
   loadRecentEmojis,
   QUICK_EMOJIS,
@@ -24,6 +27,10 @@ interface MessageComposerProps {
   initialText?: string;
   /** Called on every text change (and on clear after sending) so the caller can persist a per-conversation draft. */
   onDraftChange?: (text: string) => void;
+  /** Current conversation's roster, used to resolve "@mention" autocomplete candidates. */
+  members?: ConversationMemberDto[];
+  /** Only group conversations show the "@mention" autocomplete (mentioning the only other party in a DM adds no value). */
+  isGroup?: boolean;
 }
 
 export function MessageComposer({
@@ -33,6 +40,8 @@ export function MessageComposer({
   onTypingChange,
   initialText = "",
   onDraftChange,
+  members = [],
+  isGroup = false,
 }: MessageComposerProps) {
   const [text, setText] = useState(initialText);
   const [attachmentPath, setAttachmentPath] = useState<string | null>(null);
@@ -44,10 +53,15 @@ export function MessageComposer({
   const [isDragOver, setIsDragOver] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [recentEmojis, setRecentEmojis] = useState<string[]>(() => loadRecentEmojis());
+  const [mentionState, setMentionState] = useState<{ query: string; start: number } | null>(
+    null
+  );
+  const [mentionActiveIndex, setMentionActiveIndex] = useState(0);
   const lastTypingPingRef = useRef<number>(0);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const emojiPickerRef = useRef<HTMLDivElement | null>(null);
   const emojiButtonRef = useRef<HTMLButtonElement | null>(null);
+  const mentionListRef = useRef<HTMLDivElement | null>(null);
 
   // Close the emoji picker on an outside click, matching other popovers in
   // the app (e.g. the attachment/reply affordances dismiss without needing
@@ -63,6 +77,26 @@ export function MessageComposer({
     document.addEventListener("mousedown", handlePointerDown);
     return () => document.removeEventListener("mousedown", handlePointerDown);
   }, [showEmojiPicker]);
+
+  // Close the "@mention" dropdown on an outside click, same convention as
+  // the emoji picker above (selection itself happens via onMouseDown so it
+  // fires before this would dismiss it).
+  useEffect(() => {
+    if (!mentionState) return;
+    const handlePointerDown = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (mentionListRef.current?.contains(target)) return;
+      if (textareaRef.current?.contains(target)) return;
+      setMentionState(null);
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, [mentionState]);
+
+  const mentionCandidates = useMemo(
+    () => (isGroup && mentionState ? filterMentionCandidates(members, mentionState.query) : []),
+    [isGroup, mentionState, members]
+  );
 
   const clearAttachment = () => {
     setAttachmentPath(null);
@@ -109,7 +143,7 @@ export function MessageComposer({
     el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
   };
 
-  const handleTextChange = (val: string) => {
+  const handleTextChange = (val: string, cursor: number = val.length) => {
     setText(val);
     onDraftChange?.(val);
     resizeTextarea();
@@ -120,6 +154,9 @@ export function MessageComposer({
     } else if (val.trim().length === 0) {
       onTypingChange(false);
     }
+    const nextMention = detectMentionQuery(val, cursor);
+    setMentionState(nextMention);
+    setMentionActiveIndex(0);
   };
 
   const handlePickAttachment = async () => {
@@ -130,6 +167,18 @@ export function MessageComposer({
     } catch (err) {
       setError(extractErrorMessage(err));
     }
+  };
+
+  const selectMention = (member: ConversationMemberDto) => {
+    if (!mentionState) return;
+    const el = textareaRef.current;
+    const cursor = el?.selectionStart ?? text.length;
+    const result = applyMentionSelection(text, mentionState.start, cursor, member.username);
+    handleTextChange(result.text, result.cursor);
+    requestAnimationFrame(() => {
+      el?.focus();
+      el?.setSelectionRange(result.cursor, result.cursor);
+    });
   };
 
   const submitMessage = async () => {
@@ -147,6 +196,7 @@ export function MessageComposer({
       clearAttachment();
       onTypingChange(false);
       onDraftChange?.("");
+      setMentionState(null);
     } catch (err) {
       const msg =
         typeof err === "object" && err !== null && "message" in err
@@ -164,6 +214,29 @@ export function MessageComposer({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (mentionState && mentionCandidates.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setMentionActiveIndex((i) => (i + 1) % mentionCandidates.length);
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setMentionActiveIndex((i) => (i - 1 + mentionCandidates.length) % mentionCandidates.length);
+        return;
+      }
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        selectMention(mentionCandidates[mentionActiveIndex]);
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        setMentionState(null);
+        return;
+      }
+    }
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       if (!sending && (text.trim().length > 0 || attachmentPath)) {
@@ -199,7 +272,7 @@ export function MessageComposer({
     const selectionStart = el?.selectionStart ?? text.length;
     const selectionEnd = el?.selectionEnd ?? text.length;
     const result = insertTextAtCursor(text, selectionStart, selectionEnd, emoji);
-    handleTextChange(result.text);
+    handleTextChange(result.text, result.cursor);
     setShowEmojiPicker(false);
     // Track usage so the picker floats recently-used emoji to the front
     // next time it opens (issue #58), persisted the same way as the
@@ -291,7 +364,38 @@ export function MessageComposer({
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="flex items-end gap-2">
+      <form onSubmit={handleSubmit} className="flex items-end gap-2 relative">
+        {mentionState && mentionCandidates.length > 0 && (
+          <div
+            ref={mentionListRef}
+            className="animate-slide-up-fade absolute bottom-full left-11 mb-2 z-20 w-64 max-h-56 overflow-y-auto rounded-xl bg-[var(--bg-surface)] border border-[var(--border-hairline)] shadow-lg py-1"
+          >
+            {mentionCandidates.map((member, index) => (
+              <button
+                key={member.user_id}
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  selectMention(member);
+                }}
+                onMouseEnter={() => setMentionActiveIndex(index)}
+                className={`w-full flex items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors ${
+                  index === mentionActiveIndex
+                    ? "bg-[#6366F1]/10 text-[#6366F1]"
+                    : "hover:bg-[var(--bg-hover)]"
+                }`}
+              >
+                <span className="w-6 h-6 rounded-full bg-[#6366F1]/20 flex items-center justify-center text-[10px] font-semibold text-[#6366F1] shrink-0">
+                  {member.display_name.charAt(0).toUpperCase()}
+                </span>
+                <span className="truncate font-medium">{member.display_name}</span>
+                <span className="text-xs text-[var(--text-muted)] truncate">
+                  @{member.username}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
         <div className="relative">
           <button
             ref={emojiButtonRef}
@@ -339,7 +443,9 @@ export function MessageComposer({
           ref={textareaRef}
           rows={1}
           value={text}
-          onChange={(e) => handleTextChange(e.target.value)}
+          onChange={(e) =>
+            handleTextChange(e.target.value, e.target.selectionStart ?? e.target.value.length)
+          }
           onKeyDown={handleKeyDown}
           placeholder="Write an encrypted message..."
           className="flex-1 px-3.5 py-2.5 text-sm leading-[1.5] max-h-[120px] resize-none overflow-y-auto rounded-xl bg-[var(--bg-canvas)] border border-[var(--border-hairline)] focus:outline-none focus:border-[#6366F1]"

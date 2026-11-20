@@ -860,6 +860,8 @@ export function App() {
                     <MessageComposer
                       key={activeConversation.id}
                       initialText={getDraft(drafts, activeConversation.id)}
+                      members={activeConversation.members}
+                      isGroup={activeConversation.is_group}
                       onDraftChange={(text) =>
                         setDrafts((prev) =>
                           updateDraft(prev, activeConversation.id, text)

@@ -61,6 +61,9 @@ import {
   appendMessageToast,
   dismissMessageToast,
   MAX_MESSAGE_TOASTS,
+  detectMentionQuery,
+  filterMentionCandidates,
+  applyMentionSelection,
 } from "./ui-polish";
 import type { ContactDto, ConversationDto, MessageDto, PinnedMessageDto } from "./types";
 import type { MessageNotificationToast } from "./ui-polish";
@@ -1816,5 +1819,96 @@ describe("appendMessageToast & dismissMessageToast", () => {
   it("returns the same array reference when the id isn't present", () => {
     const toasts = [makeToast("m1")];
     expect(dismissMessageToast(toasts, "missing")).toBe(toasts);
+  });
+});
+
+describe("detectMentionQuery", () => {
+  it("detects an in-progress @token at the caret", () => {
+    expect(detectMentionQuery("hey @ali", 8)).toEqual({ query: "ali", start: 4 });
+  });
+
+  it("detects a bare @ with an empty query", () => {
+    expect(detectMentionQuery("@", 1)).toEqual({ query: "", start: 0 });
+  });
+
+  it("returns null when there is no @ before the caret", () => {
+    expect(detectMentionQuery("hello there", 11)).toBeNull();
+  });
+
+  it("does not trigger on an email-like @ with no preceding whitespace", () => {
+    expect(detectMentionQuery("foo@bar", 7)).toBeNull();
+  });
+
+  it("does not trigger once whitespace ends the token", () => {
+    expect(detectMentionQuery("hey @alice typing", 11)).toBeNull();
+  });
+
+  it("re-anchors to the most recent @ when multiple are present", () => {
+    expect(detectMentionQuery("cc @alice and @bo", 17)).toEqual({ query: "bo", start: 14 });
+  });
+
+  it("ignores caret positions beyond the text length", () => {
+    expect(detectMentionQuery("@ali", 99)).toEqual({ query: "ali", start: 0 });
+  });
+});
+
+describe("filterMentionCandidates", () => {
+  const members = [
+    { user_id: "u1", username: "alice", display_name: "Alice Anderson" },
+    { user_id: "u2", username: "bob", display_name: "Bob Builder" },
+    { user_id: "u3", username: "alina", display_name: "Alina Carter" },
+  ];
+
+  it("matches by username or display name substring, case-insensitively", () => {
+    expect(filterMentionCandidates(members, "ali").map((m) => m.user_id)).toEqual([
+      "u1",
+      "u3",
+    ]);
+  });
+
+  it("ranks a prefix match ahead of a mid-string match", () => {
+    const withMidMatch = [
+      ...members,
+      { user_id: "u4", username: "carlito", display_name: "Carl Alito" },
+    ];
+    const result = filterMentionCandidates(withMidMatch, "ali");
+    // "alice"/"alina" are username-prefix matches; "carlito" only matches
+    // mid-string on display name "Alito", so it must rank last.
+    expect(result[result.length - 1].user_id).toBe("u4");
+  });
+
+  it("returns every member (capped) for an empty/blank query", () => {
+    expect(filterMentionCandidates(members, "")).toHaveLength(3);
+  });
+
+  it("returns no candidates when nothing matches", () => {
+    expect(filterMentionCandidates(members, "zzz")).toEqual([]);
+  });
+
+  it("caps results at 6 even when every member matches", () => {
+    const many = Array.from({ length: 10 }, (_, i) => ({
+      user_id: `u${i}`,
+      username: `user${i}`,
+      display_name: `User ${i}`,
+    }));
+    expect(filterMentionCandidates(many, "user")).toHaveLength(6);
+  });
+});
+
+describe("applyMentionSelection", () => {
+  it("replaces the @query token with @username plus a trailing space", () => {
+    const result = applyMentionSelection("hey @ali", 4, 8, "alice");
+    expect(result).toEqual({ text: "hey @alice ", cursor: 11 });
+  });
+
+  it("preserves text after the caret when the token is mid-sentence", () => {
+    const result = applyMentionSelection("hey @al can you help", 4, 7, "alice");
+    expect(result.text).toBe("hey @alice  can you help");
+    expect(result.text.slice(0, result.cursor)).toBe("hey @alice ");
+  });
+
+  it("handles a bare @ with an empty query", () => {
+    const result = applyMentionSelection("@", 0, 1, "bob");
+    expect(result).toEqual({ text: "@bob ", cursor: 5 });
   });
 });
