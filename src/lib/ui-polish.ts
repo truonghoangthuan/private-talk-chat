@@ -301,6 +301,92 @@ export function filterConversations(
   });
 }
 
+const PINNED_CONVERSATIONS_STORAGE_PREFIX = "bloop:pinned-conversations:";
+
+function pinnedConversationsStorageKey(userId: string): string {
+  return `${PINNED_CONVERSATIONS_STORAGE_PREFIX}${userId}`;
+}
+
+/**
+ * Toggles a conversation's pinned-to-top state in the sidebar (WhatsApp/
+ * Telegram "pin chat" convention) — purely a client-side UI preference, not
+ * the same thing as pinning an individual *message* inside a conversation
+ * (`message_pin`/`is_pinned` on `MessageDto`), which is a separate,
+ * server-synced feature. Adds `conversationId` to the end of `pinnedIds`
+ * when absent, removes it when already present; returns a new array either
+ * way so callers can rely on referential inequality to detect a change.
+ */
+export function togglePinnedConversationId(
+  pinnedIds: string[],
+  conversationId: string
+): string[] {
+  if (pinnedIds.includes(conversationId)) {
+    return pinnedIds.filter((id) => id !== conversationId);
+  }
+  return [...pinnedIds, conversationId];
+}
+
+/**
+ * Reorders the sidebar conversation list so every conversation whose ID is
+ * in `pinnedIds` sorts ahead of the rest, preserving each group's original
+ * relative order (a stable partition, not a full re-sort) — pinning a chat
+ * moves it to the top without scrambling the order of everything else.
+ * Conversation IDs in `pinnedIds` that no longer match any conversation in
+ * the list (e.g. a pinned conversation was left or deleted) are silently
+ * ignored rather than erroring. Returns `conversations` unchanged when
+ * nothing is pinned, so callers can skip the extra array allocations.
+ */
+export function sortConversationsForSidebar(
+  conversations: ConversationDto[],
+  pinnedIds: string[]
+): ConversationDto[] {
+  if (pinnedIds.length === 0) return conversations;
+  const pinnedSet = new Set(pinnedIds);
+  const pinned = conversations.filter((c) => pinnedSet.has(c.id));
+  if (pinned.length === 0) return conversations;
+  const rest = conversations.filter((c) => !pinnedSet.has(c.id));
+  return [...pinned, ...rest];
+}
+
+/**
+ * Loads the pinned-conversation IDs persisted for `userId` from
+ * `localStorage` (scoped per user so switching accounts on the same
+ * machine never leaks one user's pinned chats into another's sidebar).
+ * Returns an empty array when nothing is stored, `localStorage` isn't
+ * available (e.g. under the Vitest `node` test environment), or the
+ * stored value is missing/corrupt/not a string array — this is a
+ * best-effort UI preference, never something that should throw and break
+ * the sidebar from rendering.
+ */
+export function loadPinnedConversationIds(userId: string): string[] {
+  if (typeof localStorage === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(pinnedConversationsStorageKey(userId));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((id): id is string => typeof id === "string");
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Persists `pinnedIds` for `userId` to `localStorage` so pinned chats
+ * survive an app restart. A no-op (rather than a thrown error) when
+ * `localStorage` is unavailable or writing fails (e.g. storage quota) —
+ * losing the pinned-order preference for this session is an acceptable
+ * degradation, never worth surfacing as a user-facing error.
+ */
+export function savePinnedConversationIds(userId: string, pinnedIds: string[]): void {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(pinnedConversationsStorageKey(userId), JSON.stringify(pinnedIds));
+  } catch {
+    // Storage unavailable or full; pinned order just won't persist this session.
+  }
+}
+
 const SCROLL_BOTTOM_THRESHOLD_PX = 120;
 
 /**
