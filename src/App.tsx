@@ -23,10 +23,14 @@ import {
   findUnreadDividerMessageId,
   computeDocumentTitle,
   formatOfflineDuration,
+  loadMutedConversationIds,
+  saveMutedConversationIds,
   loadThemePreference,
   saveThemePreference,
   shouldOpenConversationSearch,
   shouldOpenShortcutsHelp,
+  sumUnreadExcludingMuted,
+  toggleMutedConversationId,
 } from "./lib/ui-polish";
 import type {
   ContactDto,
@@ -98,6 +102,7 @@ export function App() {
   );
   const [reconnectNotice, setReconnectNotice] = useState<string | null>(null);
   const [shortcutsHelpOpen, setShortcutsHelpOpen] = useState(false);
+  const [mutedConversationIds, setMutedConversationIds] = useState<string[]>([]);
 
   const handleCheckUpdate = useCallback(() => {
     setUpdateBannerDismissed(false);
@@ -119,19 +124,41 @@ export function App() {
     saveThemePreference(darkMode);
   }, [darkMode]);
 
+  // Reload the muted-conversation set whenever the signed-in user changes
+  // (login, logout, or switching accounts without restarting the app), so
+  // one user's muted chats never bleed into another's unread badges/title.
+  useEffect(() => {
+    setMutedConversationIds(user ? loadMutedConversationIds(user.id) : []);
+  }, [user?.id]);
+
+  const handleToggleMutedConversation = useCallback(
+    (conversationId: string) => {
+      if (!user) return;
+      setMutedConversationIds((prev) => {
+        const next = toggleMutedConversationId(prev, conversationId);
+        saveMutedConversationIds(user.id, next);
+        return next;
+      });
+    },
+    [user]
+  );
+
   // Mirror the total unread message count into the window/document title
   // (e.g. "(3) Bloop") so there's a way to tell at a glance whether anything
   // new has arrived while minimized, behind other windows, or just not
   // focused — matching the Slack/Discord/Gmail convention (issue #42).
+  // Muted conversations (see `mutedConversationIds`) are excluded from the
+  // count, same as the nav-rail's `totalUnread` below, so a muted chat
+  // never puts a number back in front of the app the viewer just silenced.
   // Computed directly from `conversations` rather than reusing the
   // render-scoped `totalUnread` further down, since this effect must run
   // unconditionally (reverting the title to plain "Bloop" once
   // conversations are cleared on logout, before the authenticated view's
   // early return would even compute that render-scoped value).
   useEffect(() => {
-    const totalUnreadForTitle = conversations.reduce((acc, c) => acc + c.unread_count, 0);
+    const totalUnreadForTitle = sumUnreadExcludingMuted(conversations, mutedConversationIds);
     document.title = computeDocumentTitle("Bloop", totalUnreadForTitle);
-  }, [conversations]);
+  }, [conversations, mutedConversationIds]);
 
   useEffect(() => {
     const onFocus = () => setIsWindowFocused(!document.hidden);
@@ -475,7 +502,7 @@ export function App() {
 
   const activeConversation =
     conversations.find((c) => c.id === selectedConversationId) || null;
-  const totalUnread = conversations.reduce((acc, c) => acc + c.unread_count, 0);
+  const totalUnread = sumUnreadExcludingMuted(conversations, mutedConversationIds);
   const activeTypingUsers = activeConversation
     ? (typingByConv[activeConversation.id] || []).filter(
         (t) => t.user_id !== user.id
@@ -519,6 +546,8 @@ export function App() {
             selectedConversationId={selectedConversationId}
             onlineUserIds={onlineUserIds}
             typingByConversation={typingByConv}
+            mutedConversationIds={mutedConversationIds}
+            onToggleMuted={handleToggleMutedConversation}
             onAddContactByUsername={async (uname) => {
               await tauriClient.contactAddByUsername(uname);
               await refreshContactsAndConversations();
