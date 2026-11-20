@@ -928,6 +928,54 @@ export function findMessageSearchMatches(
     .map((m) => m.id);
 }
 
+export interface SearchHighlightSegment {
+  text: string;
+  isMatch: boolean;
+}
+
+/**
+ * Splits `text` into alternating matched/unmatched segments against every
+ * case-insensitive occurrence of `query` (issue #65), so the in-conversation
+ * search bar can wrap each hit in a `<mark>` highlight — matching the
+ * browser/Slack in-page-find convention — instead of only ring-highlighting
+ * the whole bubble the active match belongs to. Mirrors
+ * `splitMessageTextIntoLinkSegments`'s segment-array shape so a caller can
+ * render either with the same `.map()` pattern; every segment is plain
+ * string data, so this introduces no `dangerouslySetInnerHTML` injection
+ * surface. A blank/whitespace-only `query` (no active search) or empty
+ * `text` returns the text unsplit with `isMatch: false` (or `[]` for empty
+ * text) rather than matching everything.
+ */
+export function splitTextForSearchHighlight(
+  text: string,
+  query: string
+): SearchHighlightSegment[] {
+  if (!text) return [];
+  const trimmedQuery = query.trim();
+  if (!trimmedQuery) return [{ text, isMatch: false }];
+
+  const lowerText = text.toLowerCase();
+  const lowerQuery = trimmedQuery.toLowerCase();
+  const segments: SearchHighlightSegment[] = [];
+  let index = 0;
+
+  while (index < text.length) {
+    const matchIndex = lowerText.indexOf(lowerQuery, index);
+    if (matchIndex === -1) {
+      segments.push({ text: text.slice(index), isMatch: false });
+      break;
+    }
+    if (matchIndex > index) {
+      segments.push({ text: text.slice(index, matchIndex), isMatch: false });
+    }
+    const matchEnd = matchIndex + trimmedQuery.length;
+    segments.push({ text: text.slice(matchIndex, matchEnd), isMatch: true });
+    index = matchEnd;
+  }
+
+  return segments;
+}
+
 /**
  * Decides whether a keydown inside the message-edit field should save the
  * edit, matching the composer's own Enter-to-send / Shift+Enter-for-newline

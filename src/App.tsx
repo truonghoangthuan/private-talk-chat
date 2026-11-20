@@ -74,6 +74,7 @@ export function App() {
   const [replyingTo, setReplyingTo] = useState<MessageDto | null>(null);
   const [activeTab, setActiveTab] = useState<"messages" | "pinned">("messages");
   const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const [pinnedMessages, setPinnedMessages] = useState<PinnedMessageDto[]>([]);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(
@@ -316,6 +317,7 @@ export function App() {
     setReplyingTo(null);
     setActiveTab("messages");
     setSearchOpen(false);
+    setSearchQuery("");
     setHighlightedMessageId(null);
     setUnreadDividerMessageId(null);
     if (!user || !selectedConversationId) {
@@ -622,6 +624,7 @@ export function App() {
                   onTabChange={setActiveTab}
                   onToggleSearch={() => {
                     setSearchOpen((v) => !v);
+                    setSearchQuery("");
                     setActiveTab("messages");
                   }}
                   onOpenGroupDrawer={() => setGroupDrawerMode("manage")}
@@ -630,7 +633,11 @@ export function App() {
                   <MessageSearchBar
                     messages={messages}
                     onJumpToMessage={scrollToMessage}
-                    onClose={() => setSearchOpen(false)}
+                    onClose={() => {
+                      setSearchOpen(false);
+                      setSearchQuery("");
+                    }}
+                    onQueryChange={setSearchQuery}
                   />
                 )}
                 {activeTab === "pinned" ? (
@@ -665,6 +672,7 @@ export function App() {
                       currentUserId={user.id}
                       highlightedMessageId={highlightedMessageId}
                       unreadDividerMessageId={unreadDividerMessageId}
+                      searchQuery={searchOpen ? searchQuery : ""}
                       onEditMessage={async (mid, text) => {
                         const updated = await tauriClient.messageEdit(mid, text);
                         setMessages((prev) =>
