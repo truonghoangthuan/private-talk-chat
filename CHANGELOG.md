@@ -10,6 +10,8 @@ applicable.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-20
+
 - feat: add one-click copy-to-clipboard for message text on hover
 - feat: rename app/installation display name from "Private Talk" to "Bloop" (issue #11) — product name, window/taskbar title, installer name, in-app UI text, README, and package.json updated. Internal Rust/Tauri implementation details (DPAPI session-storage folder, bundle identifier, crate name, crypto domain-separation strings, custom media protocol scheme) intentionally left as "PrivateTalk"/"privatetalk" for a follow-up once Rust changes can be compile-verified in this environment.
 - feat: add a conversation filter/search box to the sidebar, matching against the resolved chat title and latest message preview
