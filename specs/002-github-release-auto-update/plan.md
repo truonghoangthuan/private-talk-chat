@@ -6,7 +6,7 @@
 
 ## Summary
 
-Deliver automated **GitHub Releases distribution** (`.github/workflows/release.yml`) and a **fail-closed Rust in-app updater** (`src-tauri/src/updater/mod.rs`) for **Private Talk** on Windows 10/11 (`x86_64`). Existing clients perform a non-blocking startup background check and expose manual `"Check for update"` and `"Update"` controls across the **Profile Settings modal**, **left navigation rail**, and **unauthenticated login screen**. All release feeds (`latest.json`), `Ed25519` cryptographic signature verification, `SHA-256` integrity validation in Rust memory, and verified Windows installer staging execute in Rust using existing crates—adding zero new runtime dependencies—while preserving Windows DPAPI local sessions (`%LOCALAPPDATA%\PrivateTalk\<profile>\session.dpapi`) across restarts.
+Deliver automated **GitHub Releases distribution** (`.github/workflows/release.yml`) and a **fail-closed Rust in-app updater** (`src-tauri/src/updater/mod.rs`) for **Bloop** on Windows 10/11 (`x86_64`). Existing clients perform a non-blocking startup background check and expose manual `"Check for update"` and `"Update"` controls across the **Profile Settings modal**, **left navigation rail**, and **unauthenticated login screen**. All release feeds (`latest.json`), `Ed25519` cryptographic signature verification, `SHA-256` integrity validation in Rust memory, and verified Windows installer staging execute in Rust using existing crates—adding zero new runtime dependencies—while preserving Windows DPAPI local sessions (`%LOCALAPPDATA%\PrivateTalk\<profile>\session.dpapi`) across restarts.
 
 ## Technical Context
 

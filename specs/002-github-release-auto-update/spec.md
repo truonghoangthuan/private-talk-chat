@@ -9,7 +9,7 @@
 
 ### Session 2026-11-19
 
-- Q: Where in the Private Talk window should users access the manual "Check for update" and "Update" controls, including before logging in? (FR-001) → A: Inside the existing Profile Settings modal, plus a compact update action on the left navigation rail and login screen.
+- Q: Where in the Bloop window should users access the manual "Check for update" and "Update" controls, including before logging in? (FR-001) → A: Inside the existing Profile Settings modal, plus a compact update action on the left navigation rail and login screen.
 - Q: How should a maintainer trigger the automated build, signing, and publication of a new version to GitHub Releases? (FR-007) → A: Pushing a semantic version git tag (`v*.*.*`, e.g., `v0.2.0`), with optional manual workflow trigger.
 - Q: Which published GitHub Releases should the in-app updater check for and offer to end users? (FR-002) → A: Stable releases only (latest published non-draft, non-prerelease GitHub Release).
 
@@ -17,7 +17,7 @@
 
 ### User Story 1 - Check for Updates and Install In-App Update (Priority: P1)
 
-An existing Private Talk desktop user clicks "Check for update" inside the application to see whether a newer version is available on GitHub Releases. When a newer version exists, the user views the new version number and release notes, clicks "Update", watches download progress, and upgrades the application in place without manually opening a browser or downloading an installer again.
+An existing Bloop desktop user clicks "Check for update" inside the application to see whether a newer version is available on GitHub Releases. When a newer version exists, the user views the new version number and release notes, clicks "Update", watches download progress, and upgrades the application in place without manually opening a browser or downloading an installer again.
 
 **Why this priority**: Directly delivers the user-facing self-update capability that eliminates manual installer downloads when new versions are published, while preserving the user's local session and encrypted chat access.
 
@@ -25,8 +25,8 @@ An existing Private Talk desktop user clicks "Check for update" inside the appli
 
 **Acceptance Scenarios**:
 
-1. **Given** a user running Private Talk when no newer release exists on GitHub Releases, **When** the user selects "Check for update", **Then** the application checks the release feed and displays a clear status confirming the application is already on the latest version.
-2. **Given** a user running Private Talk when a newer signed release exists on GitHub Releases, **When** the user selects "Check for update", **Then** the application displays the available version number, release notes summary, and an actionable "Update" button.
+1. **Given** a user running Bloop when no newer release exists on GitHub Releases, **When** the user selects "Check for update", **Then** the application checks the release feed and displays a clear status confirming the application is already on the latest version.
+2. **Given** a user running Bloop when a newer signed release exists on GitHub Releases, **When** the user selects "Check for update", **Then** the application displays the available version number, release notes summary, and an actionable "Update" button.
 3. **Given** an available update is displayed, **When** the user clicks "Update", **Then** the application downloads the update package with visible progress feedback, cryptographically verifies the package signature before installation, applies the update, and restarts into the new version with the user's existing account session and encrypted chat history intact.
 4. **Given** a downloaded update package whose cryptographic signature or integrity verification fails, **When** the application validates the package prior to installation, **Then** the system fails closed, aborts the update, deletes the unverified package, logs no sensitive user secrets, and displays a clear security warning to the user.
 
@@ -34,7 +34,7 @@ An existing Private Talk desktop user clicks "Check for update" inside the appli
 
 ### User Story 2 - First-Time Installation and Release Publication via GitHub Releases (Priority: P2)
 
-A maintainer publishes a new version tag for Private Talk, and the release workflow automatically builds, cryptographically signs, and publishes the Windows desktop installer, update bundle, signature file, and update manifest to the project's GitHub Releases page so new users can download the installer and existing users can update in-app.
+A maintainer publishes a new version tag for Bloop, and the release workflow automatically builds, cryptographically signs, and publishes the Windows desktop installer, update bundle, signature file, and update manifest to the project's GitHub Releases page so new users can download the installer and existing users can update in-app.
 
 **Why this priority**: Establishes the trusted distribution source on GitHub Releases required for both first-time installations and the in-app updater feed.
 
@@ -44,21 +44,21 @@ A maintainer publishes a new version tag for Private Talk, and the release workf
 
 1. **Given** a maintainer triggers a new version release, **When** the release pipeline completes, **Then** a GitHub Release entry is published containing the Windows desktop installer for new users, the signed update package, detached cryptographic signature data, and the update manifest for existing clients.
 2. **Given** a release build fails automated tests or lacks a valid signing key, **When** the release workflow runs, **Then** the pipeline fails closed and prevents publishing an unsigned or unverified release artifact to GitHub Releases.
-3. **Given** a new user visiting the project's GitHub Releases page, **When** the user downloads and runs the published Windows installer, **Then** Private Talk installs on Windows with its current version clearly visible in the application interface.
+3. **Given** a new user visiting the project's GitHub Releases page, **When** the user downloads and runs the published Windows installer, **Then** Bloop installs on Windows with its current version clearly visible in the application interface.
 
 ---
 
 ### User Story 3 - Automatic Startup Update Notification (Priority: P3)
 
-When a user launches Private Talk, the application quietly checks for a newer published release in the background and, if one is found, shows a non-intrusive update banner or prompt allowing the user to trigger "Update" immediately or dismiss it until later.
+When a user launches Bloop, the application quietly checks for a newer published release in the background and, if one is found, shows a non-intrusive update banner or prompt allowing the user to trigger "Update" immediately or dismiss it until later.
 
 **Why this priority**: Improves convenience and security adoption by informing users of new releases automatically without interrupting active conversations if they choose to defer.
 
-**Independent Test**: Can be tested by launching an older version of Private Talk while a newer version is published on GitHub Releases and verifying a non-blocking update notification appears with options to update immediately or dismiss.
+**Independent Test**: Can be tested by launching an older version of Bloop while a newer version is published on GitHub Releases and verifying a non-blocking update notification appears with options to update immediately or dismiss.
 
 **Acceptance Scenarios**:
 
-1. **Given** a newer version is available on GitHub Releases, **When** the user launches Private Talk, **Then** a non-intrusive update indicator appears offering the "Update" action without blocking login or ongoing chat usage.
+1. **Given** a newer version is available on GitHub Releases, **When** the user launches Bloop, **Then** a non-intrusive update indicator appears offering the "Update" action without blocking login or ongoing chat usage.
 2. **Given** the device is offline or GitHub Releases is unreachable during application startup, **When** the background startup check fails, **Then** the application continues normal operation silently without showing disruptive error dialogs, while manual "Check for update" still reports network errors clearly when explicitly invoked.
 
 ---
@@ -103,7 +103,7 @@ When a user launches Private Talk, the application quietly checks for a newer pu
 
 ## Assumptions
 
-- **Target Platform**: Windows 10 and Windows 11 (64-bit `x86_64`) desktop environments, matching Private Talk's Windows-native architecture.
+- **Target Platform**: Windows 10 and Windows 11 (64-bit `x86_64`) desktop environments, matching Bloop's Windows-native architecture.
 - **Public GitHub Releases Feed**: Published releases and update manifests are hosted on a publicly reachable GitHub Releases endpoint over HTTPS so end-user clients do not need a personal GitHub access token to check for or download updates.
 - **User-Confirmed Installation**: Updates are never silently installed mid-conversation without user consent; the user explicitly clicks "Update" to apply the downloaded release and restart the app.
 - **Cryptographic Signing Key Management**: The private update-signing key is held exclusively by project maintainers in protected release secrets, while the corresponding public verification key is embedded in the application binary at build time.

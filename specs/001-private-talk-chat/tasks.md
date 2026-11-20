@@ -1,8 +1,8 @@
 ---
-description: "Actionable, dependency-ordered task list for Private Talk Windows Chat Application"
+description: "Actionable, dependency-ordered task list for Bloop Windows Chat Application"
 ---
 
-# Tasks: Private Talk Windows Chat Application
+# Tasks: Bloop Windows Chat Application
 
 **Input**: Design documents from `/specs/001-private-talk-chat/`
 **Prerequisites**: [plan.md](file:///c:/work/temp/playground/private-talk-chat/specs/001-private-talk-chat/plan.md) (required), [spec.md](file:///c:/work/temp/playground/private-talk-chat/specs/001-private-talk-chat/spec.md) (required), [research.md](file:///c:/work/temp/playground/private-talk-chat/specs/001-private-talk-chat/research.md), [data-model.md](file:///c:/work/temp/playground/private-talk-chat/specs/001-private-talk-chat/data-model.md), [contracts/](file:///c:/work/temp/playground/private-talk-chat/specs/001-private-talk-chat/contracts/)

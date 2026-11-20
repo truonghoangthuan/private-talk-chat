@@ -15,7 +15,7 @@ Automated mock-server reproduction tests, the full Rust regression suite (21 tes
 | Check | Command / Action | Result | Notes |
 |-------|------------------|--------|-------|
 | Reproduction (post-fix, automated) | `cargo test --manifest-path src-tauri/Cargo.toml --test auth_refresh_tests` | pass | 3 passed against local mock HTTP server (`restore_session_refreshes_expired_jwt_and_persists_new_tokens`, `restore_session_fails_closed_and_wipes_dpapi_when_refresh_rejected`, `rpc_add_mutual_contact_maps_401_jwt_expired_to_auth_rejected_and_active_session_refreshes`) |
-| Reproduction (post-fix, live desktop/remote) | Launch Private Talk against live Supabase with expired `%LOCALAPPDATA%\PrivateTalk\session.dpapi` and search `cubu69` | skipped | Network/live-account dependent; not executed in automated verification |
+| Reproduction (post-fix, live desktop/remote) | Launch Bloop against live Supabase with expired `%LOCALAPPDATA%\PrivateTalk\session.dpapi` and search `cubu69` | skipped | Network/live-account dependent; not executed in automated verification |
 | Regression suite | `cargo test --manifest-path src-tauri/Cargo.toml` | pass | 21 passed, 0 failed across unit tests and 7 integration test binaries |
 | Lint / type-check | `npm run build` | pass | `tsc && vite build` exited 0 (`dist/assets/index-jtNpYpno.js 292.23 kB`) |
 

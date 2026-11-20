@@ -9,7 +9,7 @@
 
 ### User Story 1 - Cryptographic Identity Fingerprints and Epoch Rotation Timeline Markers (Priority: P1)
 
-Users opening a conversation or viewing their profile immediately recognize that Private Talk is a zero-knowledge encrypted workspace through visible cryptographic identity fingerprints and inline timeline markers whenever conversation keys rotate.
+Users opening a conversation or viewing their profile immediately recognize that Bloop is a zero-knowledge encrypted workspace through visible cryptographic identity fingerprints and inline timeline markers whenever conversation keys rotate.
 
 **Why this priority**: Establishes an unmistakable cryptographic identity and surfaces security state transitions (such as key rotation after group membership changes) directly where users communicate.
 

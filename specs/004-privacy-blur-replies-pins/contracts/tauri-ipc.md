@@ -44,7 +44,7 @@
 
 1. **Privacy Focus Blur Shield**:
    - Engages within `<100ms` of focus loss across both authenticated and unauthenticated screens.
-   - Applies `blur-xl select-none pointer-events-none` to the application content container and overlays a `fixed inset-0 z-50 backdrop-blur-2xl bg-[var(--bg-canvas)]/80` shield displaying the custom Private Talk emblem and `"Window unfocused — content hidden for privacy"`.
+   - Applies `blur-xl select-none pointer-events-none` to the application content container and overlays a `fixed inset-0 z-50 backdrop-blur-2xl bg-[var(--bg-canvas)]/80` shield displaying the custom Bloop emblem and `"Window unfocused — content hidden for privacy"`.
 2. **Reply Workflow**:
    - Every verified, non-removed message in `MessageBubble` exposes a `Reply` action button on hover.
    - Selecting `Reply` activates a compact reply context banner at the top of `MessageComposer` showing `Replying to <sender_display_name>`, a 1-line snippet (or attachment indicator), and an `X` button to cancel reply mode.

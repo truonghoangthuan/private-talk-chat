@@ -8,14 +8,14 @@
 
 ## Summary
 
-Local Rust and frontend test suites and the TypeScript/Vite build pass with zero failures, confirming `check_http_success` preserves HTTP status codes without leaking URL credentials and respects the `silent` flag. However, the bug is marked `partial` because live GitHub feed network checks were skipped (requiring explicit user consent) and the desktop GUI reproduction in Private Talk v0.2.0 was not executed.
+Local Rust and frontend test suites and the TypeScript/Vite build pass with zero failures, confirming `check_http_success` preserves HTTP status codes without leaking URL credentials and respects the `silent` flag. However, the bug is marked `partial` because live GitHub feed network checks were skipped (requiring explicit user consent) and the desktop GUI reproduction in Bloop v0.2.0 was not executed.
 
 ## Checks Performed
 
 | Check | Command / Action | Result | Notes |
 |-------|------------------|--------|-------|
 | Reproduction (post-fix: live HTTPS feed) | Unauthenticated `GET` to `https://github.com/truonghoangthuan/private-talk-chat/releases/latest/download/latest.json` and `PrivateTalk_0.2.0_x64-setup.exe` | skipped | Network-dependent check skipped without explicit user consent |
-| Reproduction (post-fix: desktop GUI) | Launch Private Talk v0.2.0, open Profile Settings, click **Check for update** | not-run | Interactive native Tauri desktop GUI not exercisable in headless CLI session |
+| Reproduction (post-fix: desktop GUI) | Launch Bloop v0.2.0, open Profile Settings, click **Check for update** | not-run | Interactive native Tauri desktop GUI not exercisable in headless CLI session |
 | New / updated tests | `cargo test --manifest-path src-tauri/Cargo.toml` (`updater_security_tests::http_transport_surfaces_status_without_leaking_credentials_and_respects_silent_flag`) | pass | Exit 0; 5 passed in `updater_security_tests` using loopback HTTP server (404/403, credential non-leakage, `silent=true`/`false`) |
 | Regression suite (Rust) | `cargo test --manifest-path src-tauri/Cargo.toml` | pass | Exit 0; 17 passed, 0 failed (`private_talk_lib`: 1, `crypto_negative_tests`: 4, `dpapi_roundtrip_tests`: 3, `group_epoch_rotation_tests`: 2, `replies_and_pins_tests`: 2, `updater_security_tests`: 5) |
 | Regression suite (Frontend) | `npm test` | pass | Exit 0; Vitest 2 files / 7 passed (`src/lib/ui-polish.test.ts`, `src/lib/__tests__/ui-polish.test.ts`) |
@@ -50,9 +50,9 @@ vite v7.3.8 building client environment for production...
 ## Residual Risks
 
 - Live GitHub Releases reachability (`https://github.com/truonghoangthuan/private-talk-chat/releases/latest/download/latest.json` and `PrivateTalk_0.2.0_x64-setup.exe`) and repository public visibility were not re-checked in this run because network checks were skipped.
-- End-to-end desktop GUI behavior (clicking **Check for update** in Private Talk v0.2.0 and verifying Ed25519 manifest signature validation against the compiled public key) remains unverified here.
+- End-to-end desktop GUI behavior (clicking **Check for update** in Bloop v0.2.0 and verifying Ed25519 manifest signature validation against the compiled public key) remains unverified here.
 - Local changes in `src-tauri/src/updater/mod.rs` (`check_http_success`) and `src-tauri/tests/updater_security_tests.rs` are still uncommitted in the working tree; existing `v0.2.0` binaries will not display HTTP status codes on future failures until a new release ships.
 
 ## Recommendation
 
-Hold — local test suites and TypeScript/Vite builds pass, but live network and desktop GUI verification were not exercised in this session. Authorize a live HTTPS feed check or click **Check for update** in Private Talk v0.2.0 Profile Settings to confirm `Up to date` (and clean signature verification) before closing the bug.
+Hold — local test suites and TypeScript/Vite builds pass, but live network and desktop GUI verification were not exercised in this session. Authorize a live HTTPS feed check or click **Check for update** in Bloop v0.2.0 Profile Settings to confirm `Up to date` (and clean signature verification) before closing the bug.

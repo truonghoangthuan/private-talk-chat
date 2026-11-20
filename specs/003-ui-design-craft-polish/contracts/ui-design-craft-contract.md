@@ -1,4 +1,4 @@
-# UI Design Craft & Component Contract: Private Talk Desktop Polish
+# UI Design Craft & Component Contract: Bloop Desktop Polish
 
 **Feature**: `003-ui-design-craft-polish`  
 **Date**: 2026-11-20  

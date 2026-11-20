@@ -1,4 +1,4 @@
-# Phase 1 Data Model: Private Talk Windows Chat Application
+# Phase 1 Data Model: Bloop Windows Chat Application
 
 **Feature**: `001-private-talk-chat`  
 **Date**: 2026-11-19  
