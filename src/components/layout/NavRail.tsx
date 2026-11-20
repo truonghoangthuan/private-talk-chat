@@ -39,9 +39,9 @@ export function NavRail({
       <div className="flex flex-col items-center gap-4">
         <img
           src={appIcon}
-          alt="Private Talk"
+          alt="Bloop"
           className="w-10 h-10 rounded-xl object-cover shadow-sm"
-          title="Private Talk — End-to-End Encrypted"
+          title="Bloop — End-to-End Encrypted"
         />
 
         <button

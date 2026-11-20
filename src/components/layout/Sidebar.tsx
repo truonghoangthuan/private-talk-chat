@@ -81,7 +81,7 @@ export function Sidebar({
     <div className="flex flex-col h-full">
       <div className="p-4 border-b border-[var(--border-hairline)]">
         <div className="flex items-center justify-between mb-3">
-          <h1 className="text-sm font-semibold tracking-tight">Private Talk</h1>
+          <h1 className="text-sm font-semibold tracking-tight">Bloop</h1>
           <button
             onClick={onOpenCreateGroup}
             className="p-1.5 rounded-lg hover:bg-[#6366F1]/10 text-[var(--text-muted)] hover:text-[#6366F1] transition-colors"
