@@ -10,6 +10,8 @@ applicable.
 
 ## [Unreleased]
 
+- feat: let the conversation sidebar be resized by dragging a new handle on its right edge (220px-480px, clamped), instead of it being stuck at a fixed 280px width - useful for seeing longer conversation titles/previews in full. Width persists across restarts via the same `localStorage` convention as the theme/mute/pin preferences. New pure `clampSidebarWidth`/`loadSidebarWidth`/`saveSidebarWidth` helpers. Client-side only (issue #94)
+
 - feat: add a `Ctrl+K`/`Cmd+K` quick switcher — a centered command-palette overlay with a live-filtered text input (same title/preview substring match and pinned-first order the sidebar filter already uses), Up/Down to move the highlighted row, Enter or click to jump straight there, Escape to dismiss — matching the Slack/Linear/VS Code convention instead of switching conversations only being reachable by clicking the sidebar, focusing its filter box with `/`, or stepping one at a time with Alt+Up/Down. New pure `shouldOpenQuickSwitcher`/`buildQuickSwitcherResults` helpers and `QuickSwitcherModal` component; listed in the keyboard shortcuts help modal. Client-side only, filtering already-loaded conversation data (issue #92)
 
 - feat: show a plain "scroll to bottom" floating button whenever the conversation timeline is scrolled away from the bottom, not just once new messages arrive — reading history with nothing new since previously left no quick way back down except manually dragging the scrollbar. Stays hidden whenever the existing "N new messages" jump-to-latest pill is already showing its own affordance, via a new pure `shouldShowScrollToBottomButton` helper. Client-side only, built on the existing scroll-position tracking used by the auto-scroll-follow behavior (issue #90)

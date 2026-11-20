@@ -67,6 +67,12 @@ import {
   detectMentionQuery,
   filterMentionCandidates,
   applyMentionSelection,
+  clampSidebarWidth,
+  loadSidebarWidth,
+  saveSidebarWidth,
+  MIN_SIDEBAR_WIDTH,
+  MAX_SIDEBAR_WIDTH,
+  DEFAULT_SIDEBAR_WIDTH,
 } from "./ui-polish";
 import type { ContactDto, ConversationDto, MessageDto, PinnedMessageDto } from "./types";
 import type { MessageNotificationToast } from "./ui-polish";
@@ -1990,5 +1996,82 @@ describe("applyMentionSelection", () => {
   it("handles a bare @ with an empty query", () => {
     const result = applyMentionSelection("@", 0, 1, "bob");
     expect(result).toEqual({ text: "@bob ", cursor: 5 });
+  });
+});
+
+describe("clampSidebarWidth", () => {
+  it("passes through a value already within range", () => {
+    expect(clampSidebarWidth(300)).toBe(300);
+  });
+
+  it("clamps below the minimum up to MIN_SIDEBAR_WIDTH", () => {
+    expect(clampSidebarWidth(10)).toBe(MIN_SIDEBAR_WIDTH);
+    expect(clampSidebarWidth(-50)).toBe(MIN_SIDEBAR_WIDTH);
+  });
+
+  it("clamps above the maximum down to MAX_SIDEBAR_WIDTH", () => {
+    expect(clampSidebarWidth(9999)).toBe(MAX_SIDEBAR_WIDTH);
+  });
+
+  it("rounds a fractional width to a whole pixel", () => {
+    expect(clampSidebarWidth(300.6)).toBe(301);
+  });
+
+  it("falls back to the default for non-finite input", () => {
+    expect(clampSidebarWidth(NaN)).toBe(DEFAULT_SIDEBAR_WIDTH);
+    expect(clampSidebarWidth(Infinity)).toBe(DEFAULT_SIDEBAR_WIDTH);
+  });
+});
+
+describe("loadSidebarWidth / saveSidebarWidth", () => {
+  let store: Record<string, string>;
+
+  beforeEach(() => {
+    store = {};
+    (globalThis as { localStorage?: Storage }).localStorage = {
+      getItem: (key: string) => (key in store ? store[key] : null),
+      setItem: (key: string, value: string) => {
+        store[key] = value;
+      },
+      removeItem: (key: string) => {
+        delete store[key];
+      },
+      clear: () => {
+        store = {};
+      },
+      get length() {
+        return Object.keys(store).length;
+      },
+      key: (index: number) => Object.keys(store)[index] ?? null,
+    } as Storage;
+  });
+
+  afterEach(() => {
+    delete (globalThis as { localStorage?: Storage }).localStorage;
+  });
+
+  it("falls back to the default width when nothing has been saved yet", () => {
+    expect(loadSidebarWidth()).toBe(DEFAULT_SIDEBAR_WIDTH);
+  });
+
+  it("round-trips an explicitly saved width", () => {
+    saveSidebarWidth(340);
+    expect(loadSidebarWidth()).toBe(340);
+  });
+
+  it("clamps a saved width that falls outside the allowed range on save", () => {
+    saveSidebarWidth(5000);
+    expect(loadSidebarWidth()).toBe(MAX_SIDEBAR_WIDTH);
+  });
+
+  it("falls back to the default on a corrupt stored value", () => {
+    store["bloop:sidebar-width"] = "not-a-number";
+    expect(loadSidebarWidth()).toBe(DEFAULT_SIDEBAR_WIDTH);
+  });
+
+  it("falls back to the default when localStorage is unavailable", () => {
+    delete (globalThis as { localStorage?: Storage }).localStorage;
+    expect(loadSidebarWidth()).toBe(DEFAULT_SIDEBAR_WIDTH);
+    expect(() => saveSidebarWidth(300)).not.toThrow();
   });
 });
