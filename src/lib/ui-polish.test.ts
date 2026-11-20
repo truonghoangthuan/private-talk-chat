@@ -37,6 +37,7 @@ import {
   shouldOpenConversationSearch,
   shouldOpenMediaLightbox,
   shouldOpenShortcutsHelp,
+  shouldFocusConversationFilter,
   shouldSubmitMessageEditOnKeyDown,
   sortConversationsForSidebar,
   splitMessageTextIntoLinkSegments,
@@ -1198,6 +1199,32 @@ describe("shouldOpenConversationSearch", () => {
   it("ignores every other key even with the modifier held", () => {
     expect(shouldOpenConversationSearch("g", true)).toBe(false);
     expect(shouldOpenConversationSearch("Enter", true)).toBe(false);
+  });
+});
+
+describe("shouldFocusConversationFilter", () => {
+  it("focuses the filter on a bare '/' press outside any editable field", () => {
+    expect(shouldFocusConversationFilter("/", null, false)).toBe(true);
+    expect(shouldFocusConversationFilter("/", "BUTTON", false)).toBe(true);
+    expect(shouldFocusConversationFilter("/", "DIV", false)).toBe(true);
+  });
+
+  it("ignores every other key", () => {
+    expect(shouldFocusConversationFilter("Enter", null, false)).toBe(false);
+    expect(shouldFocusConversationFilter("?", null, false)).toBe(false);
+    expect(shouldFocusConversationFilter("a", null, false)).toBe(false);
+  });
+
+  it("is suppressed while typing in an input, textarea, or select", () => {
+    expect(shouldFocusConversationFilter("/", "INPUT", false)).toBe(false);
+    expect(shouldFocusConversationFilter("/", "TEXTAREA", false)).toBe(false);
+    expect(shouldFocusConversationFilter("/", "SELECT", false)).toBe(false);
+    // Tag name casing from the DOM is always uppercase, but stay forgiving.
+    expect(shouldFocusConversationFilter("/", "input", false)).toBe(false);
+  });
+
+  it("is suppressed inside a contenteditable element regardless of tag", () => {
+    expect(shouldFocusConversationFilter("/", "DIV", true)).toBe(false);
   });
 });
 

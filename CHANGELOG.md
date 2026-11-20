@@ -10,6 +10,8 @@ applicable.
 
 ## [Unreleased]
 
+- feat: focus the sidebar's "Filter conversations..." box with a bare `/` keypress, matching the Slack/Linear/GitHub "jump to search" convention instead of it only being reachable by clicking in. Suppressed the same way the existing `?` shortcuts-help shortcut is while typing in an editable field, via a new pure `shouldFocusConversationFilter` helper; listed in the keyboard shortcuts help modal. Client-side only (issue #78)
+
 - feat: add an "Unread only" toggle to the sidebar's conversation filter row — a pill button (mail icon, badge shows the total unread-conversation count) that, when active, hides every conversation with zero unread messages, mirroring the Gmail/Slack "unreads only" convention. Combines with the existing text filter and pinned-sort order rather than replacing them, via a new pure `filterUnreadOnlyConversations` helper. Client-side only, filtering already-loaded conversation data (issue #76)
 
 - feat: add a password strength meter to the registration form's password field — a 4-segment bar (red/amber/indigo/green) plus a Weak/Fair/Good/Strong label, shown only in "Create Account" mode once something is typed, via a new pure `assessPasswordStrength` helper scoring length milestones and character-class variety. Purely client-side guidance; doesn't relax the existing 8-char minimum validation or touch the split-credential auth derivation — the server still never receives the raw password either way (issue #74)
