@@ -23,6 +23,8 @@ import {
   findUnreadDividerMessageId,
   computeDocumentTitle,
   formatOfflineDuration,
+  loadThemePreference,
+  saveThemePreference,
   shouldOpenShortcutsHelp,
 } from "./lib/ui-polish";
 import type {
@@ -51,7 +53,13 @@ const INITIAL_UPDATE_STATUS: UpdateStatusDto = {
 export function App() {
   const [user, setUser] = useState<UserProfileDto | null>(null);
   const [booting, setBooting] = useState(true);
-  const [darkMode, setDarkMode] = useState(true);
+  const [darkMode, setDarkMode] = useState<boolean>(() =>
+    loadThemePreference(
+      typeof window !== "undefined" && typeof window.matchMedia === "function"
+        ? window.matchMedia("(prefers-color-scheme: dark)").matches
+        : true
+    )
+  );
   const [contacts, setContacts] = useState<ContactDto[]>([]);
   const [conversations, setConversations] = useState<ConversationDto[]>([]);
   const [selectedConversationId, setSelectedConversationId] = useState<
@@ -107,6 +115,7 @@ export function App() {
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", darkMode);
+    saveThemePreference(darkMode);
   }, [darkMode]);
 
   // Mirror the total unread message count into the window/document title

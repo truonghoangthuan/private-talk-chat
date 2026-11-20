@@ -387,6 +387,52 @@ export function savePinnedConversationIds(userId: string, pinnedIds: string[]): 
   }
 }
 
+const THEME_STORAGE_KEY = "bloop:dark-mode";
+
+/**
+ * Loads the persisted dark/light theme preference from `localStorage`
+ * (issue #56). Unlike pinned conversations, this is stored globally rather
+ * than per-user: the theme also applies to the unauthenticated
+ * `AuthScreen`, which renders before any user is known, so scoping it to a
+ * user ID would leave the login screen with no persisted preference at
+ * all. Falls back to `systemPrefersDark` (the OS `prefers-color-scheme`
+ * media query, read by the caller) when nothing has been explicitly saved
+ * yet — e.g. on a brand-new install — so a light-OS user doesn't land in
+ * dark mode by surprise just because that happened to be the app's
+ * original hardcoded default. Also falls back to it when `localStorage`
+ * isn't available (e.g. the Vitest `node` test environment) or the stored
+ * value is anything other than the two values this module ever writes,
+ * since this is a best-effort UI preference that should never throw.
+ */
+export function loadThemePreference(systemPrefersDark: boolean): boolean {
+  if (typeof localStorage === "undefined") return systemPrefersDark;
+  try {
+    const raw = localStorage.getItem(THEME_STORAGE_KEY);
+    if (raw === "dark") return true;
+    if (raw === "light") return false;
+    return systemPrefersDark;
+  } catch {
+    return systemPrefersDark;
+  }
+}
+
+/**
+ * Persists the dark/light theme preference to `localStorage` so it
+ * survives an app restart (issue #56) instead of always resetting to the
+ * hardcoded dark default. A no-op (rather than a thrown error) when
+ * `localStorage` is unavailable or writing fails (e.g. storage quota) —
+ * losing the theme preference for this session is an acceptable
+ * degradation, never worth surfacing as a user-facing error.
+ */
+export function saveThemePreference(darkMode: boolean): void {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(THEME_STORAGE_KEY, darkMode ? "dark" : "light");
+  } catch {
+    // Storage unavailable or full; theme preference just won't persist this session.
+  }
+}
+
 const SCROLL_BOTTOM_THRESHOLD_PX = 120;
 
 /**
