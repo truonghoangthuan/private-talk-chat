@@ -13,10 +13,13 @@ use tauri::{AppHandle, Emitter, Runtime};
 use uuid::Uuid;
 
 use crate::crypto::aead::DecryptionStatus;
-use crate::platform::dpapi::{default_session_path, DpapiProtectedSession};
+use crate::platform::dpapi::{
+    default_session_path, delete_session_at_path, save_session_to_path, DpapiProtectedSession,
+};
 use crate::platform::notifications::{activate_conversation_window, dispatch_message_notification};
 use crate::platform::taskbar::update_taskbar_unread_badge;
 use crate::state::media_cache::DecryptedMediaCache;
+use crate::supabase::auth::jwt_is_expiring;
 use crate::supabase::realtime::RealtimeManager;
 use crate::supabase::{ProfileRow, SupabaseClient, SupabaseConfig, SupabaseError};
 use crate::updater::UpdaterManager;
@@ -157,6 +160,7 @@ pub struct PinnedMessageDto {
 
 pub struct AppState {
     pub session: Mutex<Option<DpapiProtectedSession>>,
+    pub refresh_lock: tokio::sync::Mutex<()>,
     pub session_path: PathBuf,
     pub supabase: SupabaseClient,
     pub media_cache: DecryptedMediaCache,
@@ -168,6 +172,7 @@ impl AppState {
     pub fn from_env() -> Self {
         Self {
             session: Mutex::new(None),
+            refresh_lock: tokio::sync::Mutex::new(()),
             session_path: default_session_path(None),
             supabase: SupabaseClient::new(SupabaseConfig::from_env()),
             media_cache: DecryptedMediaCache::new(),
@@ -179,6 +184,7 @@ impl AppState {
     pub fn new_for_test(session_path: PathBuf, supabase: SupabaseClient) -> Self {
         Self {
             session: Mutex::new(None),
+            refresh_lock: tokio::sync::Mutex::new(()),
             session_path,
             supabase,
             media_cache: DecryptedMediaCache::new(),
@@ -193,6 +199,47 @@ impl AppState {
             .expect("session mutex")
             .clone()
             .ok_or_else(|| AppError::new("NOT_AUTHENTICATED", "No active session"))
+    }
+
+    /// Returns the active session, refreshing an expired or near-expiry Supabase JWT
+    /// under `refresh_lock` so single-use refresh tokens are never raced.
+    pub async fn ensure_active_session(&self) -> Result<DpapiProtectedSession, AppError> {
+        let sess = self.active_session()?;
+        if !jwt_is_expiring(&sess.supabase_access_token, 60) {
+            return Ok(sess);
+        }
+
+        let _guard = self.refresh_lock.lock().await;
+        let mut current = self.active_session()?;
+        if !jwt_is_expiring(&current.supabase_access_token, 60) {
+            return Ok(current);
+        }
+
+        match self
+            .supabase
+            .auth_refresh(&current.supabase_refresh_token)
+            .await
+        {
+            Ok(tokens) => {
+                current.supabase_access_token = tokens.access_token;
+                current.supabase_refresh_token = tokens.refresh_token;
+                save_session_to_path(&self.session_path, &current).map_err(|_| {
+                    AppError::new("DPAPI_ERROR", "Failed to persist Windows DPAPI session")
+                })?;
+                *self.session.lock().expect("session mutex") = Some(current.clone());
+                Ok(current)
+            }
+            Err(SupabaseError::AuthRejected(_)) => {
+                self.realtime.disconnect();
+                self.media_cache.clear();
+                *self.session.lock().expect("session mutex") = None;
+                let _ = delete_session_at_path(&self.session_path);
+                Err(AppError::from(SupabaseError::AuthRejected(
+                    "session expired, please log in again",
+                )))
+            }
+            Err(err) => Err(AppError::from(err)),
+        }
     }
 }
 
@@ -305,7 +352,7 @@ pub async fn compute_total_unread(
 }
 
 pub async fn refresh_taskbar_badge<R: Runtime>(app: &AppHandle<R>, state: &AppState) {
-    if let Ok(sess) = state.active_session() {
+    if let Ok(sess) = state.ensure_active_session().await {
         if let Ok(total) = compute_total_unread(state, &sess).await {
             update_taskbar_unread_badge(app, total);
         }

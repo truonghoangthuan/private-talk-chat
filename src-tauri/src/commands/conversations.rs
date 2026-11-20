@@ -59,7 +59,7 @@ pub async fn ensure_epoch_key(
     conversation_id: Uuid,
     epoch: i32,
 ) -> Result<[u8; 32], AppError> {
-    let mut sess = state.active_session()?;
+    let mut sess = state.ensure_active_session().await?;
     let ck = epoch_cache_key(conversation_id, epoch);
     if let Some(key) = sess.cached_epoch_keys.get(&ck) {
         return Ok(*key);
@@ -115,7 +115,7 @@ pub async fn load_conversation_dto(
     state: &AppState,
     conversation_id: Uuid,
 ) -> Result<ConversationDto, AppError> {
-    let sess = state.active_session()?;
+    let sess = state.ensure_active_session().await?;
     let convs = state
         .supabase
         .list_conversations_for_user(&sess.supabase_access_token, sess.user_id)
@@ -131,7 +131,7 @@ async fn build_conversation_dto(
     state: &AppState,
     conv: ConversationRow,
 ) -> Result<ConversationDto, AppError> {
-    let sess = state.active_session()?;
+    let sess = state.ensure_active_session().await?;
     let member_rows = state
         .supabase
         .list_conversation_members(&sess.supabase_access_token, conv.id)
@@ -235,7 +235,7 @@ async fn build_conversation_dto(
 }
 
 pub async fn conversation_list_core(state: &AppState) -> Result<Vec<ConversationDto>, AppError> {
-    let sess = state.active_session()?;
+    let sess = state.ensure_active_session().await?;
     let convs = state
         .supabase
         .list_conversations_for_user(&sess.supabase_access_token, sess.user_id)
@@ -251,7 +251,7 @@ pub async fn conversation_start_direct_core(
     state: &AppState,
     contact_user_id: &str,
 ) -> Result<ConversationDto, AppError> {
-    let mut sess = state.active_session()?;
+    let mut sess = state.ensure_active_session().await?;
     let target_id = Uuid::parse_str(contact_user_id)
         .map_err(|_| AppError::new("INVALID_ID", "Invalid contact user ID"))?;
 
@@ -357,7 +357,7 @@ pub async fn conversation_create_group_core(
     name: &str,
     member_user_ids: Vec<String>,
 ) -> Result<ConversationDto, AppError> {
-    let mut sess = state.active_session()?;
+    let mut sess = state.ensure_active_session().await?;
     let group_name = validate_group_name(name)?;
 
     let contacts = state
@@ -460,7 +460,7 @@ pub async fn conversation_rename_group_core(
     conversation_id: &str,
     name: &str,
 ) -> Result<ConversationDto, AppError> {
-    let sess = state.active_session()?;
+    let sess = state.ensure_active_session().await?;
     let cid = Uuid::parse_str(conversation_id)
         .map_err(|_| AppError::new("INVALID_ID", "Invalid conversation ID"))?;
     let valid_name = validate_group_name(name)?;
@@ -477,7 +477,7 @@ pub async fn conversation_add_group_member_core(
     conversation_id: &str,
     contact_user_id: &str,
 ) -> Result<ConversationDto, AppError> {
-    let sess = state.active_session()?;
+    let sess = state.ensure_active_session().await?;
     let cid = Uuid::parse_str(conversation_id)
         .map_err(|_| AppError::new("INVALID_ID", "Invalid conversation ID"))?;
     let target_id = Uuid::parse_str(contact_user_id)
@@ -569,7 +569,7 @@ async fn rotate_epoch_and_remove(
     cid: Uuid,
     target_user_id: Uuid,
 ) -> Result<Option<ConversationDto>, AppError> {
-    let mut sess = state.active_session()?;
+    let mut sess = state.ensure_active_session().await?;
     let convs = state
         .supabase
         .list_conversations_for_user(&sess.supabase_access_token, sess.user_id)
@@ -668,7 +668,7 @@ pub async fn conversation_leave_group_core(
     state: &AppState,
     conversation_id: &str,
 ) -> Result<(), AppError> {
-    let sess = state.active_session()?;
+    let sess = state.ensure_active_session().await?;
     let cid = Uuid::parse_str(conversation_id)
         .map_err(|_| AppError::new("INVALID_ID", "Invalid conversation ID"))?;
     let _ = rotate_epoch_and_remove(state, cid, sess.user_id).await?;

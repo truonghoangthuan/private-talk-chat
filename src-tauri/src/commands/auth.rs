@@ -15,7 +15,8 @@ use crate::platform::dpapi::{
     delete_session_at_path, load_session_from_path, save_session_to_path, DpapiProtectedSession,
 };
 use crate::platform::taskbar::update_taskbar_unread_badge;
-use crate::supabase::ProfileRow;
+use crate::supabase::auth::jwt_is_expiring;
+use crate::supabase::{ProfileRow, SupabaseError};
 
 use super::{
     connect_realtime_for_session, profile_to_dto, refresh_taskbar_badge, validate_display_name,
@@ -187,10 +188,34 @@ pub async fn auth_login_core(
     Ok(profile_to_dto(state, &tokens.access_token, &profile).await)
 }
 
+async fn try_refresh_restored_session(
+    state: &AppState,
+    restored: &mut DpapiProtectedSession,
+) -> Result<(), SupabaseError> {
+    let _guard = state.refresh_lock.lock().await;
+    let tokens = state
+        .supabase
+        .auth_refresh(&restored.supabase_refresh_token)
+        .await?;
+    restored.supabase_access_token = tokens.access_token;
+    restored.supabase_refresh_token = tokens.refresh_token;
+    let _ = save_session_to_path(&state.session_path, restored);
+    Ok(())
+}
+
+fn cached_profile_dto(restored: &DpapiProtectedSession) -> UserProfileDto {
+    UserProfileDto {
+        id: restored.user_id.to_string(),
+        username: restored.username.clone(),
+        display_name: restored.display_name.clone(),
+        avatar_url: None,
+    }
+}
+
 pub async fn auth_restore_session_core(
     state: &AppState,
 ) -> Result<Option<UserProfileDto>, AppError> {
-    let restored = match load_session_from_path(&state.session_path) {
+    let mut restored = match load_session_from_path(&state.session_path) {
         Ok(Some(s)) => s,
         Ok(None) => return Ok(None),
         Err(_) => {
@@ -200,19 +225,55 @@ pub async fn auth_restore_session_core(
         }
     };
 
+    if jwt_is_expiring(&restored.supabase_access_token, 60) {
+        if let Err(SupabaseError::AuthRejected(_)) =
+            try_refresh_restored_session(state, &mut restored).await
+        {
+            let _ = delete_session_at_path(&state.session_path);
+            *state.session.lock().expect("session mutex") = None;
+            return Ok(None);
+        }
+    }
+
     let profile = match state
         .supabase
         .get_profile(&restored.supabase_access_token, restored.user_id)
         .await
     {
         Ok(p) => p,
+        Err(SupabaseError::AuthRejected(_)) => {
+            match try_refresh_restored_session(state, &mut restored).await {
+                Ok(()) => match state
+                    .supabase
+                    .get_profile(&restored.supabase_access_token, restored.user_id)
+                    .await
+                {
+                    Ok(p) => p,
+                    Err(SupabaseError::AuthRejected(_)) => {
+                        let _ = delete_session_at_path(&state.session_path);
+                        *state.session.lock().expect("session mutex") = None;
+                        return Ok(None);
+                    }
+                    Err(_) => {
+                        let dto = cached_profile_dto(&restored);
+                        *state.session.lock().expect("session mutex") = Some(restored);
+                        return Ok(Some(dto));
+                    }
+                },
+                Err(SupabaseError::AuthRejected(_)) => {
+                    let _ = delete_session_at_path(&state.session_path);
+                    *state.session.lock().expect("session mutex") = None;
+                    return Ok(None);
+                }
+                Err(_) => {
+                    let dto = cached_profile_dto(&restored);
+                    *state.session.lock().expect("session mutex") = Some(restored);
+                    return Ok(Some(dto));
+                }
+            }
+        }
         Err(_) => {
-            let dto = UserProfileDto {
-                id: restored.user_id.to_string(),
-                username: restored.username.clone(),
-                display_name: restored.display_name.clone(),
-                avatar_url: None,
-            };
+            let dto = cached_profile_dto(&restored);
             *state.session.lock().expect("session mutex") = Some(restored);
             return Ok(Some(dto));
         }
@@ -235,7 +296,7 @@ pub async fn profile_update_core(
     state: &AppState,
     args: ProfileUpdateArgs,
 ) -> Result<UserProfileDto, AppError> {
-    let mut sess = state.active_session()?;
+    let mut sess = state.ensure_active_session().await?;
 
     let validated_name = match args.display_name {
         Some(ref name) => Some(validate_display_name(name)?),

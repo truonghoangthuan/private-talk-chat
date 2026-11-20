@@ -8,7 +8,7 @@ pub async fn contact_add_by_username_core(
     state: &AppState,
     username: &str,
 ) -> Result<ContactDto, AppError> {
-    let sess = state.active_session()?;
+    let sess = state.ensure_active_session().await?;
     let target_username = validate_username(username)?;
 
     let target = state
@@ -30,7 +30,7 @@ pub async fn contact_add_by_username_core(
 }
 
 pub async fn contact_list_core(state: &AppState) -> Result<Vec<ContactDto>, AppError> {
-    let sess = state.active_session()?;
+    let sess = state.ensure_active_session().await?;
     let rows = state
         .supabase
         .list_contacts(&sess.supabase_access_token, sess.user_id)
