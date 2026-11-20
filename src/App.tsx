@@ -23,12 +23,16 @@ import {
   findUnreadDividerMessageId,
   computeDocumentTitle,
   formatOfflineDuration,
+  getAdjacentConversationId,
+  getConversationSwitchDirection,
   loadMutedConversationIds,
+  loadPinnedConversationIds,
   saveMutedConversationIds,
   loadThemePreference,
   saveThemePreference,
   shouldOpenConversationSearch,
   shouldOpenShortcutsHelp,
+  sortConversationsForSidebar,
   sumUnreadExcludingMuted,
   toggleMutedConversationId,
 } from "./lib/ui-polish";
@@ -254,10 +258,20 @@ export function App() {
         setActiveTab("messages");
         setSearchOpen(true);
       }
+      const direction = getConversationSwitchDirection(e.key, e.altKey);
+      if (direction !== null && conversations.length > 0) {
+        e.preventDefault();
+        const orderedIds = sortConversationsForSidebar(
+          conversations,
+          user ? loadPinnedConversationIds(user.id) : []
+        ).map((c) => c.id);
+        const nextId = getAdjacentConversationId(orderedIds, selectedConversationId, direction);
+        if (nextId) setSelectedConversationId(nextId);
+      }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [selectedConversationId]);
+  }, [selectedConversationId, conversations, user]);
 
   const refreshContactsAndConversations = useCallback(async () => {
     const [cList, convList] = await Promise.all([

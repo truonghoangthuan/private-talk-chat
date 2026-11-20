@@ -12,7 +12,9 @@ import {
   formatFullMessageTimestamp,
   formatMessageTimestamp,
   formatOfflineDuration,
+  getAdjacentConversationId,
   getAttachmentPreviewKind,
+  getConversationSwitchDirection,
   getConversationTitle,
   getDraft,
   getMessageCopyText,
@@ -1312,5 +1314,63 @@ describe("filterPinnedMessages", () => {
   it("returns an empty array when nothing matches", () => {
     const pins = [makePin()];
     expect(filterPinnedMessages(pins, "no match here")).toEqual([]);
+  });
+});
+
+describe("getConversationSwitchDirection", () => {
+  it("returns null without Alt held, regardless of key", () => {
+    expect(getConversationSwitchDirection("ArrowDown", false)).toBeNull();
+    expect(getConversationSwitchDirection("ArrowUp", false)).toBeNull();
+    expect(getConversationSwitchDirection("a", false)).toBeNull();
+  });
+
+  it("returns 1 for Alt+ArrowDown and -1 for Alt+ArrowUp", () => {
+    expect(getConversationSwitchDirection("ArrowDown", true)).toBe(1);
+    expect(getConversationSwitchDirection("ArrowUp", true)).toBe(-1);
+  });
+
+  it("returns null for any other key even with Alt held", () => {
+    expect(getConversationSwitchDirection("ArrowLeft", true)).toBeNull();
+    expect(getConversationSwitchDirection("f", true)).toBeNull();
+    expect(getConversationSwitchDirection("Enter", true)).toBeNull();
+  });
+});
+
+describe("getAdjacentConversationId", () => {
+  const ids = ["a", "b", "c"];
+
+  it("returns null when there are no conversations", () => {
+    expect(getAdjacentConversationId([], "a", 1)).toBeNull();
+    expect(getAdjacentConversationId([], null, -1)).toBeNull();
+  });
+
+  it("steps forward and wraps past the last entry", () => {
+    expect(getAdjacentConversationId(ids, "a", 1)).toBe("b");
+    expect(getAdjacentConversationId(ids, "b", 1)).toBe("c");
+    expect(getAdjacentConversationId(ids, "c", 1)).toBe("a");
+  });
+
+  it("steps backward and wraps past the first entry", () => {
+    expect(getAdjacentConversationId(ids, "c", -1)).toBe("b");
+    expect(getAdjacentConversationId(ids, "b", -1)).toBe("a");
+    expect(getAdjacentConversationId(ids, "a", -1)).toBe("c");
+  });
+
+  it("falls back to the first entry stepping forward when nothing is selected", () => {
+    expect(getAdjacentConversationId(ids, null, 1)).toBe("a");
+  });
+
+  it("falls back to the last entry stepping backward when nothing is selected", () => {
+    expect(getAdjacentConversationId(ids, null, -1)).toBe("c");
+  });
+
+  it("falls back the same way when currentId isn't in the list", () => {
+    expect(getAdjacentConversationId(ids, "not-there", 1)).toBe("a");
+    expect(getAdjacentConversationId(ids, "not-there", -1)).toBe("c");
+  });
+
+  it("wraps correctly for a single-conversation list", () => {
+    expect(getAdjacentConversationId(["only"], "only", 1)).toBe("only");
+    expect(getAdjacentConversationId(["only"], "only", -1)).toBe("only");
   });
 });
