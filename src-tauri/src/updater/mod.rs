@@ -501,11 +501,17 @@ impl UpdateFeedTransport for HttpUpdateFeedTransport {
 
 pub type InstallerLauncher = Arc<dyn Fn(&Path) -> Result<(), AppError> + Send + Sync>;
 
+pub fn windows_installer_args() -> &'static [&'static str] {
+    // /P passive, /UPDATE skips uninstall-before-install prompt, /R auto-relaunches after update.
+    &["/P", "/UPDATE", "/R"]
+}
+
 pub fn default_windows_installer_launcher() -> InstallerLauncher {
     Arc::new(|installer_path: &Path| {
         #[cfg(windows)]
         {
             std::process::Command::new(installer_path)
+                .args(windows_installer_args())
                 .spawn()
                 .map_err(|_| {
                     AppError::new("UPDATE_INSTALL_FAILED", "Failed to launch update installer.")
