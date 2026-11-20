@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, Copy, Pencil, Pin, PinOff, Reply, ShieldAlert, Trash2, X } from "lucide-react";
+import { AtSign, Check, Copy, Pencil, Pin, PinOff, Reply, ShieldAlert, Trash2, X } from "lucide-react";
 import type { MessageDto } from "../../lib/types";
 import {
   formatFullMessageTimestamp,
   formatMessageTimestamp,
   getMessageCopyText,
+  messageMentionsUser,
   resolveMessageBubbleEscapeAction,
   shouldSubmitMessageEditOnKeyDown,
   splitMessageTextIntoLinkSegments,
@@ -19,6 +20,8 @@ interface MessageBubbleProps {
   isHighlighted?: boolean;
   /** Active in-conversation search query (issue #65); matches render with a `<mark>` highlight. */
   searchQuery?: string;
+  /** Current viewer's own username (issue #102), used to detect and call out an "@mention" of them in a received message. */
+  currentUsername?: string;
   onEdit: (messageId: string, newText: string) => Promise<void>;
   onRemove: (messageId: string) => Promise<void>;
   onReply: (message: MessageDto) => void;
@@ -36,6 +39,7 @@ export function MessageBubble({
   isGroupedWithPrev = false,
   isHighlighted = false,
   searchQuery = "",
+  currentUsername = "",
   onEdit,
   onRemove,
   onReply,
@@ -92,6 +96,11 @@ export function MessageBubble({
   const { timeLabel, dateLabel } = formatMessageTimestamp(message.created_at);
   const timestampDisplay = dateLabel ? `${dateLabel}, ${timeLabel}` : timeLabel;
   const fullTimestamp = formatFullMessageTimestamp(message.created_at);
+
+  // Slack/Discord "you were mentioned" highlight (issue #102): only ever
+  // called out on a received message — the viewer's own sends are never
+  // highlighted back at them.
+  const mentionsMe = !isOwn && messageMentionsUser(message.text, currentUsername);
 
   const submitEdit = async () => {
     const trimmed = draftText.trim();
@@ -278,10 +287,12 @@ export function MessageBubble({
         )}
 
         <div
-          className={`rounded-2xl px-3.5 py-2.5 text-[14px] leading-[1.5] border border-[var(--border-hairline)] transition-shadow ${
+          className={`rounded-2xl px-3.5 py-2.5 text-[14px] leading-[1.5] border transition-shadow ${
             isOwn
-              ? "bg-[#6366F1] text-white"
-              : "bg-[var(--bg-bubble-peer)] text-[var(--text-primary)]"
+              ? "bg-[#6366F1] text-white border-[var(--border-hairline)]"
+              : mentionsMe
+              ? "bg-[#F59E0B]/10 text-[var(--text-primary)] border-[#F59E0B]/50"
+              : "bg-[var(--bg-bubble-peer)] text-[var(--text-primary)] border-[var(--border-hairline)]"
           } ${
             isHighlighted
               ? "ring-2 ring-[#6366F1] ring-offset-2 ring-offset-[var(--bg-canvas)]"
@@ -441,6 +452,12 @@ export function MessageBubble({
           <span className="inline-flex items-center gap-1 text-[#6366F1] font-medium">
             <Pin className="w-3 h-3" />
             Pinned
+          </span>
+        )}
+        {mentionsMe && (
+          <span className="inline-flex items-center gap-1 text-[#F59E0B] font-medium">
+            <AtSign className="w-3 h-3" />
+            Mentioned you
           </span>
         )}
 
