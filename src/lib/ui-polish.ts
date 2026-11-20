@@ -695,6 +695,22 @@ export function computeScrollFollowState(
 }
 
 /**
+ * Decides whether `MessageTimeline` should show its plain "scroll to
+ * bottom" floating button (issue #90). That button is for the case where
+ * the viewer scrolled up to read history and nothing new has arrived since
+ * — there's otherwise no quick way back down. It must stay hidden whenever
+ * the "N new messages" jump-to-latest pill (`unseenCount > 0`) is already
+ * showing its own affordance, and whenever the viewer is already near the
+ * bottom.
+ */
+export function shouldShowScrollToBottomButton(
+  isNearBottom: boolean,
+  unseenCount: number
+): boolean {
+  return !isNearBottom && unseenCount === 0;
+}
+
+/**
  * Immutably updates the in-memory per-conversation composer draft map, so
  * switching conversations without sending doesn't leak one conversation's
  * unsent text into another's composer (the composer previously stayed
