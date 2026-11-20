@@ -1,8 +1,18 @@
 import { useEffect, useState } from "react";
-import { Bell, BellOff, MessageSquarePlus, Pin, Search, UserPlus, Users } from "lucide-react";
+import {
+  Bell,
+  BellOff,
+  MailCheck,
+  MessageSquarePlus,
+  Pin,
+  Search,
+  UserPlus,
+  Users,
+} from "lucide-react";
 import type { ContactDto, ConversationDto, TypingUserDto } from "../../lib/types";
 import {
   filterConversations,
+  filterUnreadOnlyConversations,
   getConversationTitle,
   loadPinnedConversationIds,
   savePinnedConversationIds,
@@ -46,6 +56,7 @@ export function Sidebar({
   const [searching, setSearching] = useState(false);
   const [failedAvatars, setFailedAvatars] = useState<Set<string>>(new Set());
   const [conversationQuery, setConversationQuery] = useState("");
+  const [unreadOnly, setUnreadOnly] = useState(false);
   const [pinnedIds, setPinnedIds] = useState<string[]>(() =>
     loadPinnedConversationIds(currentUserId)
   );
@@ -134,7 +145,12 @@ export function Sidebar({
     conversationQuery,
     currentUserId
   );
-  const orderedConversations = sortConversationsForSidebar(filteredConversations, pinnedIds);
+  const visibleConversations = filterUnreadOnlyConversations(
+    filteredConversations,
+    unreadOnly
+  );
+  const orderedConversations = sortConversationsForSidebar(visibleConversations, pinnedIds);
+  const unreadConversationCount = conversations.filter((c) => c.unread_count > 0).length;
 
   return (
     <div className="flex flex-col h-full">
@@ -229,8 +245,8 @@ export function Sidebar({
 
       {/* Conversations */}
       <div className="flex-1 overflow-y-auto px-2 py-2 space-y-0.5">
-        <div className="px-2 pb-2">
-          <div className="relative">
+        <div className="px-2 pb-2 flex items-center gap-1.5">
+          <div className="relative flex-1">
             <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
             <input
               type="text"
@@ -241,6 +257,28 @@ export function Sidebar({
               className="w-full pl-8 pr-2.5 py-1.5 text-xs rounded-lg bg-[var(--bg-canvas)] border border-[var(--border-hairline)] focus:outline-none focus:border-[#6366F1]"
             />
           </div>
+          <button
+            type="button"
+            onClick={() => setUnreadOnly((v) => !v)}
+            aria-pressed={unreadOnly}
+            title={unreadOnly ? "Show all conversations" : "Show unread conversations only"}
+            className={`shrink-0 inline-flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+              unreadOnly
+                ? "bg-[#6366F1] border-[#6366F1] text-white"
+                : "border-[var(--border-hairline)] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
+            }`}
+          >
+            <MailCheck className="w-3.5 h-3.5" />
+            {unreadConversationCount > 0 && (
+              <span
+                className={`min-w-4 px-1 rounded-full text-[11px] font-semibold ${
+                  unreadOnly ? "bg-white/20" : "bg-[var(--bg-hover)]"
+                }`}
+              >
+                {unreadConversationCount > 99 ? "99+" : unreadConversationCount}
+              </span>
+            )}
+          </button>
         </div>
         <div className="px-2 py-1 text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">
           Conversations
@@ -252,6 +290,10 @@ export function Sidebar({
         ) : filteredConversations.length === 0 ? (
           <div className="px-3 py-6 text-xs text-center text-[var(--text-muted)]">
             No conversations match "{conversationQuery.trim()}".
+          </div>
+        ) : orderedConversations.length === 0 ? (
+          <div className="px-3 py-6 text-xs text-center text-[var(--text-muted)]">
+            No unread conversations.
           </div>
         ) : (
           orderedConversations.map((conv) => {
