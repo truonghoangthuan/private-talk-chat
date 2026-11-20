@@ -303,21 +303,24 @@ export function filterConversations(
 
 /**
  * Narrows the sidebar conversation list down to only conversations with
- * at least one unread message (Gmail/Slack "unreads only" convention),
- * so a long conversation list can be scanned for what's actually new
+ * at least one unread message, OR manually marked unread (issue #86)
+ * (Gmail/Slack "unreads only" convention), so a long conversation list
+ * can be scanned for what's actually new — or flagged to come back to —
  * without eyeballing every unread badge. When `unreadOnly` is false,
  * returns `conversations` unchanged (including order/reference) so
  * callers can skip extra array allocations on the common case. Intended
  * to run alongside (not instead of) the existing text filter — apply
  * both before `sortConversationsForSidebar`, in either order, since
- * neither reorders the input.
+ * neither reorders the input. `manuallyUnreadIds` defaults to an empty
+ * array for callers that haven't wired up the manual-unread feature.
  */
 export function filterUnreadOnlyConversations(
   conversations: ConversationDto[],
-  unreadOnly: boolean
+  unreadOnly: boolean,
+  manuallyUnreadIds: string[] = []
 ): ConversationDto[] {
   if (!unreadOnly) return conversations;
-  return conversations.filter((conv) => conv.unread_count > 0);
+  return conversations.filter((conv) => isConversationUnreadForDisplay(conv, manuallyUnreadIds));
 }
 
 const PINNED_CONVERSATIONS_STORAGE_PREFIX = "bloop:pinned-conversations:";
@@ -471,6 +474,96 @@ export function saveMutedConversationIds(userId: string, mutedIds: string[]): vo
   } catch {
     // Storage unavailable or full; muted set just won't persist this session.
   }
+}
+
+const MANUALLY_UNREAD_CONVERSATIONS_STORAGE_PREFIX = "bloop:manually-unread-conversations:";
+
+function manuallyUnreadConversationsStorageKey(userId: string): string {
+  return `${MANUALLY_UNREAD_CONVERSATIONS_STORAGE_PREFIX}${userId}`;
+}
+
+/**
+ * Toggles a conversation's "manually marked unread" flag (Gmail/Outlook
+ * "mark as unread" convention, issue #86) — a purely client-side signal
+ * layered on top of the server-driven `unread_count`, for a conversation
+ * that's already fully read but the viewer wants to flag as something to
+ * come back to. Distinct from muting (issue #63, suppresses noise) and
+ * pinning (issue #53, sidebar order): this is a read/unread marker, not a
+ * notification or ordering preference. Adds `conversationId` to the end
+ * of `manuallyUnreadIds` when absent, removes it when already present;
+ * returns a new array either way so callers can rely on referential
+ * inequality to detect a change.
+ */
+export function toggleManuallyUnreadConversationId(
+  manuallyUnreadIds: string[],
+  conversationId: string
+): string[] {
+  if (manuallyUnreadIds.includes(conversationId)) {
+    return manuallyUnreadIds.filter((id) => id !== conversationId);
+  }
+  return [...manuallyUnreadIds, conversationId];
+}
+
+/**
+ * Loads the manually-marked-unread conversation IDs persisted for
+ * `userId` from `localStorage` (issue #86), scoped per user the same way
+ * `loadMutedConversationIds`/`loadPinnedConversationIds` are, so
+ * switching accounts on the same machine never leaks one user's manual
+ * unread flags into another's sidebar. Returns an empty array when
+ * nothing is stored, `localStorage` isn't available (e.g. the Vitest
+ * `node` test environment), or the stored value is
+ * missing/corrupt/not a string array — this is a best-effort UI
+ * preference, never something that should throw.
+ */
+export function loadManuallyUnreadConversationIds(userId: string): string[] {
+  if (typeof localStorage === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(manuallyUnreadConversationsStorageKey(userId));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((id): id is string => typeof id === "string");
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Persists `manuallyUnreadIds` for `userId` to `localStorage` (issue #86)
+ * so a manual unread flag survives an app restart. A no-op (rather than a
+ * thrown error) when `localStorage` is unavailable or writing fails
+ * (e.g. storage quota) — losing the flag for this session is an
+ * acceptable degradation, never worth surfacing as a user-facing error.
+ */
+export function saveManuallyUnreadConversationIds(
+  userId: string,
+  manuallyUnreadIds: string[]
+): void {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(
+      manuallyUnreadConversationsStorageKey(userId),
+      JSON.stringify(manuallyUnreadIds)
+    );
+  } catch {
+    // Storage unavailable or full; the manual unread flag just won't persist this session.
+  }
+}
+
+/**
+ * Resolves whether a conversation's sidebar unread badge should render,
+ * combining the server-driven `unread_count` with the purely client-side
+ * manually-marked-unread flag (issue #86) — either one is enough to show
+ * an unread indicator. Used instead of a bare `conv.unread_count > 0`
+ * check wherever the sidebar decides badge visibility or the "Unread
+ * only" filter (issue #76) membership, so a manually-flagged
+ * already-read conversation isn't silently dropped from either.
+ */
+export function isConversationUnreadForDisplay(
+  conversation: ConversationDto,
+  manuallyUnreadIds: string[]
+): boolean {
+  return conversation.unread_count > 0 || manuallyUnreadIds.includes(conversation.id);
 }
 
 /**

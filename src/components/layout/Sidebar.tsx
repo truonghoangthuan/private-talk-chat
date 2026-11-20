@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   Bell,
   BellOff,
+  Circle,
   MailCheck,
   MessageSquarePlus,
   Pin,
@@ -16,6 +17,7 @@ import {
   filterUnreadOnlyConversations,
   getConversationTitle,
   getDraft,
+  isConversationUnreadForDisplay,
   loadPinnedConversationIds,
   savePinnedConversationIds,
   sortConversationsForSidebar,
@@ -30,9 +32,12 @@ interface SidebarProps {
   onlineUserIds: Set<string>;
   typingByConversation: Record<string, TypingUserDto[]>;
   mutedConversationIds: string[];
+  /** Conversations flagged "mark as unread" despite having zero real unread messages (issue #86). */
+  manuallyUnreadConversationIds: string[];
   /** Unsent per-conversation composer drafts, so the preview line can surface "Draft: ..." (issue #84). */
   drafts: Record<string, string>;
   onToggleMuted: (conversationId: string) => void;
+  onToggleManuallyUnread: (conversationId: string) => void;
   onAddContactByUsername: (username: string) => Promise<void>;
   onStartDirectChat: (contactUserId: string) => Promise<void>;
   onSelectConversation: (conversationId: string) => void;
@@ -47,8 +52,10 @@ export function Sidebar({
   onlineUserIds,
   typingByConversation,
   mutedConversationIds,
+  manuallyUnreadConversationIds,
   drafts,
   onToggleMuted,
+  onToggleManuallyUnread,
   onAddContactByUsername,
   onStartDirectChat,
   onSelectConversation,
@@ -87,6 +94,12 @@ export function Sidebar({
     e.preventDefault();
     e.stopPropagation();
     onToggleMuted(conversationId);
+  };
+
+  const handleToggleManuallyUnread = (e: React.MouseEvent, conversationId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onToggleManuallyUnread(conversationId);
   };
 
   const markAvatarFailed = (url: string) => {
@@ -152,10 +165,13 @@ export function Sidebar({
   );
   const visibleConversations = filterUnreadOnlyConversations(
     filteredConversations,
-    unreadOnly
+    unreadOnly,
+    manuallyUnreadConversationIds
   );
   const orderedConversations = sortConversationsForSidebar(visibleConversations, pinnedIds);
-  const unreadConversationCount = conversations.filter((c) => c.unread_count > 0).length;
+  const unreadConversationCount = conversations.filter((c) =>
+    isConversationUnreadForDisplay(c, manuallyUnreadConversationIds)
+  ).length;
 
   return (
     <div className="flex flex-col h-full">
@@ -316,6 +332,7 @@ export function Sidebar({
             const showPeerAvatar = Boolean(peerAvatarUrl && !failedAvatars.has(peerAvatarUrl));
             const isPinned = pinnedIds.includes(conv.id);
             const isMuted = mutedConversationIds.includes(conv.id);
+            const isManuallyUnread = manuallyUnreadConversationIds.includes(conv.id);
             const previewLabel = buildConversationPreviewLabel(
               conv.latest_preview,
               getDraft(drafts, conv.id)
@@ -381,6 +398,15 @@ export function Sidebar({
                         {conv.unread_count > 99 ? "99+" : conv.unread_count}
                       </span>
                     )}
+                    {conv.unread_count === 0 && isManuallyUnread && (
+                      <span
+                        className={`shrink-0 w-2.5 h-2.5 rounded-full ${
+                          isMuted ? "bg-[var(--text-muted)]" : "bg-[#6366F1]"
+                        }`}
+                        title="Marked unread"
+                        aria-label="Marked unread"
+                      />
+                    )}
                   </div>
 
                   {typing.length > 0 ? (
@@ -417,6 +443,21 @@ export function Sidebar({
                     <Bell className="w-3.5 h-3.5" />
                   )}
                 </button>
+                {conv.unread_count === 0 && (
+                  <button
+                    type="button"
+                    onClick={(e) => handleToggleManuallyUnread(e, conv.id)}
+                    title={isManuallyUnread ? "Mark as read" : "Mark as unread"}
+                    aria-pressed={isManuallyUnread}
+                    className={`shrink-0 p-1.5 rounded-lg transition-opacity ${
+                      isManuallyUnread
+                        ? "opacity-100 text-[#6366F1]"
+                        : "opacity-0 group-hover:opacity-100 text-[var(--text-muted)] hover:text-[#6366F1] hover:bg-[var(--bg-hover)]"
+                    }`}
+                  >
+                    <Circle className={`w-3.5 h-3.5 ${isManuallyUnread ? "fill-current" : ""}`} />
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={(e) => handleTogglePinned(e, conv.id)}
