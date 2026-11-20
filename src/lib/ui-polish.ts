@@ -616,3 +616,20 @@ export function findMessageSearchMatches(
 export function shouldSubmitMessageEditOnKeyDown(key: string, shiftKey: boolean): boolean {
   return key === "Enter" && !shiftKey;
 }
+
+/**
+ * Computes the browser/OS window title to reflect the total unread message
+ * count across all conversations (issue #42), the same way Slack/Discord/Gmail
+ * surface unread counts in a tab or taskbar title — so there's a way to tell
+ * at a glance whether anything new has arrived while the app is minimized,
+ * behind other windows, or just not currently focused, without switching
+ * back to it. A zero or negative count (nothing unread) returns the plain
+ * `appName` unchanged; any positive count is prefixed as `(N) <appName>`,
+ * capped at the same "99+" display convention the sidebar/nav-rail unread
+ * badges already use so an extreme count never grows the title unbounded.
+ */
+export function computeDocumentTitle(appName: string, totalUnread: number): string {
+  if (totalUnread <= 0) return appName;
+  const display = totalUnread > 99 ? "99+" : String(totalUnread);
+  return `(${display}) ${appName}`;
+}

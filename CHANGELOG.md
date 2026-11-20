@@ -10,6 +10,8 @@ applicable.
 
 ## [Unreleased]
 
+- feat: reflect the total unread message count in the window/document title (e.g. `(3) Bloop`, reverting to plain `Bloop` once everything is read) via a new pure `computeDocumentTitle` helper, so there's a way to tell at a glance whether anything new has arrived while the app is minimized, behind other windows, or just unfocused — matching the Slack/Discord/Gmail tab-title convention. Client-side only (issue #42)
+
 - feat: auto-link `http(s)://` URLs inside message text as real, clickable anchors (underlined, opens in a new tab, `rel="noopener noreferrer"`) instead of rendering them as inert plain text — trailing sentence punctuation and wrapping parens are kept out of the link. Client-side only, pure-function text segmentation (`splitMessageTextIntoLinkSegments`), no `dangerouslySetInnerHTML` (issue #39)
 - feat: show an inline "New messages" divider in the timeline, anchored above the first message that was unread when the conversation was opened (Slack/Discord-style), so the viewer knows exactly where to start reading instead of only seeing a sidebar unread badge. Client-side only, snapshotting `unread_count` before it's reset by marking messages seen (issue #37)
 - fix: message editing now uses an auto-growing textarea (Shift+Enter for a newline, Enter to save) instead of a single-line text input, so multi-line messages can actually be edited without losing their line breaks (issue #35)

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildTimelineItems,
   computeComposerCharacterState,
+  computeDocumentTitle,
   computeScrollFollowState,
   filterConversations,
   findMessageSearchMatches,
@@ -703,5 +704,24 @@ describe("splitMessageTextIntoLinkSegments", () => {
     expect(splitMessageTextIntoLinkSegments("visit www.example.com please")).toEqual([
       { text: "visit www.example.com please", isLink: false },
     ]);
+  });
+});
+
+describe("computeDocumentTitle", () => {
+  it("returns the plain app name when there are no unread messages", () => {
+    expect(computeDocumentTitle("Bloop", 0)).toBe("Bloop");
+  });
+
+  it("returns the plain app name for a negative count (defensive)", () => {
+    expect(computeDocumentTitle("Bloop", -1)).toBe("Bloop");
+  });
+
+  it("prefixes the unread count ahead of the app name", () => {
+    expect(computeDocumentTitle("Bloop", 3)).toBe("(3) Bloop");
+  });
+
+  it("caps the displayed count at 99+ like the sidebar/nav-rail badges", () => {
+    expect(computeDocumentTitle("Bloop", 100)).toBe("(99+) Bloop");
+    expect(computeDocumentTitle("Bloop", 99)).toBe("(99) Bloop");
   });
 });
