@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Check, Copy, Pencil, Pin, PinOff, Reply, ShieldAlert, Trash2, X } from "lucide-react";
 import type { MessageDto } from "../../lib/types";
-import { getMessageCopyText } from "../../lib/ui-polish";
+import { formatMessageTimestamp, getMessageCopyText } from "../../lib/ui-polish";
 import { MediaViewer } from "./MediaViewer";
 
 interface MessageBubbleProps {
@@ -46,10 +46,8 @@ export function MessageBubble({
     }
   };
 
-  const timeLabel = new Date(message.created_at).toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const { timeLabel, dateLabel } = formatMessageTimestamp(message.created_at);
+  const timestampDisplay = dateLabel ? `${dateLabel}, ${timeLabel}` : timeLabel;
 
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -84,7 +82,7 @@ export function MessageBubble({
           <span>Verification failed — content blocked</span>
         </div>
         <span className="mt-1 text-xs text-[var(--text-muted)]">
-          {message.sender_display_name} • {timeLabel}
+          {message.sender_display_name} • {timestampDisplay}
         </span>
       </div>
     );
@@ -98,7 +96,7 @@ export function MessageBubble({
           Message removed
         </div>
         <span className="mt-1 text-xs text-[var(--text-muted)]">
-          {message.sender_display_name} • {timeLabel}
+          {message.sender_display_name} • {timestampDisplay}
         </span>
       </div>
     );
@@ -327,7 +325,7 @@ export function MessageBubble({
       </div>
 
       <div className="mt-1 flex items-center gap-2 text-xs text-[var(--text-muted)]">
-        <span>{timeLabel}</span>
+        <span>{timestampDisplay}</span>
         {message.is_edited && <span className="italic">Edited</span>}
         {message.is_pinned && (
           <span className="inline-flex items-center gap-1 text-[#6366F1] font-medium">
