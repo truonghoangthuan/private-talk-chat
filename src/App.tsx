@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Download, X } from "lucide-react";
+import { Download, Wifi, WifiOff, X } from "lucide-react";
 import appIcon from "./assets/app-icon.png";
 import { AppShell } from "./components/layout/AppShell";
 import { NavRail } from "./components/layout/NavRail";
@@ -14,7 +14,15 @@ import { AuthScreen } from "./components/modals/AuthScreen";
 import { ProfileModal } from "./components/modals/ProfileModal";
 import { GroupManageDrawer } from "./components/modals/GroupManageDrawer";
 import { tauriClient } from "./lib/tauri-client";
-import { syncPinnedMessage, upsertMessageWithReplySync, getDraft, updateDraft, findUnreadDividerMessageId, computeDocumentTitle } from "./lib/ui-polish";
+import {
+  syncPinnedMessage,
+  upsertMessageWithReplySync,
+  getDraft,
+  updateDraft,
+  findUnreadDividerMessageId,
+  computeDocumentTitle,
+  formatOfflineDuration,
+} from "./lib/ui-polish";
 import type {
   ContactDto,
   ConversationDto,
@@ -74,6 +82,10 @@ export function App() {
   const [isWindowFocused, setIsWindowFocused] = useState<boolean>(() =>
     typeof document !== "undefined" ? document.hasFocus() : true
   );
+  const [isOnline, setIsOnline] = useState<boolean>(() =>
+    typeof navigator !== "undefined" ? navigator.onLine : true
+  );
+  const [reconnectNotice, setReconnectNotice] = useState<string | null>(null);
 
   const handleCheckUpdate = useCallback(() => {
     setUpdateBannerDismissed(false);
@@ -136,6 +148,45 @@ export function App() {
       unlistenPromise.then((fn) => fn?.());
     };
   }, []);
+
+  // Surface OS-level network connectivity loss/recovery (issue #46): the
+  // app otherwise gives no feedback when `navigator.onLine` goes false, so
+  // sends and realtime updates would silently stop working with no
+  // explanation. `offlineSince` is a plain local timestamp (not state) since
+  // it only feeds the one-shot duration calculation on reconnect and
+  // shouldn't itself trigger a re-render.
+  useEffect(() => {
+    let offlineSince: number | null =
+      typeof navigator !== "undefined" && !navigator.onLine ? Date.now() : null;
+
+    const handleOffline = () => {
+      offlineSince = Date.now();
+      setIsOnline(false);
+      setReconnectNotice(null);
+    };
+    const handleOnline = () => {
+      setIsOnline(true);
+      if (offlineSince !== null) {
+        setReconnectNotice(formatOfflineDuration(Date.now() - offlineSince));
+        offlineSince = null;
+      }
+    };
+
+    window.addEventListener("offline", handleOffline);
+    window.addEventListener("online", handleOnline);
+    return () => {
+      window.removeEventListener("offline", handleOffline);
+      window.removeEventListener("online", handleOnline);
+    };
+  }, []);
+
+  // Auto-dismiss the "Back online" confirmation a few seconds after it
+  // appears, same convention as other transient confirmations in the app.
+  useEffect(() => {
+    if (reconnectNotice === null) return;
+    const timer = setTimeout(() => setReconnectNotice(null), 5000);
+    return () => clearTimeout(timer);
+  }, [reconnectNotice]);
 
   const refreshContactsAndConversations = useCallback(async () => {
     const [cList, convList] = await Promise.all([
@@ -439,6 +490,29 @@ export function App() {
         }
         stage={
           <>
+            {!isOnline && (
+              <div className="px-4 py-2 border-b border-[var(--border-hairline)] bg-red-500/10 flex items-center gap-2 text-xs">
+                <WifiOff className="w-3.5 h-3.5" />
+                <span>
+                  You&rsquo;re offline. Messages will send once your connection is back.
+                </span>
+              </div>
+            )}
+            {isOnline && reconnectNotice && (
+              <div className="px-4 py-2 border-b border-[var(--border-hairline)] bg-emerald-500/10 flex items-center justify-between gap-3 text-xs">
+                <span className="inline-flex items-center gap-2">
+                  <Wifi className="w-3.5 h-3.5" />
+                  Back online — you were offline for {reconnectNotice}.
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setReconnectNotice(null)}
+                  className="px-2 py-1 rounded-lg text-[var(--text-muted)] hover:bg-[var(--bg-hover)]"
+                >
+                  Dismiss
+                </button>
+              </div>
+            )}
             {updateStatus.phase === "available" && !updateBannerDismissed && (
               <div className="px-4 py-2 border-b border-[var(--border-hairline)] bg-[#6366F1]/10 flex items-center justify-between gap-3 text-xs">
                 <span>

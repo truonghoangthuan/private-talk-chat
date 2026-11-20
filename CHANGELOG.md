@@ -10,6 +10,7 @@ applicable.
 
 ## [Unreleased]
 
+- feat: show a network connectivity banner — a persistent "You're offline" warning while `navigator.onLine` is false (sends/realtime silently stop working otherwise with no explanation), and a brief auto-dismissing "Back online — you were offline for \<duration\>" confirmation on reconnect, via a new pure `formatOfflineDuration` helper. Client-side only (issue #46)
 - feat: show the full weekday/date/time (e.g. `Thursday, November 20, 2025 at 2:32:45 PM`) as a native hover tooltip on message bubble timestamps — including the verification-failed and removed-message timestamp lines — so the exact second and full date are available on demand without adding always-visible chrome to the compact `HH:MM`/"Yesterday" label. Client-side only, pure `formatFullMessageTimestamp` helper (issue #44)
 - feat: reflect the total unread message count in the window/document title (e.g. `(3) Bloop`, reverting to plain `Bloop` once everything is read) via a new pure `computeDocumentTitle` helper, so there's a way to tell at a glance whether anything new has arrived while the app is minimized, behind other windows, or just unfocused — matching the Slack/Discord/Gmail tab-title convention. Client-side only (issue #42)
 

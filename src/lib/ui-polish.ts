@@ -660,3 +660,30 @@ export function computeDocumentTitle(appName: string, totalUnread: number): stri
   const display = totalUnread > 99 ? "99+" : String(totalUnread);
   return `(${display}) ${appName}`;
 }
+
+/**
+ * Formats a millisecond duration as a short, human-readable offline-outage
+ * length (e.g. "45s", "1m 30s", "1h", "1h 1m") for the "Back online — you
+ * were offline for <duration>" reconnect banner (issue #46). Mirrors the
+ * compact style already used by relative timestamps elsewhere in the app
+ * rather than a verbose `Intl.DurationFormat`-style string. Negative or
+ * non-finite input (e.g. a clock skew edge case) is clamped to zero so the
+ * banner never shows a nonsensical duration; whole seconds under a minute
+ * drop the minutes/hours units entirely, and a unit with a zero remainder
+ * (e.g. exactly 60s, exactly 3600s) is omitted rather than shown as "1m 0s".
+ */
+export function formatOfflineDuration(durationMs: number): string {
+  const totalSeconds =
+    Number.isFinite(durationMs) && durationMs > 0 ? Math.round(durationMs / 1000) : 0;
+  if (totalSeconds < 60) return `${totalSeconds}s`;
+
+  const totalMinutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (totalMinutes < 60) {
+    return seconds > 0 ? `${totalMinutes}m ${seconds}s` : `${totalMinutes}m`;
+  }
+
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
+}
