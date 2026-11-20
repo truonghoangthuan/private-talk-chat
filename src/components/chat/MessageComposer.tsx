@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { Paperclip, Reply, Send, X } from "lucide-react";
 import type { MessageDto } from "../../lib/types";
+import { computeComposerCharacterState } from "../../lib/ui-polish";
 
 interface MessageComposerProps {
   replyingTo: MessageDto | null;
@@ -122,6 +123,8 @@ export function MessageComposer({
     }
   };
 
+  const charState = computeComposerCharacterState(text.length);
+
   return (
     <div className="px-5 py-3 border-t border-[var(--border-hairline)] bg-[var(--bg-surface)]/50">
       {replyingTo && (
@@ -206,6 +209,19 @@ export function MessageComposer({
           <Send className="w-4 h-4" />
         </button>
       </form>
+
+      {charState.show && (
+        <p
+          className={`mt-1 text-right text-[11px] font-medium ${
+            charState.isOverLimit ? "text-[#EF4444]" : "text-[#F59E0B]"
+          }`}
+          role="status"
+        >
+          {charState.isOverLimit
+            ? `${Math.abs(charState.remaining)} characters over the suggested length`
+            : `${charState.remaining} characters remaining`}
+        </p>
+      )}
     </div>
   );
 }

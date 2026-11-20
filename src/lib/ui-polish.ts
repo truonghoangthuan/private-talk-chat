@@ -307,3 +307,40 @@ export function formatMessageTimestamp(
   });
   return { timeLabel, dateLabel };
 }
+
+/**
+ * Soft, purely client-side guidance limit for composer text length. There is
+ * no confirmed server-side cap on message text to match, so this never
+ * blocks sending — it only drives when/how the composer surfaces a
+ * character counter to let the user know a draft is getting long.
+ */
+export const COMPOSER_SOFT_CHAR_LIMIT = 4000;
+
+export interface ComposerCharacterState {
+  /** Whether the counter should be rendered at all (hidden while comfortably short). */
+  show: boolean;
+  /** Characters left before `limit`; negative once over it. */
+  remaining: number;
+  /** True once within the last 20% of `limit` (counter shown, amber warning). */
+  isNearLimit: boolean;
+  /** True once length exceeds `limit` (counter shown, red warning). Sending is never blocked. */
+  isOverLimit: boolean;
+}
+
+/**
+ * Computes whether/how to show a composer character counter as a draft
+ * grows. Hidden while there's plenty of room; shown as an amber "remaining"
+ * count once within the last 20% of `limit`, and in a red over-limit state
+ * past it. This is informational guidance only — callers must still allow
+ * sending text beyond the limit, since no server-side text length cap is
+ * confirmed to exist.
+ */
+export function computeComposerCharacterState(
+  length: number,
+  limit: number = COMPOSER_SOFT_CHAR_LIMIT
+): ComposerCharacterState {
+  const remaining = limit - length;
+  const isOverLimit = remaining < 0;
+  const isNearLimit = isOverLimit || remaining <= limit * 0.2;
+  return { show: isNearLimit, remaining, isNearLimit, isOverLimit };
+}

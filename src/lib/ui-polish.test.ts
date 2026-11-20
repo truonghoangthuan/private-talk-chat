@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  computeComposerCharacterState,
   computeScrollFollowState,
   filterConversations,
   formatMessageTimestamp,
@@ -357,5 +358,65 @@ describe("formatMessageTimestamp", () => {
     const sentLongAgo = new Date(2024, 0, 1, 7, 45).toISOString();
     const { timeLabel } = formatMessageTimestamp(sentLongAgo, referenceNow);
     expect(timeLabel.length).toBeGreaterThan(0);
+  });
+});
+
+describe("computeComposerCharacterState", () => {
+  it("hides the counter while comfortably under the limit", () => {
+    expect(computeComposerCharacterState(10, 100)).toEqual({
+      show: false,
+      remaining: 90,
+      isNearLimit: false,
+      isOverLimit: false,
+    });
+  });
+
+  it("keeps the counter hidden right up to the 80% threshold", () => {
+    expect(computeComposerCharacterState(79, 100)).toEqual({
+      show: false,
+      remaining: 21,
+      isNearLimit: false,
+      isOverLimit: false,
+    });
+  });
+
+  it("shows an amber near-limit counter once within the last 20% of the limit", () => {
+    expect(computeComposerCharacterState(80, 100)).toEqual({
+      show: true,
+      remaining: 20,
+      isNearLimit: true,
+      isOverLimit: false,
+    });
+  });
+
+  it("shows exactly at the limit as near-limit, not yet over", () => {
+    expect(computeComposerCharacterState(100, 100)).toEqual({
+      show: true,
+      remaining: 0,
+      isNearLimit: true,
+      isOverLimit: false,
+    });
+  });
+
+  it("flips to the over-limit state once length exceeds the limit", () => {
+    expect(computeComposerCharacterState(101, 100)).toEqual({
+      show: true,
+      remaining: -1,
+      isNearLimit: true,
+      isOverLimit: true,
+    });
+  });
+
+  it("reports a larger negative remaining count the further over the limit it goes", () => {
+    const state = computeComposerCharacterState(150, 100);
+    expect(state.isOverLimit).toBe(true);
+    expect(state.remaining).toBe(-50);
+  });
+
+  it("defaults to the shared soft limit when none is passed", () => {
+    const farState = computeComposerCharacterState(1000);
+    expect(farState.show).toBe(false);
+    const nearState = computeComposerCharacterState(3300);
+    expect(nearState.show).toBe(true);
   });
 });
