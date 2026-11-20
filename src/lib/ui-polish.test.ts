@@ -6,6 +6,7 @@ import {
   computeDocumentTitle,
   computeScrollFollowState,
   filterConversations,
+  filterPinnedMessages,
   findMessageSearchMatches,
   findUnreadDividerMessageId,
   formatFullMessageTimestamp,
@@ -1243,5 +1244,73 @@ describe("splitTextForSearchHighlight", () => {
       { text: "Hello ", isMatch: false },
       { text: "world", isMatch: true },
     ]);
+  });
+});
+
+describe("filterPinnedMessages", () => {
+  function makePin(overrides: Partial<PinnedMessageDto> = {}): PinnedMessageDto {
+    return {
+      conversation_id: "c1",
+      message_id: "m1",
+      pinned_by_id: "u1",
+      pinned_by_display_name: "Alice",
+      pinned_at: "2026-11-20T00:01:00Z",
+      message: makeMsg({ id: "m1", text: "Let's meet at 5pm" }),
+      ...overrides,
+    };
+  }
+
+  it("returns every pin unchanged for a blank/whitespace-only query", () => {
+    const pins = [makePin(), makePin({ message_id: "m2" })];
+    expect(filterPinnedMessages(pins, "")).toBe(pins);
+    expect(filterPinnedMessages(pins, "   ")).toBe(pins);
+  });
+
+  it("matches case-insensitively against the message text", () => {
+    const pins = [
+      makePin({ message_id: "m1", message: makeMsg({ id: "m1", text: "Deploy at noon" }) }),
+      makePin({ message_id: "m2", message: makeMsg({ id: "m2", text: "Lunch plans" }) }),
+    ];
+    expect(filterPinnedMessages(pins, "DEPLOY").map((p) => p.message_id)).toEqual(["m1"]);
+  });
+
+  it("matches against the sender's display name", () => {
+    const pins = [
+      makePin({
+        message_id: "m1",
+        message: makeMsg({ id: "m1", text: "hi", sender_display_name: "Bob" }),
+      }),
+      makePin({
+        message_id: "m2",
+        message: makeMsg({ id: "m2", text: "hey", sender_display_name: "Carol" }),
+      }),
+    ];
+    expect(filterPinnedMessages(pins, "bob").map((p) => p.message_id)).toEqual(["m1"]);
+  });
+
+  it("matches an attachment-only pin (no text) by sender name", () => {
+    const pins = [
+      makePin({
+        message_id: "m1",
+        message: makeMsg({
+          id: "m1",
+          text: null,
+          sender_display_name: "Dana",
+          attachment: {
+            file_name: "photo.png",
+            mime_type: "image/png",
+            size_bytes: 1024,
+            media_url: "privatetalk-media://localhost/c1/m1",
+          },
+        }),
+      }),
+    ];
+    expect(filterPinnedMessages(pins, "dana")).toHaveLength(1);
+    expect(filterPinnedMessages(pins, "nonexistent")).toHaveLength(0);
+  });
+
+  it("returns an empty array when nothing matches", () => {
+    const pins = [makePin()];
+    expect(filterPinnedMessages(pins, "no match here")).toEqual([]);
   });
 });
