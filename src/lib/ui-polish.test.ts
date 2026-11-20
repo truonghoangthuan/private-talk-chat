@@ -15,9 +15,11 @@ import {
   getDraft,
   getMessageCopyText,
   isScrolledNearBottom,
+  KEYBOARD_SHORTCUTS,
   resolveComposerEscapeAction,
   resolveMessageBubbleEscapeAction,
   shouldOpenMediaLightbox,
+  shouldOpenShortcutsHelp,
   shouldSubmitMessageEditOnKeyDown,
   splitMessageTextIntoLinkSegments,
   syncPinnedMessage,
@@ -788,5 +790,43 @@ describe("formatOfflineDuration", () => {
   it("clamps negative or non-finite input to zero", () => {
     expect(formatOfflineDuration(-500)).toBe("0s");
     expect(formatOfflineDuration(NaN)).toBe("0s");
+  });
+});
+
+describe("shouldOpenShortcutsHelp", () => {
+  it("opens on a bare '?' press outside any editable field", () => {
+    expect(shouldOpenShortcutsHelp("?", null, false)).toBe(true);
+    expect(shouldOpenShortcutsHelp("?", "BUTTON", false)).toBe(true);
+    expect(shouldOpenShortcutsHelp("?", "DIV", false)).toBe(true);
+  });
+
+  it("ignores every other key", () => {
+    expect(shouldOpenShortcutsHelp("Enter", null, false)).toBe(false);
+    expect(shouldOpenShortcutsHelp("/", null, false)).toBe(false);
+    expect(shouldOpenShortcutsHelp("a", null, false)).toBe(false);
+  });
+
+  it("is suppressed while typing in an input, textarea, or select", () => {
+    expect(shouldOpenShortcutsHelp("?", "INPUT", false)).toBe(false);
+    expect(shouldOpenShortcutsHelp("?", "TEXTAREA", false)).toBe(false);
+    expect(shouldOpenShortcutsHelp("?", "SELECT", false)).toBe(false);
+    // Tag name casing from the DOM is always uppercase, but stay forgiving.
+    expect(shouldOpenShortcutsHelp("?", "textarea", false)).toBe(false);
+  });
+
+  it("is suppressed inside a contenteditable element regardless of tag", () => {
+    expect(shouldOpenShortcutsHelp("?", "DIV", true)).toBe(false);
+  });
+});
+
+describe("KEYBOARD_SHORTCUTS", () => {
+  it("has a non-empty, unique list of shortcut entries", () => {
+    expect(KEYBOARD_SHORTCUTS.length).toBeGreaterThan(0);
+    const keys = KEYBOARD_SHORTCUTS.map((entry) => entry.keys);
+    expect(new Set(keys).size).toBe(keys.length);
+    for (const entry of KEYBOARD_SHORTCUTS) {
+      expect(entry.keys.length).toBeGreaterThan(0);
+      expect(entry.description.length).toBeGreaterThan(0);
+    }
   });
 });
