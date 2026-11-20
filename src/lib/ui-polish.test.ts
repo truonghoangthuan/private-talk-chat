@@ -16,6 +16,7 @@ import {
   resolveMessageBubbleEscapeAction,
   shouldOpenMediaLightbox,
   shouldSubmitMessageEditOnKeyDown,
+  splitMessageTextIntoLinkSegments,
   syncPinnedMessage,
   updateDraft,
   upsertMessageWithReplySync,
@@ -638,5 +639,69 @@ describe("buildTimelineItems unread divider", () => {
     const msgs = [makeMsg({ id: "m1" }), makeMsg({ id: "m2" })];
     const items = buildTimelineItems(msgs, null);
     expect(items.every((i) => i.kind !== "unread_divider")).toBe(true);
+  });
+});
+
+describe("splitMessageTextIntoLinkSegments", () => {
+  it("returns a single plain-text segment when there is no URL", () => {
+    expect(splitMessageTextIntoLinkSegments("hello world")).toEqual([
+      { text: "hello world", isLink: false },
+    ]);
+  });
+
+  it("returns an empty array for empty text", () => {
+    expect(splitMessageTextIntoLinkSegments("")).toEqual([]);
+  });
+
+  it("detects a bare URL as its own link segment", () => {
+    expect(splitMessageTextIntoLinkSegments("https://example.com")).toEqual([
+      { text: "https://example.com", isLink: true },
+    ]);
+  });
+
+  it("splits surrounding text around an inline URL", () => {
+    expect(splitMessageTextIntoLinkSegments("see https://example.com/path now")).toEqual([
+      { text: "see ", isLink: false },
+      { text: "https://example.com/path", isLink: true },
+      { text: " now", isLink: false },
+    ]);
+  });
+
+  it("trims a trailing sentence period off the link", () => {
+    expect(splitMessageTextIntoLinkSegments("check https://example.com.")).toEqual([
+      { text: "check ", isLink: false },
+      { text: "https://example.com", isLink: true },
+      { text: ".", isLink: false },
+    ]);
+  });
+
+  it("trims an unmatched wrapping closing paren off the link", () => {
+    expect(splitMessageTextIntoLinkSegments("(https://example.com)")).toEqual([
+      { text: "(", isLink: false },
+      { text: "https://example.com", isLink: true },
+      { text: ")", isLink: false },
+    ]);
+  });
+
+  it("keeps a closing paren that is balanced inside the URL itself", () => {
+    const url = "https://en.wikipedia.org/wiki/Cat_(disambiguation)";
+    expect(splitMessageTextIntoLinkSegments(url)).toEqual([{ text: url, isLink: true }]);
+  });
+
+  it("detects multiple URLs in the same message", () => {
+    const text = "a https://one.example then https://two.example b";
+    expect(splitMessageTextIntoLinkSegments(text)).toEqual([
+      { text: "a ", isLink: false },
+      { text: "https://one.example", isLink: true },
+      { text: " then ", isLink: false },
+      { text: "https://two.example", isLink: true },
+      { text: " b", isLink: false },
+    ]);
+  });
+
+  it("does not treat a bare domain without a scheme as a link", () => {
+    expect(splitMessageTextIntoLinkSegments("visit www.example.com please")).toEqual([
+      { text: "visit www.example.com please", isLink: false },
+    ]);
   });
 });

@@ -10,6 +10,7 @@ applicable.
 
 ## [Unreleased]
 
+- feat: auto-link `http(s)://` URLs inside message text as real, clickable anchors (underlined, opens in a new tab, `rel="noopener noreferrer"`) instead of rendering them as inert plain text — trailing sentence punctuation and wrapping parens are kept out of the link. Client-side only, pure-function text segmentation (`splitMessageTextIntoLinkSegments`), no `dangerouslySetInnerHTML` (issue #39)
 - feat: show an inline "New messages" divider in the timeline, anchored above the first message that was unread when the conversation was opened (Slack/Discord-style), so the viewer knows exactly where to start reading instead of only seeing a sidebar unread badge. Client-side only, snapshotting `unread_count` before it's reset by marking messages seen (issue #37)
 - fix: message editing now uses an auto-growing textarea (Shift+Enter for a newline, Enter to save) instead of a single-line text input, so multi-line messages can actually be edited without losing their line breaks (issue #35)
 - feat: add in-conversation message search — a search icon in the chat header opens an inline bar that filters the currently-loaded message history by text, shows an `N of M` match counter, and steps through matches with the up/down buttons or Enter/Shift+Enter/Arrow keys, jumping to and highlighting each one the same way "jump to pinned message" already does. Client-side only, matching against already-loaded messages — no new backend search endpoint (issue #33)
