@@ -157,3 +157,52 @@ pub fn update_taskbar_unread_badge<R: Runtime>(app: &AppHandle<R>, unread_count:
 
 #[cfg(not(windows))]
 pub fn update_taskbar_unread_badge<R: Runtime>(_app: &AppHandle<R>, _unread_count: u32) {}
+
+#[cfg(windows)]
+pub fn apply_main_window_icons<R: Runtime>(app: &AppHandle<R>) {
+    use tauri::Manager;
+    use windows::core::PCWSTR;
+    use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
+    use windows::Win32::System::LibraryLoader::GetModuleHandleW;
+    use windows::Win32::UI::WindowsAndMessaging::{
+        GetSystemMetrics, LoadImageW, SendMessageW, ICON_BIG, ICON_SMALL, IMAGE_ICON, LR_SHARED,
+        SM_CXICON, SM_CXSMICON, SM_CYICON, SM_CYSMICON, WM_SETICON,
+    };
+
+    let Some(window) = app.get_webview_window("main") else {
+        return;
+    };
+    let Ok(hwnd) = window.hwnd() else {
+        return;
+    };
+    let hwnd_raw = hwnd.0 as isize;
+
+    let _ = window.run_on_main_thread(move || unsafe {
+        let Ok(hmod) = GetModuleHandleW(None) else {
+            return;
+        };
+        let hwnd = HWND(hwnd_raw as *mut core::ffi::c_void);
+        let res_id = PCWSTR(32512usize as *const u16);
+
+        let load_and_set = |wparam: u32, cx_metric, cy_metric| {
+            let cx = GetSystemMetrics(cx_metric);
+            let cy = GetSystemMetrics(cy_metric);
+            if let Ok(handle) = LoadImageW(hmod, res_id, IMAGE_ICON, cx, cy, LR_SHARED) {
+                if !handle.is_invalid() {
+                    SendMessageW(
+                        hwnd,
+                        WM_SETICON,
+                        WPARAM(wparam as usize),
+                        LPARAM(handle.0 as isize),
+                    );
+                }
+            }
+        };
+
+        load_and_set(ICON_BIG, SM_CXICON, SM_CYICON);
+        load_and_set(ICON_SMALL, SM_CXSMICON, SM_CYSMICON);
+    });
+}
+
+#[cfg(not(windows))]
+pub fn apply_main_window_icons<R: Runtime>(_app: &AppHandle<R>) {}

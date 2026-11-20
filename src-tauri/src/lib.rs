@@ -67,6 +67,10 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
         .manage(AppState::from_env())
+        .setup(|app| {
+            platform::taskbar::apply_main_window_icons(app.handle());
+            Ok(())
+        })
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::Focused(focused) = event {
                 let _ = window.emit(
