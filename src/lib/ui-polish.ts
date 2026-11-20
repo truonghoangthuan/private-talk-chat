@@ -850,6 +850,7 @@ export const KEYBOARD_SHORTCUTS: KeyboardShortcutEntry[] = [
   },
   { keys: "Enter / Shift + Enter", description: "Jump to the next / previous search match" },
   { keys: "↓ / ↑", description: "Jump to the next / previous search match" },
+  { keys: "Ctrl/Cmd + F", description: "Open search in the current conversation" },
   { keys: "?", description: "Show this keyboard shortcuts list" },
 ];
 
@@ -870,6 +871,21 @@ export function shouldOpenShortcutsHelp(
   if (isContentEditable) return false;
   const tag = activeElementTagName?.toUpperCase() ?? "";
   return tag !== "INPUT" && tag !== "TEXTAREA" && tag !== "SELECT";
+}
+
+/**
+ * Decides whether a global keydown should open the in-conversation message
+ * search bar, matching the browser/Slack/Discord `Ctrl+F` (`Cmd+F` on
+ * macOS) "find" convention instead of only being reachable via the header's
+ * search icon. Unlike `shouldOpenShortcutsHelp`, this is never suppressed
+ * while typing in an editable field: holding Ctrl/Cmd means the browser
+ * would not insert a literal "f" character into that field anyway, so there
+ * is nothing to protect by checking the active element. `key` is matched
+ * case-insensitively since some keyboard layouts/OSes report an uppercase
+ * "F" while the modifier is held.
+ */
+export function shouldOpenConversationSearch(key: string, ctrlOrMetaKey: boolean): boolean {
+  return ctrlOrMetaKey && key.toLowerCase() === "f";
 }
 
 /**

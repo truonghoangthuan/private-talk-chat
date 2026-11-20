@@ -25,6 +25,7 @@ import {
   formatOfflineDuration,
   loadThemePreference,
   saveThemePreference,
+  shouldOpenConversationSearch,
   shouldOpenShortcutsHelp,
 } from "./lib/ui-polish";
 import type {
@@ -202,7 +203,11 @@ export function App() {
 
   // Open the keyboard shortcuts help modal on the conventional `?` key
   // (Slack/Discord/Linear), unless the user is actively typing in an
-  // editable field — see `shouldOpenShortcutsHelp` (issue #48).
+  // editable field — see `shouldOpenShortcutsHelp` (issue #48). Also open
+  // the in-conversation search bar on Ctrl+F / Cmd+F — the browser/Slack/
+  // Discord "find" convention — as an alternative to the header's search
+  // icon, overriding the browser's own native find-in-page since there's
+  // nothing for it to search within a desktop webview shell.
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const active = document.activeElement as HTMLElement | null;
@@ -214,11 +219,17 @@ export function App() {
         )
       ) {
         setShortcutsHelpOpen(true);
+        return;
+      }
+      if (shouldOpenConversationSearch(e.key, e.ctrlKey || e.metaKey) && selectedConversationId) {
+        e.preventDefault();
+        setActiveTab("messages");
+        setSearchOpen(true);
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [selectedConversationId]);
 
   const refreshContactsAndConversations = useCallback(async () => {
     const [cList, convList] = await Promise.all([
