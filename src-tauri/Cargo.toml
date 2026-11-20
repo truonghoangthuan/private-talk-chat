@@ -1,6 +1,6 @@
 [package]
 name = "private-talk"
-version = "0.3.2"
+version = "0.4.0"
 description = "Bloop Windows End-to-End Encrypted Desktop Chat"
 authors = ["Bloop"]
 edition = "2021"
