@@ -9,10 +9,12 @@ use private_talk_lib::platform::dpapi::{
     load_session_from_path, save_session_to_path, DpapiProtectedSession,
 };
 use private_talk_lib::updater::{
-    build_signed_manifest, BoxFuture, ProgressCallback, ReleaseManifest, SemanticVersion,
-    UpdateFeedTransport, UpdatePhase, UpdaterConfig, UpdaterManager,
+    build_signed_manifest, BoxFuture, HttpUpdateFeedTransport, ProgressCallback, ReleaseManifest,
+    SemanticVersion, UpdateFeedTransport, UpdatePhase, UpdaterConfig, UpdaterManager,
 };
 use tempfile::tempdir;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::TcpListener;
 use tokio::sync::Notify;
 use uuid::Uuid;
 
@@ -368,4 +370,101 @@ async fn t013_silent_startup_check_suppresses_network_errors_but_fails_closed_on
     let forged_res = mgr_forged.check_for_updates(true, |_| {}).await.unwrap();
     assert_eq!(forged_res.phase, UpdatePhase::VerificationFailed);
     assert_eq!(forged_res.error_code.as_deref(), Some("UPDATE_SIGNATURE_INVALID"));
+}
+
+async fn spawn_status_server(status_line: &'static str) -> std::net::SocketAddr {
+    let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
+    let addr = listener.local_addr().expect("addr");
+    tokio::spawn(async move {
+        if let Ok((mut sock, _)) = listener.accept().await {
+            let mut buf = [0u8; 2048];
+            let mut filled = 0;
+            while filled < buf.len() {
+                match sock.read(&mut buf[filled..]).await {
+                    Ok(0) | Err(_) => break,
+                    Ok(n) => {
+                        filled += n;
+                        if buf[..filled].windows(4).any(|w| w == b"\r\n\r\n") {
+                            break;
+                        }
+                    }
+                }
+            }
+            let resp = format!(
+                "HTTP/1.1 {status_line}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+            );
+            let _ = sock.write_all(resp.as_bytes()).await;
+            let _ = sock.shutdown().await;
+        }
+    });
+    addr
+}
+
+#[tokio::test]
+async fn http_transport_surfaces_status_without_leaking_credentials_and_respects_silent_flag() {
+    let transport = HttpUpdateFeedTransport::new();
+
+    let feed_addr = spawn_status_server("404 Not Found").await;
+    let feed_url_with_creds =
+        format!("http://user:supersecret@{feed_addr}/latest.json?token=leaked_tok");
+    let feed_err = transport
+        .fetch_manifest(&feed_url_with_creds)
+        .await
+        .expect_err("404 manifest fetch must fail");
+    assert_eq!(feed_err.code, "UPDATE_NETWORK_ERROR");
+    assert!(feed_err.message.contains("404"), "unexpected msg: {}", feed_err.message);
+    assert!(!feed_err.message.contains("supersecret"));
+    assert!(!feed_err.message.contains("leaked_tok"));
+
+    let dl_addr = spawn_status_server("403 Forbidden").await;
+    let dl_url_with_creds =
+        format!("http://user:supersecret@{dl_addr}/PrivateTalk.exe?sig=leaked_sig");
+    let mut progress_cb = |_, _| {};
+    let dl_err = transport
+        .download_installer(&dl_url_with_creds, &mut progress_cb)
+        .await
+        .expect_err("403 installer download must fail");
+    assert_eq!(dl_err.code, "UPDATE_NETWORK_ERROR");
+    assert!(dl_err.message.contains("403"), "unexpected msg: {}", dl_err.message);
+    assert!(!dl_err.message.contains("supersecret"));
+    assert!(!dl_err.message.contains("leaked_sig"));
+
+    // Verify silent=true vs silent=false behavior on real HTTP 404 via UpdaterManager
+    let dir = tempdir().expect("tempdir");
+    let (_, pubkey) = test_keys(44);
+    let make_loopback_cfg = |addr: std::net::SocketAddr, sub: &str| UpdaterConfig {
+        current_version: SemanticVersion::parse("0.2.0").unwrap(),
+        feed_url: format!("http://{addr}/latest.json"),
+        trusted_pubkey: pubkey,
+        updates_dir: dir.path().join(sub),
+        allow_loopback_http: true,
+    };
+
+    let silent_addr = spawn_status_server("404 Not Found").await;
+    let silent_mgr = UpdaterManager::new(
+        make_loopback_cfg(silent_addr, "u_silent"),
+        Arc::new(HttpUpdateFeedTransport::new()),
+        Arc::new(|_| Ok(())),
+    );
+    let silent_res = silent_mgr.check_for_updates(true, |_| {}).await.unwrap();
+    assert_eq!(silent_res.phase, UpdatePhase::Idle);
+    assert!(silent_res.error_code.is_none());
+
+    let manual_addr = spawn_status_server("404 Not Found").await;
+    let manual_mgr = UpdaterManager::new(
+        make_loopback_cfg(manual_addr, "u_manual"),
+        Arc::new(HttpUpdateFeedTransport::new()),
+        Arc::new(|_| Ok(())),
+    );
+    let manual_res = manual_mgr.check_for_updates(false, |_| {}).await.unwrap();
+    assert_eq!(manual_res.phase, UpdatePhase::Error);
+    assert_eq!(manual_res.error_code.as_deref(), Some("UPDATE_NETWORK_ERROR"));
+    assert!(
+        manual_res
+            .error_message
+            .as_deref()
+            .is_some_and(|m| m.contains("404")),
+        "expected HTTP 404 diagnostic, got {:?}",
+        manual_res.error_message
+    );
 }
