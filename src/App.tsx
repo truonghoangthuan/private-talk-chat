@@ -9,11 +9,12 @@ import { MessageTimeline } from "./components/chat/MessageTimeline";
 import { PinnedMessagesView } from "./components/chat/PinnedMessagesView";
 import { TypingIndicator } from "./components/chat/TypingIndicator";
 import { MessageComposer } from "./components/chat/MessageComposer";
+import { MessageSearchBar } from "./components/chat/MessageSearchBar";
 import { AuthScreen } from "./components/modals/AuthScreen";
 import { ProfileModal } from "./components/modals/ProfileModal";
 import { GroupManageDrawer } from "./components/modals/GroupManageDrawer";
 import { tauriClient } from "./lib/tauri-client";
-import { syncPinnedMessage, upsertMessageWithReplySync } from "./lib/ui-polish";
+import { syncPinnedMessage, upsertMessageWithReplySync, getDraft, updateDraft, findUnreadDividerMessageId } from "./lib/ui-polish";
 import type {
   ContactDto,
   ConversationDto,
@@ -49,8 +50,13 @@ export function App() {
   const [messages, setMessages] = useState<MessageDto[]>([]);
   const [replyingTo, setReplyingTo] = useState<MessageDto | null>(null);
   const [activeTab, setActiveTab] = useState<"messages" | "pinned">("messages");
+  const [searchOpen, setSearchOpen] = useState(false);
   const [pinnedMessages, setPinnedMessages] = useState<PinnedMessageDto[]>([]);
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(
+    null
+  );
+  const [unreadDividerMessageId, setUnreadDividerMessageId] = useState<string | null>(
     null
   );
   const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(new Set());
@@ -174,14 +180,24 @@ export function App() {
   useEffect(() => {
     setReplyingTo(null);
     setActiveTab("messages");
+    setSearchOpen(false);
     setHighlightedMessageId(null);
+    setUnreadDividerMessageId(null);
     if (!user || !selectedConversationId) {
       setMessages([]);
       setPinnedMessages([]);
       return;
     }
+    // Snapshot the unread count now, before marking anything seen resets it to 0 —
+    // the divider anchors to where the viewer left off, not a count that's about
+    // to disappear.
+    const unreadSnapshot =
+      conversations.find((c) => c.id === selectedConversationId)?.unread_count ?? 0;
     tauriClient.messageList(selectedConversationId, 50).then((list) => {
       setMessages(list);
+      setUnreadDividerMessageId(
+        findUnreadDividerMessageId(list, unreadSnapshot, user.id)
+      );
       const lastIncoming = [...list]
         .reverse()
         .find((m) => m.sender_id !== user.id && !m.is_removed);
@@ -195,6 +211,10 @@ export function App() {
       .messageListPinned(selectedConversationId)
       .then(setPinnedMessages)
       .catch(() => setPinnedMessages([]));
+    // Deliberately excludes `conversations`: it's only read for the snapshot above,
+    // and adding it as a dep would re-run this effect (and reset the divider) every
+    // time unread_count itself changes right after.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, selectedConversationId, refreshContactsAndConversations]);
 
   const scrollToMessage = useCallback((messageId: string) => {
@@ -283,7 +303,7 @@ export function App() {
     >
       <img
         src={appIcon}
-        alt="Private Talk"
+        alt="Bloop"
         className="w-14 h-14 rounded-2xl object-cover shadow-lg"
       />
       <p className="text-sm font-medium text-[var(--text-primary)]">
@@ -408,7 +428,7 @@ export function App() {
             {updateStatus.phase === "available" && !updateBannerDismissed && (
               <div className="px-4 py-2 border-b border-[var(--border-hairline)] bg-[#6366F1]/10 flex items-center justify-between gap-3 text-xs">
                 <span>
-                  Private Talk v{updateStatus.latest_version} is available.
+                  Bloop v{updateStatus.latest_version} is available.
                 </span>
                 <div className="flex items-center gap-2">
                   <button
@@ -437,9 +457,21 @@ export function App() {
                   onlineUserIds={onlineUserIds}
                   activeTab={activeTab}
                   pinnedCount={pinnedMessages.length}
+                  searchOpen={searchOpen}
                   onTabChange={setActiveTab}
+                  onToggleSearch={() => {
+                    setSearchOpen((v) => !v);
+                    setActiveTab("messages");
+                  }}
                   onOpenGroupDrawer={() => setGroupDrawerMode("manage")}
                 />
+                {searchOpen && activeTab === "messages" && (
+                  <MessageSearchBar
+                    messages={messages}
+                    onJumpToMessage={scrollToMessage}
+                    onClose={() => setSearchOpen(false)}
+                  />
+                )}
                 {activeTab === "pinned" ? (
                   <PinnedMessagesView
                     pinnedMessages={pinnedMessages}
@@ -471,6 +503,7 @@ export function App() {
                       messages={messages}
                       currentUserId={user.id}
                       highlightedMessageId={highlightedMessageId}
+                      unreadDividerMessageId={unreadDividerMessageId}
                       onEditMessage={async (mid, text) => {
                         const updated = await tauriClient.messageEdit(mid, text);
                         setMessages((prev) =>
@@ -528,6 +561,13 @@ export function App() {
                     />
                     <TypingIndicator typingUsers={activeTypingUsers} />
                     <MessageComposer
+                      key={activeConversation.id}
+                      initialText={getDraft(drafts, activeConversation.id)}
+                      onDraftChange={(text) =>
+                        setDrafts((prev) =>
+                          updateDraft(prev, activeConversation.id, text)
+                        )
+                      }
                       replyingTo={replyingTo}
                       onCancelReply={() => setReplyingTo(null)}
                       onSend={async (text, attachmentPath) => {
@@ -554,11 +594,11 @@ export function App() {
               <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
                 <img
                   src={appIcon}
-                  alt="Private Talk"
+                  alt="Bloop"
                   className="w-14 h-14 rounded-2xl object-cover shadow-md mb-3"
                 />
                 <h2 className="text-base font-semibold mb-1">
-                  Private Talk E2EE Workspace
+                  Bloop E2EE Workspace
                 </h2>
                 <p className="text-xs text-[var(--text-muted)] max-w-xs">
                   Select a conversation or add a contact by exact username to
@@ -614,6 +654,7 @@ export function App() {
           onLeaveGroup={async (cid) => {
             await tauriClient.conversationLeaveGroup(cid);
             setSelectedConversationId(null);
+            setDrafts((prev) => updateDraft(prev, cid, ""));
             await refreshContactsAndConversations();
           }}
         />

@@ -75,11 +75,11 @@ export function AuthScreen({
         <div className="flex items-center gap-3 mb-6">
           <img
             src={appIcon}
-            alt="Private Talk"
+            alt="Bloop"
             className="w-10 h-10 rounded-xl object-cover shadow-sm"
           />
           <div>
-            <h1 className="text-[22px] font-semibold tracking-tight">Private Talk</h1>
+            <h1 className="text-[22px] font-semibold tracking-tight">Bloop</h1>
             <p className="text-xs text-[var(--text-muted)]">
               Zero-knowledge Windows encrypted chat
             </p>

@@ -1,6 +1,13 @@
-import { useState } from "react";
-import { Check, Pencil, Pin, PinOff, Reply, ShieldAlert, Trash2, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Check, Copy, Pencil, Pin, PinOff, Reply, ShieldAlert, Trash2, X } from "lucide-react";
 import type { MessageDto } from "../../lib/types";
+import {
+  formatMessageTimestamp,
+  getMessageCopyText,
+  resolveMessageBubbleEscapeAction,
+  shouldSubmitMessageEditOnKeyDown,
+  splitMessageTextIntoLinkSegments,
+} from "../../lib/ui-polish";
 import { MediaViewer } from "./MediaViewer";
 
 interface MessageBubbleProps {
@@ -30,14 +37,39 @@ export function MessageBubble({
   const [confirmingRemove, setConfirmingRemove] = useState(false);
   const [draftText, setDraftText] = useState(message.text || "");
   const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const editTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
-  const timeLabel = new Date(message.created_at).toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const copyText = getMessageCopyText(message);
 
-  const handleSaveEdit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const resizeEditTextarea = () => {
+    const el = editTextareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+  };
+
+  // Autosize once the textarea mounts (editing starts) so an existing
+  // multi-line message doesn't open clipped to a single row.
+  useEffect(() => {
+    if (editing) resizeEditTextarea();
+  }, [editing]);
+
+  const handleCopy = async () => {
+    if (!copyText) return;
+    try {
+      await navigator.clipboard.writeText(copyText);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard access unavailable; silently ignore (non-critical UX affordance).
+    }
+  };
+
+  const { timeLabel, dateLabel } = formatMessageTimestamp(message.created_at);
+  const timestampDisplay = dateLabel ? `${dateLabel}, ${timeLabel}` : timeLabel;
+
+  const submitEdit = async () => {
     const trimmed = draftText.trim();
     if (!trimmed) return;
     setBusy(true);
@@ -46,6 +78,18 @@ export function MessageBubble({
       setEditing(false);
     } finally {
       setBusy(false);
+    }
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await submitEdit();
+  };
+
+  const handleEditKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (shouldSubmitMessageEditOnKeyDown(e.key, e.shiftKey)) {
+      e.preventDefault();
+      if (!busy) void submitEdit();
     }
   };
 
@@ -60,6 +104,21 @@ export function MessageBubble({
 
   const spacingClass = isGroupedWithPrev ? "mt-1" : "mt-4 first:mt-0";
 
+  const handleBubbleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== "Escape") return;
+    const action = resolveMessageBubbleEscapeAction(editing, confirmingRemove);
+    if (action === "cancel_edit") {
+      e.preventDefault();
+      e.stopPropagation();
+      setEditing(false);
+    } else if (action === "cancel_remove_confirm") {
+      e.preventDefault();
+      e.stopPropagation();
+      setConfirmingRemove(false);
+    }
+    // action === "none": let Escape propagate (e.g. to close an unrelated modal).
+  };
+
   // Fail-closed verification banner (Constitution Principle IV & Contract §1.2 / §4)
   if (message.status === "verification_failed") {
     return (
@@ -69,7 +128,7 @@ export function MessageBubble({
           <span>Verification failed — content blocked</span>
         </div>
         <span className="mt-1 text-xs text-[var(--text-muted)]">
-          {message.sender_display_name} • {timeLabel}
+          {message.sender_display_name} • {timestampDisplay}
         </span>
       </div>
     );
@@ -83,7 +142,7 @@ export function MessageBubble({
           Message removed
         </div>
         <span className="mt-1 text-xs text-[var(--text-muted)]">
-          {message.sender_display_name} • {timeLabel}
+          {message.sender_display_name} • {timestampDisplay}
         </span>
       </div>
     );
@@ -92,6 +151,7 @@ export function MessageBubble({
   return (
     <div
       id={`msg-${message.id}`}
+      onKeyDown={handleBubbleKeyDown}
       className={`${spacingClass} group flex flex-col ${isOwn ? "items-end" : "items-start"}`}
     >
       {!isOwn && !isGroupedWithPrev && (
@@ -137,6 +197,21 @@ export function MessageBubble({
                 >
                   <Reply className="w-3.5 h-3.5" />
                 </button>
+                {copyText && (
+                  <button
+                    type="button"
+                    onClick={() => void handleCopy()}
+                    disabled={busy}
+                    className="p-1 rounded-md hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                    title={copied ? "Copied!" : "Copy text"}
+                  >
+                    {copied ? (
+                      <Check className="w-3.5 h-3.5 text-[#10B981]" />
+                    ) : (
+                      <Copy className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => void onTogglePin(message)}
@@ -190,27 +265,32 @@ export function MessageBubble({
           }`}
         >
           {editing ? (
-            <form onSubmit={handleSaveEdit} className="flex items-center gap-1.5 min-w-[220px]">
-              <input
-                type="text"
+            <form onSubmit={handleSaveEdit} className="flex items-end gap-1.5 min-w-[220px] max-w-sm">
+              <textarea
+                ref={editTextareaRef}
                 value={draftText}
-                onChange={(e) => setDraftText(e.target.value)}
+                onChange={(e) => {
+                  setDraftText(e.target.value);
+                  resizeEditTextarea();
+                }}
+                onKeyDown={handleEditKeyDown}
                 autoFocus
-                className="flex-1 px-2 py-1 rounded-lg bg-black/25 text-white text-xs focus:outline-none"
+                rows={1}
+                className="flex-1 px-2 py-1 rounded-lg bg-black/25 text-white text-xs leading-[1.4] resize-none overflow-y-auto max-h-40 focus:outline-none"
               />
               <button
                 type="submit"
                 disabled={busy}
-                className="p-1 rounded-md bg-white/20 hover:bg-white/30"
-                title="Save"
+                className="p-1 rounded-md bg-white/20 hover:bg-white/30 shrink-0"
+                title="Save (Enter)"
               >
                 <Check className="w-3.5 h-3.5" />
               </button>
               <button
                 type="button"
                 onClick={() => setEditing(false)}
-                className="p-1 rounded-md hover:bg-[var(--bg-hover)]"
-                title="Cancel"
+                className="p-1 rounded-md hover:bg-[var(--bg-hover)] shrink-0"
+                title="Cancel (Esc)"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -247,7 +327,28 @@ export function MessageBubble({
                   </div>
                 </button>
               )}
-              {message.text && <p className="whitespace-pre-wrap break-words">{message.text}</p>}
+              {message.text && (
+                <p className="whitespace-pre-wrap break-words">
+                  {splitMessageTextIntoLinkSegments(message.text).map((segment, i) =>
+                    segment.isLink ? (
+                      <a
+                        key={i}
+                        href={segment.text}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className={`underline underline-offset-2 break-all ${
+                          isOwn ? "text-white hover:text-white/80" : "text-[#6366F1] hover:text-[#6366F1]/80"
+                        }`}
+                      >
+                        {segment.text}
+                      </a>
+                    ) : (
+                      <span key={i}>{segment.text}</span>
+                    )
+                  )}
+                </p>
+              )}
               {message.attachment && <MediaViewer attachment={message.attachment} isOwn={isOwn} />}
             </>
           )}
@@ -264,6 +365,21 @@ export function MessageBubble({
             >
               <Reply className="w-3.5 h-3.5" />
             </button>
+            {copyText && (
+              <button
+                type="button"
+                onClick={() => void handleCopy()}
+                disabled={busy}
+                className="p-1 rounded-md hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                title={copied ? "Copied!" : "Copy text"}
+              >
+                {copied ? (
+                  <Check className="w-3.5 h-3.5 text-[#10B981]" />
+                ) : (
+                  <Copy className="w-3.5 h-3.5" />
+                )}
+              </button>
+            )}
             <button
               type="button"
               onClick={() => void onTogglePin(message)}
@@ -282,7 +398,7 @@ export function MessageBubble({
       </div>
 
       <div className="mt-1 flex items-center gap-2 text-xs text-[var(--text-muted)]">
-        <span>{timeLabel}</span>
+        <span>{timestampDisplay}</span>
         {message.is_edited && <span className="italic">Edited</span>}
         {message.is_pinned && (
           <span className="inline-flex items-center gap-1 text-[#6366F1] font-medium">
