@@ -10,6 +10,8 @@ applicable.
 
 ## [Unreleased]
 
+- feat: add one-click copy-to-clipboard for message text on hover
+
 ## [0.2.1] - baseline
 Baseline at the time autonomous development tracking began. See git history
 (`git log`) for everything prior to this file's introduction.
