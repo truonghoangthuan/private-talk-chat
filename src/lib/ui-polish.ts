@@ -1773,3 +1773,66 @@ export function dismissMessageToast(
   if (!toasts.some((t) => t.id === id)) return toasts;
   return toasts.filter((t) => t.id !== id);
 }
+
+/** Narrowest the sidebar can be dragged to (issue #94). */
+export const MIN_SIDEBAR_WIDTH = 220;
+/** Widest the sidebar can be dragged to (issue #94). */
+export const MAX_SIDEBAR_WIDTH = 480;
+/** The sidebar's original fixed width, used when nothing has been saved yet. */
+export const DEFAULT_SIDEBAR_WIDTH = 280;
+
+const SIDEBAR_WIDTH_STORAGE_KEY = "bloop:sidebar-width";
+
+/**
+ * Clamps a candidate sidebar width (issue #94) to the
+ * `MIN_SIDEBAR_WIDTH`..`MAX_SIDEBAR_WIDTH` range and rounds it to a whole
+ * pixel, so a drag gesture that overshoots past either edge of the window
+ * (or a corrupt/out-of-range persisted value) never renders a sidebar
+ * narrower or wider than the app can sensibly lay out.
+ */
+export function clampSidebarWidth(width: number): number {
+  if (!Number.isFinite(width)) return DEFAULT_SIDEBAR_WIDTH;
+  return Math.round(Math.min(MAX_SIDEBAR_WIDTH, Math.max(MIN_SIDEBAR_WIDTH, width)));
+}
+
+/**
+ * Loads the persisted sidebar width (issue #94) from `localStorage`.
+ * Stored globally rather than per-user — same reasoning as the
+ * dark/light theme preference (issue #56): a low-stakes layout
+ * preference not worth plumbing a user ID through `AppShell` for.
+ * Falls back to `DEFAULT_SIDEBAR_WIDTH` when nothing is stored,
+ * `localStorage` isn't available (e.g. the Vitest `node` test
+ * environment), or the stored value is missing/corrupt/non-numeric —
+ * this is a best-effort UI preference, never something that should
+ * throw and break the app shell from rendering. Always clamped through
+ * `clampSidebarWidth`, so a value saved under a previous, wider min/max
+ * range still renders sensibly after a narrower range ships later.
+ */
+export function loadSidebarWidth(): number {
+  if (typeof localStorage === "undefined") return DEFAULT_SIDEBAR_WIDTH;
+  try {
+    const raw = localStorage.getItem(SIDEBAR_WIDTH_STORAGE_KEY);
+    if (!raw) return DEFAULT_SIDEBAR_WIDTH;
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed)) return DEFAULT_SIDEBAR_WIDTH;
+    return clampSidebarWidth(parsed);
+  } catch {
+    return DEFAULT_SIDEBAR_WIDTH;
+  }
+}
+
+/**
+ * Persists the sidebar's dragged width (issue #94) to `localStorage` so
+ * it survives an app restart. A no-op (rather than a thrown error) when
+ * `localStorage` is unavailable or writing fails (e.g. storage quota) —
+ * losing the width preference for this session is an acceptable
+ * degradation, never worth surfacing as a user-facing error.
+ */
+export function saveSidebarWidth(width: number): void {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(SIDEBAR_WIDTH_STORAGE_KEY, String(clampSidebarWidth(width)));
+  } catch {
+    // Storage unavailable or full; the sidebar width just won't persist this session.
+  }
+}
