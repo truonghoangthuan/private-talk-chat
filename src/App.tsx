@@ -739,7 +739,9 @@ export function App() {
                           replyingTo?.id
                         );
                         setReplyingTo(null);
-                        setMessages((prev) => [...prev, sent]);
+                        setMessages((prev) =>
+                          upsertMessageWithReplySync(prev, sent)
+                        );
                         await refreshContactsAndConversations();
                       }}
                       onTypingChange={(isTyping) => {

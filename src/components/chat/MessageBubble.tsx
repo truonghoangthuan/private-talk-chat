@@ -154,7 +154,7 @@ export function MessageBubble({
     <div
       id={`msg-${message.id}`}
       onKeyDown={handleBubbleKeyDown}
-      className={`${spacingClass} group flex flex-col ${isOwn ? "items-end" : "items-start"}`}
+      className={`${spacingClass} animate-message-in group flex flex-col ${isOwn ? "items-end" : "items-start"}`}
     >
       {!isOwn && !isGroupedWithPrev && (
         <span className="mb-1 ml-1 text-xs font-medium text-[var(--text-muted)]">

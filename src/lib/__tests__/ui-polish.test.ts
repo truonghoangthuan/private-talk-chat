@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { MessageDto } from "../types";
-import { buildTimelineItems, formatCryptoFingerprint } from "../ui-polish";
+import {
+  buildTimelineItems,
+  formatCryptoFingerprint,
+  getTimelineScrollBehavior,
+  upsertMessageWithReplySync,
+  validateAttachmentPath,
+  validateAvatarPath,
+} from "../ui-polish";
 
 function makeMessage(overrides: Partial<MessageDto> = {}): MessageDto {
   return {
@@ -94,5 +101,56 @@ describe("buildTimelineItems", () => {
     const items = buildTimelineItems([m1, mFailed, mAfterFailed, mRemoved]);
 
     expect(items.every((item) => item.kind === "message" && !item.isGroupedWithPrev)).toBe(true);
+  });
+});
+
+describe("upsertMessageWithReplySync", () => {
+  it("deduplicates when realtime:message_upsert and messageSend return the same id", () => {
+    const sent = makeMessage({ id: "msg-dup", text: "Test 3" });
+    const afterRealtime = upsertMessageWithReplySync([], sent);
+    const afterSendResolve = upsertMessageWithReplySync(afterRealtime, sent);
+
+    expect(afterSendResolve).toHaveLength(1);
+    expect(afterSendResolve[0].id).toBe("msg-dup");
+  });
+});
+
+describe("validateAttachmentPath", () => {
+  it("accepts allowed image and video extensions case-insensitively", () => {
+    expect(validateAttachmentPath("C:\\Users\\alice\\Pictures\\photo.PNG")).toEqual({
+      ok: true,
+      fileName: "photo.PNG",
+      previewKind: "image",
+    });
+    expect(validateAttachmentPath("/tmp/clip.WebM")).toEqual({
+      ok: true,
+      fileName: "clip.WebM",
+      previewKind: "video",
+    });
+  });
+
+  it("rejects disallowed extensions", () => {
+    expect(validateAttachmentPath("C:\\Users\\alice\\payload.exe")).toEqual({
+      ok: false,
+      error: "Allowed formats: PNG, JPG, WEBP, GIF, MP4, WEBM.",
+    });
+  });
+});
+
+describe("validateAvatarPath", () => {
+  it("accepts png/jpg/jpeg/webp and rejects other extensions", () => {
+    expect(validateAvatarPath("C:\\avatars\\me.JPEG")).toEqual({ ok: true });
+    expect(validateAvatarPath("C:\\avatars\\anim.gif")).toEqual({
+      ok: false,
+      error: "Avatar must be PNG, JPEG, or WEBP.",
+    });
+  });
+});
+
+describe("getTimelineScrollBehavior", () => {
+  it("uses auto on initial conversation load and smooth on incremental messages", () => {
+    expect(getTimelineScrollBehavior(0, 50)).toBe("auto");
+    expect(getTimelineScrollBehavior(50, 51)).toBe("smooth");
+    expect(getTimelineScrollBehavior(0, 0)).toBe("smooth");
   });
 });

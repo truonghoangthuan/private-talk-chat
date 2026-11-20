@@ -1,5 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { open } from "@tauri-apps/plugin-dialog";
 import type {
   ContactDto,
   ConversationDto,
@@ -200,6 +202,55 @@ export const tauriClient = {
     listen("realtime:pins_changed", (e) =>
       cb(e.payload as { conversation_id: string })
     ),
+
+  // Native file dialogs & drag-drop
+  pickAttachmentFile: async (): Promise<string | null> => {
+    const selected = await open({
+      multiple: false,
+      directory: false,
+      filters: [
+        {
+          name: "Media",
+          extensions: ["png", "jpg", "jpeg", "webp", "gif", "mp4", "webm"],
+        },
+      ],
+    });
+    return typeof selected === "string" ? selected : null;
+  },
+
+  pickAvatarFile: async (): Promise<string | null> => {
+    const selected = await open({
+      multiple: false,
+      directory: false,
+      filters: [
+        {
+          name: "Images",
+          extensions: ["png", "jpg", "jpeg", "webp"],
+        },
+      ],
+    });
+    return typeof selected === "string" ? selected : null;
+  },
+
+  onFileDragDrop: async (
+    cb: (event: {
+      type: "enter" | "over" | "drop" | "leave";
+      paths: string[];
+    }) => void
+  ): Promise<UnlistenFn> => {
+    try {
+      return await getCurrentWebview().onDragDropEvent((e) => {
+        const payload = e.payload;
+        if (payload.type === "enter" || payload.type === "drop") {
+          cb({ type: payload.type, paths: payload.paths });
+        } else {
+          cb({ type: payload.type, paths: [] });
+        }
+      });
+    } catch {
+      return () => {};
+    }
+  },
 };
 
 export function extractErrorMessage(err: unknown): string {

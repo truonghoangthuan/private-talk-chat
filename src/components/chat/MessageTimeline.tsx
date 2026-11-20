@@ -4,6 +4,7 @@ import type { MessageDto } from "../../lib/types";
 import {
   buildTimelineItems,
   computeScrollFollowState,
+  getTimelineScrollBehavior,
   isScrolledNearBottom,
 } from "../../lib/ui-polish";
 import { MessageBubble } from "./MessageBubble";
@@ -42,8 +43,9 @@ export function MessageTimeline({
   );
 
   useEffect(() => {
+    const prevCount = prevMessageCountRef.current;
     const { shouldAutoScroll, unseenCount: nextUnseenCount } = computeScrollFollowState(
-      prevMessageCountRef.current,
+      prevCount,
       messages.length,
       wasNearBottomRef.current,
       unseenCount
@@ -51,7 +53,9 @@ export function MessageTimeline({
     prevMessageCountRef.current = messages.length;
     setUnseenCount(nextUnseenCount);
     if (shouldAutoScroll) {
-      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+      bottomRef.current?.scrollIntoView({
+        behavior: getTimelineScrollBehavior(prevCount, messages.length),
+      });
     }
     // Only re-run when the message list itself changes; unseenCount is read, not a trigger.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -132,7 +136,7 @@ export function MessageTimeline({
         <button
           type="button"
           onClick={jumpToLatest}
-          className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-[#6366F1] text-white text-xs font-medium shadow-lg hover:bg-[#6366F1]/90 transition-colors"
+          className="animate-slide-up-fade absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-[#6366F1] text-white text-xs font-medium shadow-lg hover:bg-[#6366F1]/90 active:scale-95 transition-all duration-150"
         >
           <ArrowDown className="w-3.5 h-3.5" />
           {unseenCount === 1 ? "1 new message" : `${unseenCount} new messages`}

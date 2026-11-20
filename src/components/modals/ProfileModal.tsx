@@ -1,7 +1,12 @@
 import { useState } from "react";
 import { AlertTriangle, Download, RefreshCw, ShieldCheck, Upload, X } from "lucide-react";
+import { extractErrorMessage, tauriClient } from "../../lib/tauri-client";
 import type { UpdateStatusDto, UserProfileDto } from "../../lib/types";
-import { formatCryptoFingerprint } from "../../lib/ui-polish";
+import {
+  extractFileName,
+  formatCryptoFingerprint,
+  validateAvatarPath,
+} from "../../lib/ui-polish";
 
 interface ProfileModalProps {
   user: UserProfileDto;
@@ -11,9 +16,6 @@ interface ProfileModalProps {
   onClose: () => void;
   onSave: (displayName?: string, avatarFilePath?: string) => Promise<void>;
 }
-
-const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
-const ALLOWED_TYPES = ["image/png", "image/jpeg", "image/webp"];
 
 export function ProfileModal({
   user,
@@ -25,29 +27,23 @@ export function ProfileModal({
 }: ProfileModalProps) {
   const [displayName, setDisplayName] = useState(user.display_name);
   const [avatarFilePath, setAvatarFilePath] = useState<string>("");
-  const [previewUrl, setPreviewUrl] = useState<string | null>(user.avatar_url);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePickAvatar = async () => {
     setError(null);
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!ALLOWED_TYPES.includes(file.type)) {
-      setError("Avatar must be PNG, JPEG, or WEBP.");
-      return;
+    try {
+      const selectedPath = await tauriClient.pickAvatarFile();
+      if (!selectedPath) return;
+      const validation = validateAvatarPath(selectedPath);
+      if (!validation.ok) {
+        setError(validation.error);
+        return;
+      }
+      setAvatarFilePath(selectedPath);
+    } catch (err) {
+      setError(extractErrorMessage(err));
     }
-    if (file.size > MAX_AVATAR_BYTES) {
-      setError("Avatar image exceeds the 5 MB limit.");
-      return;
-    }
-
-    const tauriPath = (file as File & { path?: string }).path;
-    if (tauriPath) {
-      setAvatarFilePath(tauriPath);
-    }
-    setPreviewUrl(URL.createObjectURL(file));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -79,8 +75,8 @@ export function ProfileModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="w-full max-w-md rounded-2xl border border-[var(--border-hairline)] bg-[var(--bg-surface)] p-6 shadow-2xl">
+    <div className="animate-fade-in fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+      <div className="animate-scale-in w-full max-w-md rounded-2xl border border-[var(--border-hairline)] bg-[var(--bg-surface)] p-6 shadow-2xl">
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-base font-semibold">Profile Settings</h2>
           <button
@@ -93,9 +89,9 @@ export function ProfileModal({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="flex items-center gap-4">
-            {previewUrl ? (
+            {user.avatar_url ? (
               <img
-                src={previewUrl}
+                src={user.avatar_url}
                 alt={displayName}
                 className="w-16 h-16 rounded-full object-cover ring-2 ring-[#6366F1]/50"
               />
@@ -105,16 +101,16 @@ export function ProfileModal({
               </div>
             )}
             <div className="flex-1 space-y-1.5">
-              <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--bg-canvas)] border border-[var(--border-hairline)] text-xs font-medium cursor-pointer hover:border-[#6366F1] hover:bg-[var(--bg-hover)]">
+              <button
+                type="button"
+                onClick={() => void handlePickAvatar()}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--bg-canvas)] border border-[var(--border-hairline)] text-xs font-medium hover:border-[#6366F1] hover:bg-[var(--bg-hover)] transition-colors"
+              >
                 <Upload className="w-3.5 h-3.5" />
-                Choose Avatar (≤ 5 MB)
-                <input
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp"
-                  onChange={handleFileChange}
-                  className="hidden"
-                />
-              </label>
+                {avatarFilePath
+                  ? `Selected: ${extractFileName(avatarFilePath)}`
+                  : "Choose Avatar (≤ 5 MB)"}
+              </button>
               <p className="text-xs text-[var(--text-muted)]">
                 @{user.username} • PNG, JPEG, or WEBP
               </p>

@@ -66,6 +66,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_dialog::init())
         .manage(AppState::from_env())
         .setup(|app| {
             platform::taskbar::apply_main_window_icons(app.handle());
