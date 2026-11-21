@@ -110,6 +110,9 @@ import {
   MAX_APP_ZOOM,
   DEFAULT_APP_ZOOM,
   canCopyImageMimeTypeDirectly,
+  INLINE_FORMAT_MARKERS,
+  resolveComposerFormatShortcut,
+  toggleInlineFormatMarker,
 } from "./ui-polish";
 import type { ContactDto, ConversationDto, MessageDto, PinnedMessageDto } from "./types";
 import type { MessageNotificationToast } from "./ui-polish";
@@ -3063,5 +3066,98 @@ describe("loadAppZoomPreference / saveAppZoomPreference", () => {
   it("falls back to the default for a non-numeric stored value", () => {
     store["bloop:app-zoom-level"] = "not-a-number";
     expect(loadAppZoomPreference()).toBe(DEFAULT_APP_ZOOM);
+  });
+});
+
+describe("resolveComposerFormatShortcut", () => {
+  it("returns null when Ctrl/Cmd is not held", () => {
+    expect(resolveComposerFormatShortcut("b", false, false)).toBeNull();
+    expect(resolveComposerFormatShortcut("i", false, false)).toBeNull();
+    expect(resolveComposerFormatShortcut("x", false, true)).toBeNull();
+  });
+
+  it("returns bold for Ctrl/Cmd + b (case-insensitive, no shift)", () => {
+    expect(resolveComposerFormatShortcut("b", true, false)).toBe("bold");
+    expect(resolveComposerFormatShortcut("B", true, false)).toBe("bold");
+  });
+
+  it("returns italic for Ctrl/Cmd + i (no shift)", () => {
+    expect(resolveComposerFormatShortcut("i", true, false)).toBe("italic");
+  });
+
+  it("returns strikethrough for Ctrl/Cmd + Shift + x", () => {
+    expect(resolveComposerFormatShortcut("x", true, true)).toBe("strikethrough");
+  });
+
+  it("returns null for bold/italic combos with Shift also held", () => {
+    expect(resolveComposerFormatShortcut("b", true, true)).toBeNull();
+    expect(resolveComposerFormatShortcut("i", true, true)).toBeNull();
+  });
+
+  it("returns null for strikethrough's combo without Shift", () => {
+    expect(resolveComposerFormatShortcut("x", true, false)).toBeNull();
+  });
+
+  it("returns null for an unrelated key even with Ctrl/Cmd held", () => {
+    expect(resolveComposerFormatShortcut("k", true, false)).toBeNull();
+  });
+});
+
+describe("toggleInlineFormatMarker", () => {
+  it("wraps a selection in the marker", () => {
+    const result = toggleInlineFormatMarker("hello world", 0, 5, INLINE_FORMAT_MARKERS.bold);
+    expect(result.text).toBe("**hello** world");
+    expect(result.selectionStart).toBe(2);
+    expect(result.selectionEnd).toBe(7);
+  });
+
+  it("wraps a mid-string selection without disturbing the rest of the text", () => {
+    const result = toggleInlineFormatMarker("hello world", 6, 11, INLINE_FORMAT_MARKERS.italic);
+    expect(result.text).toBe("hello *world*");
+    expect(result.selectionStart).toBe(7);
+    expect(result.selectionEnd).toBe(12);
+  });
+
+  it("un-wraps a selection already wrapped by that exact marker (toggle off)", () => {
+    const result = toggleInlineFormatMarker("**hello** world", 2, 7, INLINE_FORMAT_MARKERS.bold);
+    expect(result.text).toBe("hello world");
+    expect(result.selectionStart).toBe(0);
+    expect(result.selectionEnd).toBe(5);
+  });
+
+  it("re-wraps on a third toggle (toggle on, off, on)", () => {
+    const first = toggleInlineFormatMarker("hello", 0, 5, INLINE_FORMAT_MARKERS.strikethrough);
+    expect(first.text).toBe("~~hello~~");
+    const second = toggleInlineFormatMarker(
+      first.text,
+      first.selectionStart,
+      first.selectionEnd,
+      INLINE_FORMAT_MARKERS.strikethrough
+    );
+    expect(second.text).toBe("hello");
+    const third = toggleInlineFormatMarker(
+      second.text,
+      second.selectionStart,
+      second.selectionEnd,
+      INLINE_FORMAT_MARKERS.strikethrough
+    );
+    expect(third.text).toBe("~~hello~~");
+  });
+
+  it("inserts an empty marker pair with the caret in between when there's no selection", () => {
+    const result = toggleInlineFormatMarker("hello ", 6, 6, INLINE_FORMAT_MARKERS.bold);
+    expect(result.text).toBe("hello ****");
+    expect(result.selectionStart).toBe(8);
+    expect(result.selectionEnd).toBe(8);
+  });
+
+  it("swaps an out-of-order selection range", () => {
+    const result = toggleInlineFormatMarker("hello world", 5, 0, INLINE_FORMAT_MARKERS.bold);
+    expect(result.text).toBe("**hello** world");
+  });
+
+  it("does not falsely detect an already-wrapped selection near the start of the text", () => {
+    const result = toggleInlineFormatMarker("hi", 0, 2, INLINE_FORMAT_MARKERS.bold);
+    expect(result.text).toBe("**hi**");
   });
 });

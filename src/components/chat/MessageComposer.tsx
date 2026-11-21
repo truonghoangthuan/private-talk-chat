@@ -18,16 +18,19 @@ import {
   computeComposerCharacterState,
   detectMentionQuery,
   filterMentionCandidates,
+  INLINE_FORMAT_MARKERS,
   insertTextAtCursor,
   loadComposerSendShortcutPreference,
   loadRecentEmojis,
   QUICK_EMOJIS,
   recordRecentEmoji,
   resolveComposerEscapeAction,
+  resolveComposerFormatShortcut,
   saveComposerSendShortcutPreference,
   saveRecentEmojis,
   shouldSubmitComposerOnEnterKeyPress,
   shouldTriggerEditLastMessage,
+  toggleInlineFormatMarker,
   validateAttachmentPath,
 } from "../../lib/ui-polish";
 
@@ -231,6 +234,24 @@ export function MessageComposer({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Ctrl/Cmd+B / I / Shift+X toggle the inline **bold**/*italic*/
+    // ~~strikethrough~~ markers message bubbles already render (issue
+    // #113), matching the Word/Docs/Slack text-editor convention instead
+    // of requiring the literal markers to be typed blind by hand.
+    const formatShortcut = resolveComposerFormatShortcut(e.key, e.ctrlKey || e.metaKey, e.shiftKey);
+    if (formatShortcut) {
+      e.preventDefault();
+      const el = e.currentTarget;
+      const start = el.selectionStart ?? text.length;
+      const end = el.selectionEnd ?? text.length;
+      const result = toggleInlineFormatMarker(text, start, end, INLINE_FORMAT_MARKERS[formatShortcut]);
+      handleTextChange(result.text, result.selectionEnd);
+      requestAnimationFrame(() => {
+        el.focus();
+        el.setSelectionRange(result.selectionStart, result.selectionEnd);
+      });
+      return;
+    }
     if (mentionState && mentionCandidates.length > 0) {
       if (e.key === "ArrowDown") {
         e.preventDefault();
