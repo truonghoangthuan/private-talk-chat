@@ -2407,3 +2407,51 @@ export function shouldSubmitComposerOnEnterKeyPress(
   if (preference === "ctrl_enter") return ctrlKey || metaKey;
   return !shiftKey;
 }
+
+/** Lightbox zoom range (issue #117): 100% (fit, unzoomed) up to 400%. */
+export const MIN_LIGHTBOX_ZOOM = 1;
+export const MAX_LIGHTBOX_ZOOM = 4;
+const LIGHTBOX_ZOOM_STEP = 0.25;
+/** Scroll-wheel sensitivity: pixels of `deltaY` per 1.0 of zoom change. */
+const LIGHTBOX_WHEEL_ZOOM_SENSITIVITY = 0.0015;
+
+/**
+ * Clamps a candidate image-lightbox zoom level (issue #117) to the
+ * `MIN_LIGHTBOX_ZOOM`..`MAX_LIGHTBOX_ZOOM` range, so repeated zoom-in clicks,
+ * a fast scroll-wheel gesture, or a non-finite value never scales the
+ * previewed image below its normal fit size or past a sensible maximum.
+ */
+export function clampLightboxZoom(zoom: number): number {
+  if (!Number.isFinite(zoom)) return MIN_LIGHTBOX_ZOOM;
+  return Math.min(MAX_LIGHTBOX_ZOOM, Math.max(MIN_LIGHTBOX_ZOOM, zoom));
+}
+
+/**
+ * Steps the lightbox zoom level by one increment (issue #117) — `+1` for
+ * the zoom-in button / `+`/`=` key, `-1` for the zoom-out button / `-` key —
+ * clamped to the supported range via `clampLightboxZoom`.
+ */
+export function stepLightboxZoom(current: number, direction: 1 | -1): number {
+  return clampLightboxZoom(current + direction * LIGHTBOX_ZOOM_STEP);
+}
+
+/**
+ * Converts a mouse-wheel `deltaY` into a new lightbox zoom level (issue
+ * #117), matching the Google Photos/Maps "scroll to zoom" convention —
+ * scrolling up (negative `deltaY`) zooms in, scrolling down zooms out.
+ * Clamped via `clampLightboxZoom` so a fast trackpad fling can't overshoot
+ * past either end of the supported range.
+ */
+export function zoomFromWheelDelta(current: number, deltaY: number): number {
+  return clampLightboxZoom(current - deltaY * LIGHTBOX_WHEEL_ZOOM_SENSITIVITY);
+}
+
+/**
+ * Double-clicking the lightbox image toggles between the normal fit size
+ * and a fixed 2x zoom (issue #117), matching the common image-viewer
+ * convention — double-click again (now zoomed in, at any level) always
+ * returns to `MIN_LIGHTBOX_ZOOM` rather than zooming in further.
+ */
+export function toggleDoubleClickZoom(current: number): number {
+  return current > MIN_LIGHTBOX_ZOOM ? MIN_LIGHTBOX_ZOOM : 2;
+}
