@@ -93,6 +93,12 @@ import {
   findLastEditableOwnMessageId,
   shouldTriggerEditLastMessage,
   messageMentionsUser,
+  clampLightboxZoom,
+  stepLightboxZoom,
+  zoomFromWheelDelta,
+  toggleDoubleClickZoom,
+  MIN_LIGHTBOX_ZOOM,
+  MAX_LIGHTBOX_ZOOM,
 } from "./ui-polish";
 import type { ContactDto, ConversationDto, MessageDto, PinnedMessageDto } from "./types";
 import type { MessageNotificationToast } from "./ui-polish";
@@ -2797,5 +2803,72 @@ describe("mergeOlderMessages", () => {
   it("returns the same array reference for an empty older page", () => {
     const existing = [makeMsg({ id: "m1" })];
     expect(mergeOlderMessages(existing, [])).toBe(existing);
+  });
+});
+
+describe("clampLightboxZoom", () => {
+  it("passes through a value already within range", () => {
+    expect(clampLightboxZoom(2)).toBe(2);
+  });
+
+  it("clamps below the minimum up to MIN_LIGHTBOX_ZOOM", () => {
+    expect(clampLightboxZoom(0.5)).toBe(MIN_LIGHTBOX_ZOOM);
+    expect(clampLightboxZoom(-3)).toBe(MIN_LIGHTBOX_ZOOM);
+  });
+
+  it("clamps above the maximum down to MAX_LIGHTBOX_ZOOM", () => {
+    expect(clampLightboxZoom(99)).toBe(MAX_LIGHTBOX_ZOOM);
+  });
+
+  it("falls back to MIN_LIGHTBOX_ZOOM for non-finite input", () => {
+    expect(clampLightboxZoom(NaN)).toBe(MIN_LIGHTBOX_ZOOM);
+    expect(clampLightboxZoom(Infinity)).toBe(MIN_LIGHTBOX_ZOOM);
+  });
+});
+
+describe("stepLightboxZoom", () => {
+  it("increases zoom by one step", () => {
+    expect(stepLightboxZoom(1, 1)).toBeCloseTo(1.25);
+  });
+
+  it("decreases zoom by one step", () => {
+    expect(stepLightboxZoom(2, -1)).toBeCloseTo(1.75);
+  });
+
+  it("clamps at MAX_LIGHTBOX_ZOOM when stepping up past it", () => {
+    expect(stepLightboxZoom(MAX_LIGHTBOX_ZOOM, 1)).toBe(MAX_LIGHTBOX_ZOOM);
+  });
+
+  it("clamps at MIN_LIGHTBOX_ZOOM when stepping down past it", () => {
+    expect(stepLightboxZoom(MIN_LIGHTBOX_ZOOM, -1)).toBe(MIN_LIGHTBOX_ZOOM);
+  });
+});
+
+describe("zoomFromWheelDelta", () => {
+  it("zooms in on a negative deltaY (scroll up)", () => {
+    expect(zoomFromWheelDelta(1, -100)).toBeGreaterThan(1);
+  });
+
+  it("zooms out on a positive deltaY (scroll down)", () => {
+    expect(zoomFromWheelDelta(2, 100)).toBeLessThan(2);
+  });
+
+  it("never scrolls below MIN_LIGHTBOX_ZOOM", () => {
+    expect(zoomFromWheelDelta(MIN_LIGHTBOX_ZOOM, 10000)).toBe(MIN_LIGHTBOX_ZOOM);
+  });
+
+  it("never scrolls above MAX_LIGHTBOX_ZOOM", () => {
+    expect(zoomFromWheelDelta(MAX_LIGHTBOX_ZOOM, -10000)).toBe(MAX_LIGHTBOX_ZOOM);
+  });
+});
+
+describe("toggleDoubleClickZoom", () => {
+  it("zooms in to 2x from the fit size", () => {
+    expect(toggleDoubleClickZoom(MIN_LIGHTBOX_ZOOM)).toBe(2);
+  });
+
+  it("resets to MIN_LIGHTBOX_ZOOM from any zoomed-in level", () => {
+    expect(toggleDoubleClickZoom(2)).toBe(MIN_LIGHTBOX_ZOOM);
+    expect(toggleDoubleClickZoom(MAX_LIGHTBOX_ZOOM)).toBe(MIN_LIGHTBOX_ZOOM);
   });
 });
