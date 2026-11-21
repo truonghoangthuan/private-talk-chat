@@ -129,6 +129,43 @@ export function buildTimelineItems(
 }
 
 /**
+ * Decides whether a page of messages fetched from `message_list` might have
+ * more, older history behind it (issue #115) — the app only ever loaded the
+ * most recent `limit` messages with no way to go further back. A page that
+ * came back exactly as full as requested suggests the server had at least
+ * that many to give and may have more before it; a short page (the oldest
+ * message in the conversation was reached) means there's nothing left to
+ * load. This is a heuristic, not a server-confirmed "has more" flag — a
+ * conversation whose total history is an exact multiple of `limit` will
+ * show one extra "Load earlier" click that comes back empty, which the
+ * caller (via `mergeOlderMessages` returning no new messages) should treat
+ * the same as reaching the end.
+ */
+export function hasMoreOlderMessages(fetchedCount: number, limit: number): boolean {
+  return fetchedCount >= limit;
+}
+
+/**
+ * Prepends an older page of messages (fetched via `message_list`'s `before`
+ * cursor, issue #115) ahead of the already-loaded `existing` messages,
+ * de-duplicating by `id` in case the server's cursor ever includes the
+ * boundary message again. Preserves `older`'s own (oldest-first) order
+ * followed by `existing`'s, so the merged result stays in the same
+ * chronological order the timeline already expects. Returns `existing`
+ * unchanged (same reference) when `older` contributes nothing new, so
+ * callers can detect a no-op page via referential equality.
+ */
+export function mergeOlderMessages(
+  existing: MessageDto[],
+  older: MessageDto[]
+): MessageDto[] {
+  const existingIds = new Set(existing.map((m) => m.id));
+  const newOlder = older.filter((m) => !existingIds.has(m.id));
+  if (newOlder.length === 0) return existing;
+  return [...newOlder, ...existing];
+}
+
+/**
  * Upserts a message into the timeline list and propagates any edit/removal/verification
  * status changes to in-memory reply previews referencing that message.
  */

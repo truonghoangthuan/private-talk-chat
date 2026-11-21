@@ -35,6 +35,8 @@ import {
   isConversationUnreadForDisplay,
   isScrolledNearBottom,
   KEYBOARD_SHORTCUTS,
+  hasMoreOlderMessages,
+  mergeOlderMessages,
   loadComposerSendShortcutPreference,
   loadRecentEmojis,
   loadManuallyUnreadConversationIds,
@@ -2742,5 +2744,58 @@ describe("shouldSubmitComposerOnEnterKeyPress", () => {
 
   it("'ctrl_enter' preference: Ctrl+Shift+Enter still sends (Shift doesn't override Ctrl)", () => {
     expect(shouldSubmitComposerOnEnterKeyPress("ctrl_enter", true, true, false)).toBe(true);
+  });
+});
+
+describe("hasMoreOlderMessages", () => {
+  it("returns true when the fetched page is exactly as full as requested", () => {
+    expect(hasMoreOlderMessages(50, 50)).toBe(true);
+  });
+
+  it("returns true when the fetched page somehow exceeds the limit", () => {
+    expect(hasMoreOlderMessages(51, 50)).toBe(true);
+  });
+
+  it("returns false when the fetched page came back short (the start of history)", () => {
+    expect(hasMoreOlderMessages(12, 50)).toBe(false);
+  });
+
+  it("returns false for an empty page", () => {
+    expect(hasMoreOlderMessages(0, 50)).toBe(false);
+  });
+});
+
+describe("mergeOlderMessages", () => {
+  it("prepends a fresh older page ahead of the already-loaded messages", () => {
+    const existing = [makeMsg({ id: "m3" }), makeMsg({ id: "m4" })];
+    const older = [makeMsg({ id: "m1" }), makeMsg({ id: "m2" })];
+    expect(mergeOlderMessages(existing, older).map((m) => m.id)).toEqual([
+      "m1",
+      "m2",
+      "m3",
+      "m4",
+    ]);
+  });
+
+  it("de-duplicates any older message that overlaps the existing boundary", () => {
+    const existing = [makeMsg({ id: "m2" }), makeMsg({ id: "m3" })];
+    // The server's `before` cursor boundary message (m2) comes back again.
+    const older = [makeMsg({ id: "m1" }), makeMsg({ id: "m2" })];
+    expect(mergeOlderMessages(existing, older).map((m) => m.id)).toEqual([
+      "m1",
+      "m2",
+      "m3",
+    ]);
+  });
+
+  it("returns the same array reference when the older page has nothing new", () => {
+    const existing = [makeMsg({ id: "m1" }), makeMsg({ id: "m2" })];
+    const older = [makeMsg({ id: "m1" })];
+    expect(mergeOlderMessages(existing, older)).toBe(existing);
+  });
+
+  it("returns the same array reference for an empty older page", () => {
+    const existing = [makeMsg({ id: "m1" })];
+    expect(mergeOlderMessages(existing, [])).toBe(existing);
   });
 });
