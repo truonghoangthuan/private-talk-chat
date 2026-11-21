@@ -335,6 +335,56 @@ export function downloadTextFile(filename: string, content: string): void {
   }
 }
 
+/**
+ * Sanitizes a decrypted attachment's file name for use as a browser
+ * download target (issue #119) — strips any directory component (the
+ * decrypted envelope's file name is otherwise attacker-controlled and
+ * could smuggle a `../`-style path segment) and characters Windows,
+ * macOS, and Linux all reject in a plain file name, trims leading dots
+ * so the saved file can't end up hidden, and falls back to a generic
+ * name if nothing usable remains (e.g. an empty or punctuation-only
+ * original name).
+ */
+export function sanitizeAttachmentDownloadFilename(
+  fileName: string | null | undefined
+): string {
+  const fallback = "attachment";
+  if (!fileName) return fallback;
+  const base = fileName.split(/[\\/]/).pop() ?? "";
+  const cleaned = base
+    .replace(/[<>:"|?*\u0000-\u001f]/g, "_")
+    .replace(/^\.+/, "")
+    .trim();
+  return cleaned || fallback;
+}
+
+/**
+ * Triggers a browser-native "save as" download of arbitrary binary
+ * content — e.g. an already-decrypted chat attachment fetched back from
+ * the app's `privatetalk-media://` cache (issue #119) — via a
+ * short-lived Blob URL, the same no-Tauri-IPC, no-filesystem-access
+ * pattern `downloadTextFile` above already uses for the conversation
+ * `.txt` export (issue #106). A no-op when `document`/`URL` aren't
+ * available (e.g. the Vitest `node` test environment), since this is a
+ * best-effort UI convenience and should never throw.
+ */
+export function triggerBlobDownload(blob: Blob, filename: string): void {
+  if (typeof document === "undefined" || typeof URL === "undefined") return;
+  try {
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.rel = "noopener";
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  } catch {
+    // Download unavailable in this environment; nothing to recover from.
+  }
+}
+
 export interface MessageTextSegment {
   text: string;
   isLink: boolean;

@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
-import { Minus, Plus, X } from "lucide-react";
+import { Download, Loader2, Minus, Plus, X } from "lucide-react";
 import type { MediaAttachmentDto } from "../../lib/types";
 import {
   MAX_LIGHTBOX_ZOOM,
   MIN_LIGHTBOX_ZOOM,
+  sanitizeAttachmentDownloadFilename,
   shouldOpenMediaLightbox,
   stepLightboxZoom,
+  triggerBlobDownload,
   toggleDoubleClickZoom,
   zoomFromWheelDelta,
 } from "../../lib/ui-polish";
@@ -20,6 +22,30 @@ export function MediaViewer({ attachment, isOwn = false }: MediaViewerProps) {
   const isExpandable = shouldOpenMediaLightbox(attachment.mime_type);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [zoom, setZoom] = useState(MIN_LIGHTBOX_ZOOM);
+  const [downloading, setDownloading] = useState(false);
+
+  // Saves the already-decrypted attachment back to disk (issue #119) by
+  // re-fetching it from the app's own `privatetalk-media://` cache (the
+  // same URL already powering the inline `<img>`/`<video>` above — no new
+  // Tauri IPC surface, no plaintext ever touches a server) and handing the
+  // bytes to the browser's native "save as" flow. Best-effort: a failed
+  // fetch (e.g. the decrypted-media cache entry already evicted) is
+  // swallowed rather than surfacing a blocking error for a convenience action.
+  const handleDownload = async (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    if (downloading) return;
+    setDownloading(true);
+    try {
+      const response = await fetch(attachment.media_url);
+      if (!response.ok) throw new Error("attachment_fetch_failed");
+      const blob = await response.blob();
+      triggerBlobDownload(blob, sanitizeAttachmentDownloadFilename(attachment.file_name));
+    } catch {
+      // Nothing actionable to recover from; the media stays viewable inline.
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   // Always reopen the lightbox at the normal fit size (issue #117) rather
   // than remembering the zoom level from a previous viewing.
@@ -73,7 +99,22 @@ export function MediaViewer({ attachment, isOwn = false }: MediaViewerProps) {
         }`}
       >
         <span className="truncate">{attachment.file_name}</span>
-        <span className="shrink-0">{(attachment.size_bytes / 1024).toFixed(0)} KB</span>
+        <span className="flex items-center gap-1.5 shrink-0">
+          <span>{(attachment.size_bytes / 1024).toFixed(0)} KB</span>
+          <button
+            type="button"
+            onClick={(e) => void handleDownload(e)}
+            disabled={downloading}
+            className="p-0.5 rounded hover:bg-white/15 disabled:opacity-60 transition-colors"
+            title="Download attachment"
+          >
+            {downloading ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Download className="w-3.5 h-3.5" />
+            )}
+          </button>
+        </span>
       </div>
 
       {lightboxOpen && (
@@ -85,6 +126,19 @@ export function MediaViewer({ attachment, isOwn = false }: MediaViewerProps) {
             setZoom((z) => zoomFromWheelDelta(z, e.deltaY));
           }}
         >
+          <button
+            type="button"
+            onClick={(e) => void handleDownload(e)}
+            disabled={downloading}
+            className="absolute top-4 right-16 p-2 rounded-lg bg-black/40 text-white hover:bg-black/60 disabled:opacity-60 transition-colors"
+            title="Download attachment"
+          >
+            {downloading ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <Download className="w-5 h-5" />
+            )}
+          </button>
           <button
             type="button"
             onClick={() => setLightboxOpen(false)}
