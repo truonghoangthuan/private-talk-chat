@@ -10,6 +10,8 @@ applicable.
 
 ## [Unreleased]
 
+- feat: render lightweight Markdown-style inline text formatting in message bubbles — `**bold**`, `*italic*`, `~~strikethrough~~`, and `` `inline code` ``, matching the Slack/Discord/WhatsApp composer convention, instead of markers always rendering as flat literal asterisks/tildes/backticks. Composes with the existing URL auto-linking (issue #39) and in-conversation search highlighting (issue #65) rather than conflicting with either. New pure `splitMessageTextIntoFormatSegments` helper; no `dangerouslySetInnerHTML`. Purely a display treatment over already-decrypted/already-loaded text — raw markers are untouched in storage, the conversation .txt export (issue #106), and the reply-preview snippet. Client-side only, no new backend/IPC surface (issue #113)
+
 - feat: add a compact/comfortable message density toggle to the chat header — a new icon button (next to the existing search icon) switches the message timeline between the app's original "comfortable" bubble padding/spacing and a tighter "compact" layout, Slack/Discord-style, so more conversation history fits on screen at once without resizing the window. Doesn't change the existing 2-minute same-sender grouping logic, only how far apart grouped/ungrouped bubbles render. Persists across restarts via the same global `localStorage` convention as the dark/light theme and 24-hour clock preferences. New pure `loadMessageDensityPreference`/`saveMessageDensityPreference`/`getMessageDensityClasses` helpers. Client-side only, no new backend/IPC surface (issue #111)
 
 ## [0.4.0] - 2026-11-20

@@ -10,6 +10,7 @@ import {
   messageMentionsUser,
   resolveMessageBubbleEscapeAction,
   shouldSubmitMessageEditOnKeyDown,
+  splitMessageTextIntoFormatSegments,
   splitMessageTextIntoLinkSegments,
   splitTextForSearchHighlight,
 } from "../../lib/ui-polish";
@@ -391,18 +392,37 @@ export function MessageBubble({
                       </a>
                     ) : (
                       <span key={i}>
-                        {splitTextForSearchHighlight(segment.text, searchQuery).map((hseg, j) =>
-                          hseg.isMatch ? (
-                            <mark
-                              key={j}
-                              className="rounded-sm px-0.5 bg-[#F59E0B] text-[#1A1A1A]"
-                            >
-                              {hseg.text}
-                            </mark>
-                          ) : (
-                            <span key={j}>{hseg.text}</span>
-                          )
-                        )}
+                        {splitMessageTextIntoFormatSegments(segment.text).map((fseg, k) => {
+                          const highlighted = splitTextForSearchHighlight(fseg.text, searchQuery).map(
+                            (hseg, j) =>
+                              hseg.isMatch ? (
+                                <mark
+                                  key={j}
+                                  className="rounded-sm px-0.5 bg-[#F59E0B] text-[#1A1A1A]"
+                                >
+                                  {hseg.text}
+                                </mark>
+                              ) : (
+                                <span key={j}>{hseg.text}</span>
+                              )
+                          );
+                          const formatClassName = [
+                            fseg.bold && "font-semibold",
+                            fseg.italic && "italic",
+                            fseg.strikethrough && "line-through",
+                            fseg.code &&
+                              `font-mono text-[0.85em] px-1 py-0.5 rounded ${
+                                isOwn ? "bg-black/20" : "bg-[var(--bg-canvas)]"
+                              }`,
+                          ]
+                            .filter(Boolean)
+                            .join(" ");
+                          return (
+                            <span key={k} className={formatClassName || undefined}>
+                              {highlighted}
+                            </span>
+                          );
+                        })}
                       </span>
                     )
                   )}
