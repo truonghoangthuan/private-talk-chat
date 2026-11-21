@@ -1,10 +1,23 @@
 import { useState } from "react";
-import { AlertTriangle, Clock, Download, RefreshCw, ShieldCheck, Upload, X } from "lucide-react";
+import {
+  AlertTriangle,
+  Clock,
+  Download,
+  Minus,
+  Plus,
+  RefreshCw,
+  ShieldCheck,
+  Type,
+  Upload,
+  X,
+} from "lucide-react";
 import { extractErrorMessage, tauriClient } from "../../lib/tauri-client";
 import type { UpdateStatusDto, UserProfileDto } from "../../lib/types";
 import {
   extractFileName,
   formatCryptoFingerprint,
+  MAX_APP_ZOOM,
+  MIN_APP_ZOOM,
   validateAvatarPath,
 } from "../../lib/ui-polish";
 
@@ -14,6 +27,11 @@ interface ProfileModalProps {
   /** Whether message timestamps render in 24-hour time (issue #108). */
   use24Hour: boolean;
   onToggleClockFormat: () => void;
+  /** App-wide text size, as a percentage (80-150, default 100). */
+  appZoom: number;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+  onResetZoom: () => void;
   onCheckUpdate: () => void;
   onInstallUpdate: () => void;
   onClose: () => void;
@@ -25,6 +43,10 @@ export function ProfileModal({
   updateStatus,
   use24Hour,
   onToggleClockFormat,
+  appZoom,
+  onZoomIn,
+  onZoomOut,
+  onResetZoom,
   onCheckUpdate,
   onInstallUpdate,
   onClose,
@@ -192,6 +214,48 @@ export function ProfileModal({
                 }`}
               />
             </button>
+          </div>
+        </div>
+
+        <div className="mt-4 pt-4 border-t border-[var(--border-hairline)] space-y-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Type className="w-3.5 h-3.5 text-[var(--text-muted)]" />
+              <div>
+                <h3 className="text-xs font-semibold">Text Size</h3>
+                <p className="text-xs text-[var(--text-muted)]">
+                  Scale text and spacing across the app ({MIN_APP_ZOOM}%–{MAX_APP_ZOOM}%)
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                type="button"
+                onClick={onZoomOut}
+                disabled={appZoom <= MIN_APP_ZOOM}
+                title="Decrease text size (Ctrl/Cmd + -)"
+                className="p-1.5 rounded-lg hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] disabled:opacity-40 disabled:hover:bg-transparent transition-colors"
+              >
+                <Minus className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={onResetZoom}
+                title="Reset text size to 100% (Ctrl/Cmd + 0)"
+                className="px-2 py-1 rounded-lg text-xs font-mono font-medium text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors tabular-nums"
+              >
+                {appZoom}%
+              </button>
+              <button
+                type="button"
+                onClick={onZoomIn}
+                disabled={appZoom >= MAX_APP_ZOOM}
+                title="Increase text size (Ctrl/Cmd + =)"
+                className="p-1.5 rounded-lg hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] disabled:opacity-40 disabled:hover:bg-transparent transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
         </div>
 

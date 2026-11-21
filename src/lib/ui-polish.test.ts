@@ -101,6 +101,14 @@ import {
   MAX_LIGHTBOX_ZOOM,
   sanitizeAttachmentDownloadFilename,
   triggerBlobDownload,
+  clampAppZoomLevel,
+  stepAppZoomLevel,
+  loadAppZoomPreference,
+  saveAppZoomPreference,
+  resolveAppZoomShortcutAction,
+  MIN_APP_ZOOM,
+  MAX_APP_ZOOM,
+  DEFAULT_APP_ZOOM,
 } from "./ui-polish";
 import type { ContactDto, ConversationDto, MessageDto, PinnedMessageDto } from "./types";
 import type { MessageNotificationToast } from "./ui-polish";
@@ -2912,5 +2920,120 @@ describe("toggleDoubleClickZoom", () => {
   it("resets to MIN_LIGHTBOX_ZOOM from any zoomed-in level", () => {
     expect(toggleDoubleClickZoom(2)).toBe(MIN_LIGHTBOX_ZOOM);
     expect(toggleDoubleClickZoom(MAX_LIGHTBOX_ZOOM)).toBe(MIN_LIGHTBOX_ZOOM);
+  });
+});
+
+describe("clampAppZoomLevel", () => {
+  it("passes through a value already within range", () => {
+    expect(clampAppZoomLevel(120)).toBe(120);
+  });
+
+  it("clamps below the minimum up to MIN_APP_ZOOM", () => {
+    expect(clampAppZoomLevel(10)).toBe(MIN_APP_ZOOM);
+    expect(clampAppZoomLevel(-50)).toBe(MIN_APP_ZOOM);
+  });
+
+  it("clamps above the maximum down to MAX_APP_ZOOM", () => {
+    expect(clampAppZoomLevel(9999)).toBe(MAX_APP_ZOOM);
+  });
+
+  it("rounds a fractional percentage to a whole number", () => {
+    expect(clampAppZoomLevel(110.6)).toBe(111);
+  });
+
+  it("falls back to the default for non-finite input", () => {
+    expect(clampAppZoomLevel(NaN)).toBe(DEFAULT_APP_ZOOM);
+    expect(clampAppZoomLevel(Infinity)).toBe(DEFAULT_APP_ZOOM);
+  });
+});
+
+describe("stepAppZoomLevel", () => {
+  it("steps up by one increment", () => {
+    expect(stepAppZoomLevel(100, 1)).toBe(110);
+  });
+
+  it("steps down by one increment", () => {
+    expect(stepAppZoomLevel(100, -1)).toBe(90);
+  });
+
+  it("clamps at MAX_APP_ZOOM when stepping up past it", () => {
+    expect(stepAppZoomLevel(MAX_APP_ZOOM, 1)).toBe(MAX_APP_ZOOM);
+  });
+
+  it("clamps at MIN_APP_ZOOM when stepping down past it", () => {
+    expect(stepAppZoomLevel(MIN_APP_ZOOM, -1)).toBe(MIN_APP_ZOOM);
+  });
+});
+
+describe("resolveAppZoomShortcutAction", () => {
+  it("returns null when Ctrl/Cmd is not held", () => {
+    expect(resolveAppZoomShortcutAction("=", false)).toBeNull();
+    expect(resolveAppZoomShortcutAction("-", false)).toBeNull();
+    expect(resolveAppZoomShortcutAction("0", false)).toBeNull();
+  });
+
+  it("returns zoom_in for Ctrl/Cmd + = or +", () => {
+    expect(resolveAppZoomShortcutAction("=", true)).toBe("zoom_in");
+    expect(resolveAppZoomShortcutAction("+", true)).toBe("zoom_in");
+  });
+
+  it("returns zoom_out for Ctrl/Cmd + - or _", () => {
+    expect(resolveAppZoomShortcutAction("-", true)).toBe("zoom_out");
+    expect(resolveAppZoomShortcutAction("_", true)).toBe("zoom_out");
+  });
+
+  it("returns reset for Ctrl/Cmd + 0", () => {
+    expect(resolveAppZoomShortcutAction("0", true)).toBe("reset");
+  });
+
+  it("returns null for an unrelated key even with Ctrl/Cmd held", () => {
+    expect(resolveAppZoomShortcutAction("k", true)).toBeNull();
+  });
+});
+
+describe("loadAppZoomPreference / saveAppZoomPreference", () => {
+  let store: Record<string, string>;
+
+  beforeEach(() => {
+    store = {};
+    (globalThis as { localStorage?: Storage }).localStorage = {
+      getItem: (key: string) => (key in store ? store[key] : null),
+      setItem: (key: string, value: string) => {
+        store[key] = value;
+      },
+      removeItem: (key: string) => {
+        delete store[key];
+      },
+      clear: () => {
+        store = {};
+      },
+      get length() {
+        return Object.keys(store).length;
+      },
+      key: (index: number) => Object.keys(store)[index] ?? null,
+    } as Storage;
+  });
+
+  afterEach(() => {
+    delete (globalThis as { localStorage?: Storage }).localStorage;
+  });
+
+  it("defaults to DEFAULT_APP_ZOOM when nothing is stored", () => {
+    expect(loadAppZoomPreference()).toBe(DEFAULT_APP_ZOOM);
+  });
+
+  it("round-trips a saved zoom level", () => {
+    saveAppZoomPreference(130);
+    expect(loadAppZoomPreference()).toBe(130);
+  });
+
+  it("clamps a corrupt/out-of-range stored value on load", () => {
+    store["bloop:app-zoom-level"] = "999";
+    expect(loadAppZoomPreference()).toBe(MAX_APP_ZOOM);
+  });
+
+  it("falls back to the default for a non-numeric stored value", () => {
+    store["bloop:app-zoom-level"] = "not-a-number";
+    expect(loadAppZoomPreference()).toBe(DEFAULT_APP_ZOOM);
   });
 });

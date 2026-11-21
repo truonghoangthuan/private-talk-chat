@@ -56,6 +56,11 @@ export function MediaViewer({ attachment, isOwn = false }: MediaViewerProps) {
   useEffect(() => {
     if (!lightboxOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore the +/-/0 keys while Ctrl/Cmd is held — that combo is
+      // claimed app-wide for the text-size shortcut (`Ctrl`/`Cmd` +
+      // `=`/`-`/`0`, see `resolveAppZoomShortcutAction`), so a bare
+      // image-zoom bump should never also fire alongside it.
+      if (e.ctrlKey || e.metaKey) return;
       if (e.key === "Escape") setLightboxOpen(false);
       else if (e.key === "+" || e.key === "=") setZoom((z) => stepLightboxZoom(z, 1));
       else if (e.key === "-" || e.key === "_") setZoom((z) => stepLightboxZoom(z, -1));
