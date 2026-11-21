@@ -303,6 +303,67 @@ export interface MessageTextSegment {
   isLink: boolean;
 }
 
+export interface MessageFormatSegment {
+  text: string;
+  bold: boolean;
+  italic: boolean;
+  strikethrough: boolean;
+  code: boolean;
+}
+
+// Order matters: a longer/more-specific marker (`**`, `~~`, `` ` ``) must be
+// tried before the single-`*` italic marker at the same starting position,
+// since the regex engine evaluates alternatives left-to-right and stops at
+// the first one that matches. Each marker's content disallows the marker
+// character itself (no nesting) and a leading/trailing space (so "* not
+// italic *" and a bare lone "*" in ordinary prose are left as plain text).
+const INLINE_FORMAT_PATTERN =
+  /\*\*([^\s*](?:[^*]*[^\s*])?)\*\*|~~([^\s~](?:[^~]*[^\s~])?)~~|`([^`]+)`|\*([^\s*](?:[^*]*[^\s*])?)\*/g;
+
+function plainFormatSegment(text: string): MessageFormatSegment {
+  return { text, bold: false, italic: false, strikethrough: false, code: false };
+}
+
+/**
+ * Splits already-decrypted, already-link-segmented message text into plain
+ * and lightweight-Markdown-formatted segments (issue #113) — `**bold**`,
+ * `*italic*`, `~~strikethrough~~`, and `` `inline code` `` — matching the
+ * Slack/Discord/WhatsApp composer convention, without `dangerouslySetInnerHTML`
+ * (every segment is plain string data the caller renders inside a styled
+ * `<span>`). Purely a display treatment: the raw markers are untouched in
+ * storage, export, and anywhere else only the literal text matters.
+ */
+export function splitMessageTextIntoFormatSegments(text: string): MessageFormatSegment[] {
+  if (!text) return [];
+
+  const segments: MessageFormatSegment[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  INLINE_FORMAT_PATTERN.lastIndex = 0;
+
+  while ((match = INLINE_FORMAT_PATTERN.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      segments.push(plainFormatSegment(text.slice(lastIndex, match.index)));
+    }
+    if (match[1] !== undefined) {
+      segments.push({ text: match[1], bold: true, italic: false, strikethrough: false, code: false });
+    } else if (match[2] !== undefined) {
+      segments.push({ text: match[2], bold: false, italic: false, strikethrough: true, code: false });
+    } else if (match[3] !== undefined) {
+      segments.push({ text: match[3], bold: false, italic: false, strikethrough: false, code: true });
+    } else {
+      segments.push({ text: match[4], bold: false, italic: true, strikethrough: false, code: false });
+    }
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex < text.length) {
+    segments.push(plainFormatSegment(text.slice(lastIndex)));
+  }
+
+  return segments;
+}
+
 const MESSAGE_URL_PATTERN = /https?:\/\/[^\s]+/gi;
 
 /**

@@ -63,6 +63,7 @@ import {
   shouldSubmitComposerOnEnterKeyPress,
   shouldSubmitMessageEditOnKeyDown,
   sortConversationsForSidebar,
+  splitMessageTextIntoFormatSegments,
   splitMessageTextIntoLinkSegments,
   splitTextForSearchHighlight,
   sumUnreadExcludingMuted,
@@ -1656,6 +1657,92 @@ describe("splitMessageTextIntoLinkSegments", () => {
   it("does not treat a bare domain without a scheme as a link", () => {
     expect(splitMessageTextIntoLinkSegments("visit www.example.com please")).toEqual([
       { text: "visit www.example.com please", isLink: false },
+    ]);
+  });
+});
+
+describe("splitMessageTextIntoFormatSegments", () => {
+  const plain = (text: string) => ({
+    text,
+    bold: false,
+    italic: false,
+    strikethrough: false,
+    code: false,
+  });
+
+  it("returns an empty array for empty text", () => {
+    expect(splitMessageTextIntoFormatSegments("")).toEqual([]);
+  });
+
+  it("returns a single plain segment when there are no markers", () => {
+    expect(splitMessageTextIntoFormatSegments("hello world")).toEqual([plain("hello world")]);
+  });
+
+  it("parses **bold** text", () => {
+    expect(splitMessageTextIntoFormatSegments("say **hello** now")).toEqual([
+      plain("say "),
+      { text: "hello", bold: true, italic: false, strikethrough: false, code: false },
+      plain(" now"),
+    ]);
+  });
+
+  it("parses *italic* text", () => {
+    expect(splitMessageTextIntoFormatSegments("say *hello* now")).toEqual([
+      plain("say "),
+      { text: "hello", bold: false, italic: true, strikethrough: false, code: false },
+      plain(" now"),
+    ]);
+  });
+
+  it("parses ~~strikethrough~~ text", () => {
+    expect(splitMessageTextIntoFormatSegments("say ~~hello~~ now")).toEqual([
+      plain("say "),
+      { text: "hello", bold: false, italic: false, strikethrough: true, code: false },
+      plain(" now"),
+    ]);
+  });
+
+  it("parses `inline code`", () => {
+    expect(splitMessageTextIntoFormatSegments("run `ls -la` now")).toEqual([
+      plain("run "),
+      { text: "ls -la", bold: false, italic: false, strikethrough: false, code: true },
+      plain(" now"),
+    ]);
+  });
+
+  it("does not let a single-* italic marker eat into a **bold** pair", () => {
+    expect(splitMessageTextIntoFormatSegments("**bold** then *italic*")).toEqual([
+      { text: "bold", bold: true, italic: false, strikethrough: false, code: false },
+      plain(" then "),
+      { text: "italic", bold: false, italic: true, strikethrough: false, code: false },
+    ]);
+  });
+
+  it("handles multiple markers of different kinds in one message", () => {
+    expect(splitMessageTextIntoFormatSegments("**a** *b* ~~c~~ `d`")).toEqual([
+      { text: "a", bold: true, italic: false, strikethrough: false, code: false },
+      plain(" "),
+      { text: "b", bold: false, italic: true, strikethrough: false, code: false },
+      plain(" "),
+      { text: "c", bold: false, italic: false, strikethrough: true, code: false },
+      plain(" "),
+      { text: "d", bold: false, italic: false, strikethrough: false, code: true },
+    ]);
+  });
+
+  it("leaves an unmatched lone asterisk as plain text", () => {
+    expect(splitMessageTextIntoFormatSegments("3 * 4 = 12")).toEqual([plain("3 * 4 = 12")]);
+  });
+
+  it("leaves markers with a leading/trailing space as plain text (not emphasis)", () => {
+    expect(splitMessageTextIntoFormatSegments("this * is not * italic")).toEqual([
+      plain("this * is not * italic"),
+    ]);
+  });
+
+  it("does not format across a code span containing asterisks", () => {
+    expect(splitMessageTextIntoFormatSegments("`a**b`")).toEqual([
+      { text: "a**b", bold: false, italic: false, strikethrough: false, code: true },
     ]);
   });
 });
