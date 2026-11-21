@@ -99,6 +99,8 @@ import {
   toggleDoubleClickZoom,
   MIN_LIGHTBOX_ZOOM,
   MAX_LIGHTBOX_ZOOM,
+  sanitizeAttachmentDownloadFilename,
+  triggerBlobDownload,
 } from "./ui-polish";
 import type { ContactDto, ConversationDto, MessageDto, PinnedMessageDto } from "./types";
 import type { MessageNotificationToast } from "./ui-polish";
@@ -341,6 +343,46 @@ describe("buildConversationExportFilename", () => {
     expect(buildConversationExportFilename("", exportedAt)).toBe(
       "bloop-export-conversation-2026-11-20.txt"
     );
+  });
+});
+
+describe("sanitizeAttachmentDownloadFilename", () => {
+  it("returns a well-formed file name unchanged", () => {
+    expect(sanitizeAttachmentDownloadFilename("vacation-photo.jpg")).toBe(
+      "vacation-photo.jpg"
+    );
+  });
+
+  it("strips a directory component so a path-like name can't escape the save location", () => {
+    expect(sanitizeAttachmentDownloadFilename("../../etc/passwd")).toBe("passwd");
+    expect(sanitizeAttachmentDownloadFilename("C:\\Windows\\System32\\evil.exe")).toBe(
+      "evil.exe"
+    );
+  });
+
+  it("replaces characters the filesystem rejects in a plain file name", () => {
+    expect(sanitizeAttachmentDownloadFilename('weird:name?"<>|.png')).toBe(
+      "weird_name_____.png"
+    );
+  });
+
+  it("trims leading dots so the saved file isn't hidden", () => {
+    expect(sanitizeAttachmentDownloadFilename("...hidden.png")).toBe("hidden.png");
+  });
+
+  it("falls back to a generic name for null, empty, or entirely-stripped input", () => {
+    expect(sanitizeAttachmentDownloadFilename(null)).toBe("attachment");
+    expect(sanitizeAttachmentDownloadFilename(undefined)).toBe("attachment");
+    expect(sanitizeAttachmentDownloadFilename("")).toBe("attachment");
+    expect(sanitizeAttachmentDownloadFilename("...")).toBe("attachment");
+  });
+});
+
+describe("triggerBlobDownload", () => {
+  it("is a safe no-op in an environment without document/URL (e.g. Vitest's node environment)", () => {
+    expect(() =>
+      triggerBlobDownload(new Blob(["x"], { type: "application/octet-stream" }), "file.bin")
+    ).not.toThrow();
   });
 });
 
