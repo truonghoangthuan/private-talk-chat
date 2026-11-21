@@ -385,6 +385,24 @@ export function triggerBlobDownload(blob: Blob, filename: string): void {
   }
 }
 
+/**
+ * Decides whether a decrypted image attachment's MIME type can be handed
+ * straight to the OS clipboard via `ClipboardItem` (issue #123's "Copy
+ * image" button, next to the existing "Download attachment" button from
+ * issue #119) or needs a canvas round-trip to PNG first. Chromium-based
+ * webviews (the WebView2 shell this app runs in) only accept a narrow,
+ * well-supported allowlist of image clipboard MIME types in practice —
+ * `image/png` and `image/jpeg` — so anything else (`image/webp`,
+ * `image/gif`, `image/svg+xml`, ...) is re-encoded to PNG before the
+ * clipboard write is attempted, the same way most browsers' own
+ * "Copy image" context-menu action behaves for formats they don't
+ * support copying natively.
+ */
+export function canCopyImageMimeTypeDirectly(mimeType: string | null | undefined): boolean {
+  const normalized = (mimeType || "").toLowerCase();
+  return normalized === "image/png" || normalized === "image/jpeg" || normalized === "image/jpg";
+}
+
 export interface MessageTextSegment {
   text: string;
   isLink: boolean;

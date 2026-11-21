@@ -109,6 +109,7 @@ import {
   MIN_APP_ZOOM,
   MAX_APP_ZOOM,
   DEFAULT_APP_ZOOM,
+  canCopyImageMimeTypeDirectly,
 } from "./ui-polish";
 import type { ContactDto, ConversationDto, MessageDto, PinnedMessageDto } from "./types";
 import type { MessageNotificationToast } from "./ui-polish";
@@ -391,6 +392,33 @@ describe("triggerBlobDownload", () => {
     expect(() =>
       triggerBlobDownload(new Blob(["x"], { type: "application/octet-stream" }), "file.bin")
     ).not.toThrow();
+  });
+});
+
+describe("canCopyImageMimeTypeDirectly", () => {
+  it("allows the two widely-supported clipboard image types through unchanged", () => {
+    expect(canCopyImageMimeTypeDirectly("image/png")).toBe(true);
+    expect(canCopyImageMimeTypeDirectly("image/jpeg")).toBe(true);
+  });
+
+  it("is case-insensitive", () => {
+    expect(canCopyImageMimeTypeDirectly("IMAGE/PNG")).toBe(true);
+  });
+
+  it("treats the colloquial image/jpg variant the same as image/jpeg", () => {
+    expect(canCopyImageMimeTypeDirectly("image/jpg")).toBe(true);
+  });
+
+  it("requires PNG conversion for formats the clipboard doesn't reliably accept", () => {
+    expect(canCopyImageMimeTypeDirectly("image/webp")).toBe(false);
+    expect(canCopyImageMimeTypeDirectly("image/gif")).toBe(false);
+    expect(canCopyImageMimeTypeDirectly("image/svg+xml")).toBe(false);
+  });
+
+  it("falls back to requiring conversion for null, undefined, or empty input", () => {
+    expect(canCopyImageMimeTypeDirectly(null)).toBe(false);
+    expect(canCopyImageMimeTypeDirectly(undefined)).toBe(false);
+    expect(canCopyImageMimeTypeDirectly("")).toBe(false);
   });
 });
 
