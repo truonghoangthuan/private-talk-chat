@@ -1631,6 +1631,11 @@ export const KEYBOARD_SHORTCUTS: KeyboardShortcutEntry[] = [
   },
   { keys: "/", description: "Focus the sidebar's conversation filter box" },
   { keys: "?", description: "Show this keyboard shortcuts list" },
+  {
+    keys: "Ctrl/Cmd + = / -",
+    description: "Increase / decrease the app's text size",
+  },
+  { keys: "Ctrl/Cmd + 0", description: "Reset the app's text size to 100%" },
 ];
 
 /**
@@ -2504,4 +2509,97 @@ export function zoomFromWheelDelta(current: number, deltaY: number): number {
  */
 export function toggleDoubleClickZoom(current: number): number {
   return current > MIN_LIGHTBOX_ZOOM ? MIN_LIGHTBOX_ZOOM : 2;
+}
+
+const APP_ZOOM_STORAGE_KEY = "bloop:app-zoom-level";
+
+/** App-wide text size range: 80% up to 150%, in 10-point steps, default 100%. */
+export const MIN_APP_ZOOM = 80;
+export const MAX_APP_ZOOM = 150;
+export const DEFAULT_APP_ZOOM = 100;
+const APP_ZOOM_STEP = 10;
+
+/**
+ * Clamps a candidate app-wide text size percentage to the
+ * `MIN_APP_ZOOM`..`MAX_APP_ZOOM` range and rounds it to a whole percent, so
+ * repeated zoom-in/out clicks, the `Ctrl`/`Cmd` +`=`/`-` keyboard shortcut,
+ * or a corrupt/out-of-range persisted value never scales the whole app's
+ * text below a legible floor or past a layout-breaking ceiling.
+ */
+export function clampAppZoomLevel(zoom: number): number {
+  if (!Number.isFinite(zoom)) return DEFAULT_APP_ZOOM;
+  return Math.round(Math.min(MAX_APP_ZOOM, Math.max(MIN_APP_ZOOM, zoom)));
+}
+
+/**
+ * Steps the app-wide text size by one `APP_ZOOM_STEP` increment — `+1` for
+ * zoom-in (the "+" control / `Ctrl`/`Cmd`+`=`), `-1` for zoom-out (the "-"
+ * control / `Ctrl`/`Cmd`+`-`) — clamped via `clampAppZoomLevel`.
+ */
+export function stepAppZoomLevel(current: number, direction: 1 | -1): number {
+  return clampAppZoomLevel(current + direction * APP_ZOOM_STEP);
+}
+
+/**
+ * Loads the persisted app-wide text size preference from `localStorage`.
+ * Stored globally rather than per-user — same reasoning as the dark/light
+ * theme preference (issue #56): a low-stakes display preference not worth
+ * plumbing a user ID through `App` for. Falls back to `DEFAULT_APP_ZOOM`
+ * when nothing is stored, `localStorage` isn't available (e.g. the Vitest
+ * `node` test environment), or the stored value is missing/corrupt/
+ * non-numeric — this is a best-effort UI preference, never something that
+ * should throw and break the app shell from rendering. Always clamped
+ * through `clampAppZoomLevel`, so a value saved under a previous, wider
+ * min/max range still renders sensibly after a narrower range ships later.
+ */
+export function loadAppZoomPreference(): number {
+  if (typeof localStorage === "undefined") return DEFAULT_APP_ZOOM;
+  try {
+    const raw = localStorage.getItem(APP_ZOOM_STORAGE_KEY);
+    if (!raw) return DEFAULT_APP_ZOOM;
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed)) return DEFAULT_APP_ZOOM;
+    return clampAppZoomLevel(parsed);
+  } catch {
+    return DEFAULT_APP_ZOOM;
+  }
+}
+
+/**
+ * Persists the app-wide text size preference to `localStorage` so it
+ * survives an app restart. A no-op (rather than a thrown error) when
+ * `localStorage` is unavailable or writing fails (e.g. storage quota) —
+ * losing the zoom preference for this session is an acceptable
+ * degradation, never worth surfacing as a user-facing error.
+ */
+export function saveAppZoomPreference(zoom: number): void {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(APP_ZOOM_STORAGE_KEY, String(clampAppZoomLevel(zoom)));
+  } catch {
+    // Storage unavailable or full; the zoom preference just won't persist this session.
+  }
+}
+
+/**
+ * Decides what the app-wide text size shortcut should do for a given
+ * keydown, matching the browser's own `Ctrl`/`Cmd` + `=` / `-` / `0` page
+ * zoom convention (there is nothing for a real browser zoom to act on
+ * inside a desktop webview shell, so the app claims the combo for its own
+ * text-size preference instead). Requires `Ctrl`/`Cmd` to be held — never
+ * suppressed while typing in an editable field, since holding that
+ * modifier means the browser would not insert a literal "="/"-"/"0"
+ * character into the field anyway, so there's nothing to protect by
+ * checking the active element. Returns `null` for every other key
+ * combination.
+ */
+export function resolveAppZoomShortcutAction(
+  key: string,
+  ctrlOrMetaKey: boolean
+): "zoom_in" | "zoom_out" | "reset" | null {
+  if (!ctrlOrMetaKey) return null;
+  if (key === "=" || key === "+") return "zoom_in";
+  if (key === "-" || key === "_") return "zoom_out";
+  if (key === "0") return "reset";
+  return null;
 }

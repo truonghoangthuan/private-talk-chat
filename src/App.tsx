@@ -61,6 +61,11 @@ import {
   findLastEditableOwnMessageId,
   hasMoreOlderMessages,
   mergeOlderMessages,
+  loadAppZoomPreference,
+  saveAppZoomPreference,
+  stepAppZoomLevel,
+  resolveAppZoomShortcutAction,
+  DEFAULT_APP_ZOOM,
 } from "./lib/ui-polish";
 import type {
   ContactDto,
@@ -102,6 +107,11 @@ export function App() {
   const [messageDensity, setMessageDensity] = useState(
     () => loadMessageDensityPreference()
   );
+  // App-wide text size preference (`Ctrl`/`Cmd` + `=`/`-`/`0`, or the
+  // Profile Settings control), expressed as a percentage applied to the
+  // document root's font size so every rem-based Tailwind text/spacing
+  // utility across the whole app scales together.
+  const [appZoom, setAppZoom] = useState<number>(() => loadAppZoomPreference());
   const [contacts, setContacts] = useState<ContactDto[]>([]);
   const [conversations, setConversations] = useState<ConversationDto[]>([]);
   const [selectedConversationId, setSelectedConversationId] = useState<
@@ -189,6 +199,11 @@ export function App() {
   useEffect(() => {
     saveMessageDensityPreference(messageDensity);
   }, [messageDensity]);
+
+  useEffect(() => {
+    document.documentElement.style.fontSize = `${appZoom}%`;
+    saveAppZoomPreference(appZoom);
+  }, [appZoom]);
 
   // Reload the muted-conversation set whenever the signed-in user changes
   // (login, logout, or switching accounts without restarting the app), so
@@ -351,6 +366,13 @@ export function App() {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const active = document.activeElement as HTMLElement | null;
+      const zoomAction = resolveAppZoomShortcutAction(e.key, e.ctrlKey || e.metaKey);
+      if (zoomAction) {
+        e.preventDefault();
+        if (zoomAction === "reset") setAppZoom(DEFAULT_APP_ZOOM);
+        else setAppZoom((z) => stepAppZoomLevel(z, zoomAction === "zoom_in" ? 1 : -1));
+        return;
+      }
       if (
         shouldOpenShortcutsHelp(
           e.key,
@@ -1078,6 +1100,10 @@ export function App() {
           updateStatus={updateStatus}
           use24Hour={use24Hour}
           onToggleClockFormat={() => setUse24Hour((v) => !v)}
+          appZoom={appZoom}
+          onZoomIn={() => setAppZoom((z) => stepAppZoomLevel(z, 1))}
+          onZoomOut={() => setAppZoom((z) => stepAppZoomLevel(z, -1))}
+          onResetZoom={() => setAppZoom(DEFAULT_APP_ZOOM)}
           onCheckUpdate={handleCheckUpdate}
           onInstallUpdate={handleInstallUpdate}
           onClose={() => setProfileOpen(false)}
