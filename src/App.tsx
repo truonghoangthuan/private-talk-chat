@@ -59,6 +59,8 @@ import {
   appendMessageToast,
   dismissMessageToast,
   findLastEditableOwnMessageId,
+  hasMoreOlderMessages,
+  mergeOlderMessages,
 } from "./lib/ui-polish";
 import type {
   ContactDto,
@@ -106,6 +108,11 @@ export function App() {
     string | null
   >(null);
   const [messages, setMessages] = useState<MessageDto[]>([]);
+  // "Load earlier messages" pagination (issue #115): whether the server
+  // might still have older history behind what's loaded, and whether a
+  // page request for it is currently in flight.
+  const [hasMoreHistory, setHasMoreHistory] = useState(false);
+  const [loadingEarlierMessages, setLoadingEarlierMessages] = useState(false);
   const [replyingTo, setReplyingTo] = useState<MessageDto | null>(null);
   const [activeTab, setActiveTab] = useState<"messages" | "pinned">("messages");
   const [searchOpen, setSearchOpen] = useState(false);
@@ -508,6 +515,8 @@ export function App() {
     setSearchQuery("");
     setHighlightedMessageId(null);
     setUnreadDividerMessageId(null);
+    setHasMoreHistory(false);
+    setLoadingEarlierMessages(false);
     if (!user || !selectedConversationId) {
       setMessages([]);
       setPinnedMessages([]);
@@ -520,6 +529,7 @@ export function App() {
       conversations.find((c) => c.id === selectedConversationId)?.unread_count ?? 0;
     tauriClient.messageList(selectedConversationId, 50).then((list) => {
       setMessages(list);
+      setHasMoreHistory(hasMoreOlderMessages(list.length, 50));
       setUnreadDividerMessageId(
         findUnreadDividerMessageId(list, unreadSnapshot, user.id)
       );
@@ -570,6 +580,28 @@ export function App() {
     scrollToMessage(targetId);
     setAutoEditMessageId(targetId);
   }, [messages, user, scrollToMessage]);
+
+  // "Load earlier messages" (issue #115) — fetches the next-older page via
+  // the existing `message_list` IPC command's `before` cursor (the oldest
+  // currently-loaded message's ID) and prepends it, so history beyond the
+  // initial 50 messages is actually reachable instead of a hard ceiling.
+  const handleLoadEarlierMessages = useCallback(async () => {
+    if (!selectedConversationId || loadingEarlierMessages) return;
+    const oldest = messages[0];
+    if (!oldest) return;
+    setLoadingEarlierMessages(true);
+    try {
+      const older = await tauriClient.messageList(selectedConversationId, 50, oldest.id);
+      setMessages((prev) => mergeOlderMessages(prev, older));
+      setHasMoreHistory(hasMoreOlderMessages(older.length, 50));
+    } catch {
+      // Best effort — leave hasMoreHistory as-is so the button stays
+      // available to retry rather than silently vanishing on a transient
+      // network error.
+    } finally {
+      setLoadingEarlierMessages(false);
+    }
+  }, [selectedConversationId, messages, loadingEarlierMessages]);
 
   useEffect(() => {
     if (!user) return;
@@ -924,6 +956,9 @@ export function App() {
                       currentUsername={user.username}
                       use24Hour={use24Hour}
                       density={messageDensity}
+                      hasMoreHistory={hasMoreHistory}
+                      loadingEarlier={loadingEarlierMessages}
+                      onLoadEarlier={handleLoadEarlierMessages}
                       onEditMessage={async (mid, text) => {
                         const updated = await tauriClient.messageEdit(mid, text);
                         setMessages((prev) =>

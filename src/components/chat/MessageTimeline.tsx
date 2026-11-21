@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDown } from "lucide-react";
+import { ArrowDown, History, Loader2 } from "lucide-react";
 import type { MessageDto } from "../../lib/types";
 import {
   buildTimelineItems,
@@ -24,6 +24,12 @@ interface MessageTimelineProps {
   use24Hour?: boolean;
   /** Tighter bubble spacing/padding when the "compact" message density preference is active (issue #111), forwarded to bubbles. */
   density?: MessageDensityPreference;
+  /** Whether an older page of history might still exist above what's loaded (issue #115). */
+  hasMoreHistory?: boolean;
+  /** Whether a "Load earlier messages" request is currently in flight (issue #115). */
+  loadingEarlier?: boolean;
+  /** Fetches and prepends the next-older page of history (issue #115). Omitted entirely when the caller hasn't wired up pagination. */
+  onLoadEarlier?: () => void;
   onEditMessage: (messageId: string, newText: string) => Promise<void>;
   onRemoveMessage: (messageId: string) => Promise<void>;
   onReplyMessage: (message: MessageDto) => void;
@@ -43,6 +49,9 @@ export function MessageTimeline({
   currentUsername = "",
   use24Hour = false,
   density = "comfortable",
+  hasMoreHistory = false,
+  loadingEarlier = false,
+  onLoadEarlier,
   onEditMessage,
   onRemoveMessage,
   onReplyMessage,
@@ -55,6 +64,12 @@ export function MessageTimeline({
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const wasNearBottomRef = useRef(true);
   const prevMessageCountRef = useRef(messages.length);
+  // Set right before an onLoadEarlier() call so the message-count effect
+  // below knows this update prepended older history rather than appending
+  // a new incoming message, and should restore scroll position instead of
+  // running the normal auto-scroll/"N new messages" logic.
+  const pendingHistoryLoadRef = useRef(false);
+  const prevScrollHeightRef = useRef(0);
   const [unseenCount, setUnseenCount] = useState(0);
   const [isNearBottom, setIsNearBottom] = useState(true);
   const timelineItems = useMemo(
@@ -64,6 +79,19 @@ export function MessageTimeline({
 
   useEffect(() => {
     const prevCount = prevMessageCountRef.current;
+    if (pendingHistoryLoadRef.current) {
+      // An older page was just prepended: skip the auto-scroll/unseen-count
+      // logic entirely (it isn't a new incoming message) and instead keep
+      // the viewer's current message in view by offsetting scrollTop by
+      // exactly how much taller the content just became.
+      pendingHistoryLoadRef.current = false;
+      prevMessageCountRef.current = messages.length;
+      const el = scrollRef.current;
+      if (el) {
+        el.scrollTop += el.scrollHeight - prevScrollHeightRef.current;
+      }
+      return;
+    }
     const { shouldAutoScroll, unseenCount: nextUnseenCount } = computeScrollFollowState(
       prevCount,
       messages.length,
@@ -80,6 +108,14 @@ export function MessageTimeline({
     // Only re-run when the message list itself changes; unseenCount is read, not a trigger.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages.length]);
+
+  const handleLoadEarlierClick = () => {
+    if (!onLoadEarlier || loadingEarlier) return;
+    const el = scrollRef.current;
+    prevScrollHeightRef.current = el?.scrollHeight ?? 0;
+    pendingHistoryLoadRef.current = true;
+    onLoadEarlier();
+  };
 
   const handleScroll = () => {
     const el = scrollRef.current;
@@ -115,7 +151,25 @@ export function MessageTimeline({
             Messages are end-to-end encrypted before leaving your Windows device.
           </div>
         ) : (
-          timelineItems.map((item) =>
+          <>
+            {onLoadEarlier && hasMoreHistory && (
+              <div className="flex justify-center mb-3">
+                <button
+                  type="button"
+                  onClick={handleLoadEarlierClick}
+                  disabled={loadingEarlier}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[var(--border-hairline)] bg-[var(--bg-surface)] text-xs font-medium text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:border-[#6366F1]/40 disabled:opacity-60 transition-colors"
+                >
+                  {loadingEarlier ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <History className="w-3.5 h-3.5" />
+                  )}
+                  {loadingEarlier ? "Loading earlier messages..." : "Load earlier messages"}
+                </button>
+              </div>
+            )}
+            {timelineItems.map((item) =>
             item.kind === "epoch_divider" ? (
               <div
                 key={item.id}
@@ -158,7 +212,8 @@ export function MessageTimeline({
                 onAutoEditConsumed={onAutoEditConsumed}
               />
             )
-          )
+            )}
+          </>
         )}
         <div ref={bottomRef} />
       </div>
