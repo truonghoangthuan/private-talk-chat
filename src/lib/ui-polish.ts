@@ -1654,6 +1654,12 @@ export const KEYBOARD_SHORTCUTS: KeyboardShortcutEntry[] = [
     description: "Increase / decrease the app's text size",
   },
   { keys: "Ctrl/Cmd + 0", description: "Reset the app's text size to 100%" },
+  { keys: "Ctrl/Cmd + B", description: "Toggle **bold** on the selected composer text" },
+  { keys: "Ctrl/Cmd + I", description: "Toggle *italic* on the selected composer text" },
+  {
+    keys: "Ctrl/Cmd + Shift + X",
+    description: "Toggle ~~strikethrough~~ on the selected composer text",
+  },
 ];
 
 /**
@@ -2620,4 +2626,93 @@ export function resolveAppZoomShortcutAction(
   if (key === "-" || key === "_") return "zoom_out";
   if (key === "0") return "reset";
   return null;
+}
+
+/**
+ * The lightweight-Markdown inline format markers already rendered by
+ * message bubbles (issue #113), keyed by the format name used by
+ * `resolveComposerFormatShortcut`/`toggleInlineFormatMarker`.
+ */
+export const INLINE_FORMAT_MARKERS = {
+  bold: "**",
+  italic: "*",
+  strikethrough: "~~",
+} as const;
+
+export type ComposerFormatShortcut = keyof typeof INLINE_FORMAT_MARKERS;
+
+/**
+ * Decides which inline-format marker (if any) a composer keydown should
+ * toggle — `Ctrl`/`Cmd` + `B` (bold), `Ctrl`/`Cmd` + `I` (italic), or
+ * `Ctrl`/`Cmd` + `Shift` + `X` (strikethrough) — matching the Word/Google
+ * Docs/Slack text-editor convention, so the three inline markers the
+ * message bubble already renders (issue #113) no longer have to be typed
+ * blind by hand. Returns `null` for every other key combination so the
+ * caller lets the keystroke fall through untouched (e.g. a bare "b"
+ * still types a letter).
+ */
+export function resolveComposerFormatShortcut(
+  key: string,
+  ctrlOrMetaKey: boolean,
+  shiftKey: boolean
+): ComposerFormatShortcut | null {
+  if (!ctrlOrMetaKey) return null;
+  const lowerKey = key.toLowerCase();
+  if (!shiftKey && lowerKey === "b") return "bold";
+  if (!shiftKey && lowerKey === "i") return "italic";
+  if (shiftKey && lowerKey === "x") return "strikethrough";
+  return null;
+}
+
+/** Result of `toggleInlineFormatMarker`: the new text plus the selection to restore. */
+export interface FormatToggleResult {
+  /** The full text after toggling the marker around the selected range. */
+  text: string;
+  /** Selection start to restore after the toggle. */
+  selectionStart: number;
+  /** Selection end to restore after the toggle (equals `selectionStart` when nothing was/is selected). */
+  selectionEnd: number;
+}
+
+/**
+ * Toggles a lightweight-Markdown inline format marker (`**bold**`,
+ * `*italic*`, or `~~strikethrough~~` — the same markers the message
+ * bubble already renders, issue #113) around the composer's current
+ * selection (`selectionStart`..`selectionEnd`, clamped to the text's
+ * bounds and swapped if given out of order). With a non-empty selection,
+ * wraps it in the marker — or, if the selection is already wrapped by
+ * exactly that marker on both sides, un-wraps it (toggle back off,
+ * matching the Docs/Word convention of pressing the same combo twice).
+ * With an empty selection, inserts an empty marker pair and leaves the
+ * caret between them, ready to type. Pure text manipulation — the
+ * composer only ever holds plain text, so this never touches encryption
+ * or the wire format.
+ */
+export function toggleInlineFormatMarker(
+  text: string,
+  selectionStart: number,
+  selectionEnd: number,
+  marker: string
+): FormatToggleResult {
+  const length = text.length;
+  const start = Math.max(0, Math.min(length, selectionStart, selectionEnd));
+  const end = Math.max(0, Math.min(length, Math.max(selectionStart, selectionEnd)));
+  const markerLen = marker.length;
+
+  const hasSelection = end > start;
+  const alreadyWrapped =
+    hasSelection &&
+    text.slice(Math.max(0, start - markerLen), start) === marker &&
+    text.slice(end, end + markerLen) === marker;
+
+  if (alreadyWrapped) {
+    const nextText =
+      text.slice(0, start - markerLen) + text.slice(start, end) + text.slice(end + markerLen);
+    return { text: nextText, selectionStart: start - markerLen, selectionEnd: end - markerLen };
+  }
+
+  const nextText = text.slice(0, start) + marker + text.slice(start, end) + marker + text.slice(end);
+  const newStart = start + markerLen;
+  const newEnd = hasSelection ? end + markerLen : newStart;
+  return { text: nextText, selectionStart: newStart, selectionEnd: newEnd };
 }
