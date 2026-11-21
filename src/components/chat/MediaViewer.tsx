@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { Download, Loader2, Minus, Plus, X } from "lucide-react";
+import { Check, Copy, Download, Loader2, Minus, Plus, X } from "lucide-react";
 import type { MediaAttachmentDto } from "../../lib/types";
 import {
   MAX_LIGHTBOX_ZOOM,
   MIN_LIGHTBOX_ZOOM,
+  canCopyImageMimeTypeDirectly,
   sanitizeAttachmentDownloadFilename,
   shouldOpenMediaLightbox,
   stepLightboxZoom,
@@ -17,12 +18,35 @@ interface MediaViewerProps {
   isOwn?: boolean;
 }
 
+// Re-encodes an arbitrary image Blob to PNG via an offscreen canvas, for
+// MIME types `canCopyImageMimeTypeDirectly` doesn't trust the OS
+// clipboard to accept as-is (e.g. `image/webp`, `image/gif`). Not a pure
+// helper — `createImageBitmap`/`canvas` require a real browser/webview —
+// so it stays local to this component rather than in `ui-polish.ts`.
+async function convertImageBlobToPng(blob: Blob): Promise<Blob> {
+  const bitmap = await createImageBitmap(blob);
+  const canvas = document.createElement("canvas");
+  canvas.width = bitmap.width;
+  canvas.height = bitmap.height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("canvas_context_unavailable");
+  ctx.drawImage(bitmap, 0, 0);
+  return await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((pngBlob) => {
+      if (pngBlob) resolve(pngBlob);
+      else reject(new Error("png_conversion_failed"));
+    }, "image/png");
+  });
+}
+
 export function MediaViewer({ attachment, isOwn = false }: MediaViewerProps) {
   const isVideo = attachment.mime_type.startsWith("video/");
   const isExpandable = shouldOpenMediaLightbox(attachment.mime_type);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [zoom, setZoom] = useState(MIN_LIGHTBOX_ZOOM);
   const [downloading, setDownloading] = useState(false);
+  const [copyingImage, setCopyingImage] = useState(false);
+  const [imageCopied, setImageCopied] = useState(false);
 
   // Saves the already-decrypted attachment back to disk (issue #119) by
   // re-fetching it from the app's own `privatetalk-media://` cache (the
@@ -44,6 +68,41 @@ export function MediaViewer({ attachment, isOwn = false }: MediaViewerProps) {
       // Nothing actionable to recover from; the media stays viewable inline.
     } finally {
       setDownloading(false);
+    }
+  };
+
+  // Copies an already-decrypted image attachment straight to the OS
+  // clipboard (issue #123) — same re-fetch-from-cache pattern as
+  // `handleDownload` above, but handing the bytes to `navigator.clipboard`
+  // instead of a "save as" dialog, so a screenshot or photo shared in chat
+  // can be pasted straight into another app without a manual
+  // download-then-reopen round trip. Formats the clipboard doesn't
+  // reliably accept directly (`canCopyImageMimeTypeDirectly`) are
+  // re-encoded to PNG via an offscreen canvas first. Best-effort:
+  // clipboard permission issues, an unsupported browser API, or a failed
+  // conversion are all swallowed rather than surfacing a blocking error
+  // for a convenience action.
+  const handleCopyImage = async (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    if (copyingImage) return;
+    setCopyingImage(true);
+    try {
+      const response = await fetch(attachment.media_url);
+      if (!response.ok) throw new Error("attachment_fetch_failed");
+      let blob = await response.blob();
+      if (!canCopyImageMimeTypeDirectly(blob.type)) {
+        blob = await convertImageBlobToPng(blob);
+      }
+      await navigator.clipboard.write([
+        new ClipboardItem({ [blob.type]: blob }),
+      ]);
+      setImageCopied(true);
+      setTimeout(() => setImageCopied(false), 1500);
+    } catch {
+      // Clipboard unavailable, permission denied, or conversion failed;
+      // the image stays viewable/downloadable via the other controls.
+    } finally {
+      setCopyingImage(false);
     }
   };
 
@@ -106,6 +165,23 @@ export function MediaViewer({ attachment, isOwn = false }: MediaViewerProps) {
         <span className="truncate">{attachment.file_name}</span>
         <span className="flex items-center gap-1.5 shrink-0">
           <span>{(attachment.size_bytes / 1024).toFixed(0)} KB</span>
+          {!isVideo && (
+            <button
+              type="button"
+              onClick={(e) => void handleCopyImage(e)}
+              disabled={copyingImage}
+              className="p-0.5 rounded hover:bg-white/15 disabled:opacity-60 transition-colors"
+              title={imageCopied ? "Copied!" : "Copy image"}
+            >
+              {copyingImage ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : imageCopied ? (
+                <Check className="w-3.5 h-3.5 text-[#10B981]" />
+              ) : (
+                <Copy className="w-3.5 h-3.5" />
+              )}
+            </button>
+          )}
           <button
             type="button"
             onClick={(e) => void handleDownload(e)}
@@ -131,6 +207,21 @@ export function MediaViewer({ attachment, isOwn = false }: MediaViewerProps) {
             setZoom((z) => zoomFromWheelDelta(z, e.deltaY));
           }}
         >
+          <button
+            type="button"
+            onClick={(e) => void handleCopyImage(e)}
+            disabled={copyingImage}
+            className="absolute top-4 right-28 p-2 rounded-lg bg-black/40 text-white hover:bg-black/60 disabled:opacity-60 transition-colors"
+            title={imageCopied ? "Copied!" : "Copy image"}
+          >
+            {copyingImage ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : imageCopied ? (
+              <Check className="w-5 h-5 text-[#10B981]" />
+            ) : (
+              <Copy className="w-5 h-5" />
+            )}
+          </button>
           <button
             type="button"
             onClick={(e) => void handleDownload(e)}
